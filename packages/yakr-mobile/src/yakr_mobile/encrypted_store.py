@@ -163,11 +163,17 @@ class MobileStore:
     def load_route_state(self, contact_name: str) -> RouteState:
         return self.file_store.load_route_state(contact_name)
 
-    def save_inbound_message(self, contact_name: str, seq: int, body: str) -> None:
-        self.file_store.save_inbound_message(contact_name, seq, body)
+    def save_inbound_message(self, contact_name: str, inner, *, identity: Identity) -> None:
+        self.file_store.save_inbound_message(contact_name, inner, identity=identity)
 
-    def list_inbound_messages(self, contact_name: str) -> list[tuple[int, str]]:
-        return self.file_store.list_inbound_messages(contact_name)
+    def list_inbound_messages(self, contact_name: str, identity: Identity) -> list[tuple[int, str]]:
+        return self.file_store.list_inbound_messages(contact_name, identity)
+
+    def sweep_expired_messages(self) -> int:
+        return self.file_store.sweep_expired_messages()
+
+    def sweep_expired_outbound(self) -> int:
+        return self.file_store.sweep_expired_outbound()
 
     def save_outbound_pending(self, contact_name: str, msg_id: str, seq: int, body: str) -> None:
         self.file_store.save_outbound_pending(contact_name, msg_id, seq, body)

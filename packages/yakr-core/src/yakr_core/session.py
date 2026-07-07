@@ -3,17 +3,17 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass
 
-from yakr_core.crypto import derive_mailbox_secret, derive_message_key, xchacha_decrypt, xchacha_encrypt
+from cryptography.hazmat.primitives import serialization
+
+from yakr_core.crypto import derive_mailbox_secret, hkdf_derive, xchacha_decrypt, xchacha_encrypt
 from yakr_core.delivery_profile import DeliveryProfile
+from yakr_core.ephemeral import DEFAULT_BLOB_TTL_MS, enforce_message_ttl
+from yakr_core.errors import DecryptError, DuplicateSeqError, MessageExpiredError, RekeyRequiredError
 from yakr_core.hybrid_pq import needs_pq_rekey
-from yakr_core.errors import DecryptError, DuplicateSeqError, RekeyRequiredError
 from yakr_core.identity import Contact, Identity
 from yakr_core.mailbox import MailboxTag, MailboxTagDeriver
 from yakr_core.message import InnerMessage, OuterBlob, message_id
-from yakr_core.privacy import PrivacyMetrics, decode_padded_plaintext, pad_plaintext
-
-
-DEFAULT_BLOB_TTL_MS = 7 * 24 * 60 * 60 * 1000
+from yakr_core.privacy import decode_padded_plaintext, pad_plaintext
 
 
 @dataclass
@@ -29,6 +29,8 @@ class Session:
     def __init__(self, identity: Identity, contact: Contact) -> None:
         self.identity = identity
         self.contact = contact
+        if contact.ratchet is None:
+            raise ValueError("contact missing double ratchet state; re-pair required")
 
     @property
     def send_direction(self) -> str:
@@ -46,13 +48,26 @@ class Session:
             epoch_secs = self.contact.delivery_profile.mailbox_epoch_secs
         return MailboxTagDeriver(secret, epoch_secs=epoch_secs)
 
+    def _message_aad(self, inner: InnerMessage) -> bytes:
+        return aad_for_message(
+            valid_until=inner.valid_until,
+            conversation_id=inner.conversation_id,
+            seq=inner.seq,
+        )
+
     def _encrypt_inner(self, inner: InnerMessage) -> tuple[bytes, int]:
         raw = inner.to_bytes()
         padded, padding_bytes = pad_plaintext(raw, self.contact.privacy_mode)
-        if self.contact.ratchet is not None:
-            return self.contact.ratchet.encrypt(padded), padding_bytes
-        key = derive_message_key(self.contact.master_secret, inner.seq)
-        return xchacha_encrypt(key, padded), padding_bytes
+        ratchet_payload = self.contact.ratchet.encrypt(padded)
+        return ratchet_payload, padding_bytes
+
+    def _outer_blob(self, ciphertext: bytes, tag: MailboxTag) -> OuterBlob:
+        return OuterBlob(
+            version=1,
+            mailbox_tag=tag.tag,
+            expires_at=int(time.time() * 1000) + DEFAULT_BLOB_TTL_MS,
+            ciphertext=ciphertext,
+        )
 
     def encrypt_text(self, body: str) -> EncryptedMessage:
         self._require_fresh_session()
@@ -65,17 +80,12 @@ class Session:
         )
         ciphertext, padding_bytes = self._encrypt_inner(inner)
         tag = self.mailbox_deriver(outbound=True).derive(self.send_direction)
-        outer = OuterBlob(
-            version=1,
-            mailbox_tag=tag.tag,
-            expires_at=int(time.time() * 1000) + DEFAULT_BLOB_TTL_MS,
-            ciphertext=ciphertext,
-        )
+        outer = self._outer_blob(ciphertext, tag)
         self.contact.next_send_seq += 1
         return EncryptedMessage(
             outer_blob=outer,
             inner_message=inner,
-            msg_id=message_id(ciphertext),
+            msg_id=message_id(outer.ciphertext),
             mailbox_tag=tag,
             padding_bytes=padding_bytes,
         )
@@ -91,17 +101,12 @@ class Session:
         )
         ciphertext, padding_bytes = self._encrypt_inner(inner)
         tag = self.mailbox_deriver(outbound=True).derive(self.send_direction)
-        outer = OuterBlob(
-            version=1,
-            mailbox_tag=tag.tag,
-            expires_at=int(time.time() * 1000) + DEFAULT_BLOB_TTL_MS,
-            ciphertext=ciphertext,
-        )
+        outer = self._outer_blob(ciphertext, tag)
         self.contact.next_send_seq += 1
         return EncryptedMessage(
             outer_blob=outer,
             inner_message=inner,
-            msg_id=message_id(ciphertext),
+            msg_id=message_id(outer.ciphertext),
             mailbox_tag=tag,
             padding_bytes=padding_bytes,
         )
@@ -117,62 +122,41 @@ class Session:
         )
         ciphertext, padding_bytes = self._encrypt_inner(inner)
         tag = self.mailbox_deriver(outbound=True).derive(self.send_direction)
-        outer = OuterBlob(
-            version=1,
-            mailbox_tag=tag.tag,
-            expires_at=int(time.time() * 1000) + DEFAULT_BLOB_TTL_MS,
-            ciphertext=ciphertext,
-        )
+        outer = self._outer_blob(ciphertext, tag)
         self.contact.next_send_seq += 1
         return EncryptedMessage(
             outer_blob=outer,
             inner_message=inner,
-            msg_id=message_id(ciphertext),
+            msg_id=message_id(outer.ciphertext),
             mailbox_tag=tag,
             padding_bytes=padding_bytes,
         )
 
     def decrypt_outer(self, outer: OuterBlob) -> InnerMessage:
         mode = self.contact.privacy_mode
-        if self.contact.ratchet is not None:
-            for offset in range(10):
-                seq_hint = self.contact.ratchet.recv_n + offset
-                try:
-                    padded = self.contact.ratchet.decrypt_at(outer.ciphertext, seq_hint=seq_hint)
-                except Exception:
-                    continue
-                try:
-                    plaintext = decode_padded_plaintext(padded, mode)
-                except ValueError:
-                    continue
-                inner = InnerMessage.from_bytes(plaintext)
-                if inner.conversation_id != self.contact.conversation_id:
-                    raise DecryptError("conversation mismatch")
-                if inner.seq <= self.contact.last_recv_seq:
-                    raise DuplicateSeqError(f"duplicate seq {inner.seq}")
-                self.contact.ratchet.commit_recv(seq_hint)
-                self.contact.last_recv_seq = inner.seq
-                return inner
-            raise DecryptError("unable to decrypt blob")
-
-        for seq in range(max(1, self.contact.last_recv_seq), self.contact.next_send_seq + 5):
-            key = derive_message_key(self.contact.master_secret, seq)
-            try:
-                padded = xchacha_decrypt(key, outer.ciphertext)
-            except Exception:
-                continue
-            try:
-                plaintext = decode_padded_plaintext(padded, mode)
-            except ValueError:
-                continue
-            inner = InnerMessage.from_bytes(plaintext)
-            if inner.conversation_id != self.contact.conversation_id:
-                raise DecryptError("conversation mismatch")
-            if inner.seq <= self.contact.last_recv_seq:
-                raise DuplicateSeqError(f"duplicate seq {inner.seq}")
-            self.contact.last_recv_seq = inner.seq
-            return inner
-        raise DecryptError("unable to decrypt blob")
+        try:
+            padded = self.contact.ratchet.decrypt(outer.ciphertext)
+        except ValueError as exc:
+            if "already received" in str(exc):
+                raise DuplicateSeqError("duplicate message") from exc
+            raise DecryptError("unable to decrypt blob") from exc
+        except Exception as exc:
+            raise DecryptError("unable to decrypt blob") from exc
+        try:
+            plaintext = decode_padded_plaintext(padded, mode)
+        except ValueError as exc:
+            raise DecryptError("invalid padded plaintext") from exc
+        inner = InnerMessage.from_bytes(plaintext)
+        if inner.conversation_id != self.contact.conversation_id:
+            raise DecryptError("conversation mismatch")
+        if inner.seq <= self.contact.last_recv_seq:
+            raise DuplicateSeqError(f"duplicate seq {inner.seq}")
+        try:
+            enforce_message_ttl(inner.valid_until)
+        except MessageExpiredError:
+            raise
+        self.contact.last_recv_seq = inner.seq
+        return inner
 
     def _require_fresh_session(self) -> None:
         if needs_pq_rekey(
@@ -185,3 +169,26 @@ class Session:
 
 def _direction(sender: str, recipient: str) -> str:
     return f"{sender}->{recipient}"
+
+
+def device_storage_key(identity: Identity) -> bytes:
+    from yakr_core.crypto import hkdf_derive
+
+    private_bytes = identity.signing_private.private_bytes(
+        encoding=serialization.Encoding.Raw,
+        format=serialization.PrivateFormat.Raw,
+        encryption_algorithm=serialization.NoEncryption(),
+    )
+    return hkdf_derive(private_bytes, b"yakr/v1.0/local-message-store")
+
+
+def wrap_local_ciphertext(identity: Identity, outer_ciphertext: bytes) -> bytes:
+    from yakr_core.crypto import xchacha_encrypt
+
+    return xchacha_encrypt(device_storage_key(identity), outer_ciphertext)
+
+
+def unwrap_local_ciphertext(identity: Identity, payload: bytes) -> bytes:
+    from yakr_core.crypto import xchacha_decrypt
+
+    return xchacha_decrypt(device_storage_key(identity), payload)

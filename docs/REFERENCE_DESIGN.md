@@ -228,7 +228,7 @@ One relay acts as **mailbox relay** only. No onion wrapping. No path rotation. N
 | Messages | XChaCha20-Poly1305 AEAD inner payload |
 | Mailbox tags | HMAC-SHA256 over `(direction, epoch)` with hourly epochs |
 | Relay API | `POST /v1/blobs`, `GET /v1/blobs/{tag}` |
-| Storage | Relay stores opaque blobs on disk with TTL (7 days default) |
+| Storage | Relay stores opaque blobs on disk with TTL (**24 hours** for messages) |
 | Client store | SQLite: contacts, sessions, outbound pending, inbound messages |
 | Transport | localhost HTTP; **Docker Compose for multi-client testing** |
 

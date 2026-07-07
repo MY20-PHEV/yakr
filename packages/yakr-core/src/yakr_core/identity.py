@@ -10,6 +10,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ed25519, x25519
 
 from yakr_core.crypto import derive_master_secret, derive_mailbox_secret, x25519_shared_secret
+from yakr_core.ratchet import RatchetState
 from yakr_core.hybrid_pq import kem_generate_keypair
 
 if TYPE_CHECKING:
@@ -139,12 +140,14 @@ class Contact:
         shared = x25519_shared_secret(local.agreement_private, remote_agreement)
         master = derive_master_secret(shared)
         conversation_id = conversation_id_for(local.name, remote_name)
+        is_initiator = local.name < remote_name
         return cls(
             name=remote_name,
             signing_public=remote_signing,
             agreement_public=remote_agreement,
             master_secret=master,
             conversation_id=conversation_id,
+            ratchet=RatchetState.from_master(master, is_initiator=is_initiator),
         )
 
     def public_bundle(self) -> dict[str, str]:

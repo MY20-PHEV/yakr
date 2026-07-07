@@ -51,8 +51,10 @@ sequenceDiagram
   Relay->>Relay: validate + store opaque blob
   Note over Bob: offline...
   Bob->>Relay: GET /v1/blobs/{tag}
-  Relay-->>Bob: [{ciphertext, expires_at}]
-  Bob->>Bob: decrypt
+  Relay-->>Bob: [{ciphertext, expires_at, stored_at}]
+  Bob->>Bob: decrypt (double ratchet) + check valid_until
+  Bob->>Alice: delivery receipt via relay
+  Note over Relay: blob expires ≤24h; local store encrypted at rest
           </pre>
         </div>
       </section>

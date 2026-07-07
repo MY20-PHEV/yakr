@@ -67,8 +67,12 @@ yakr/v0.1/master
 yakr/v0.1/message-key
 yakr/v0.1/mailbox-tag
 yakr/v0.4/pair-master
-yakr/v0.4/ratchet-send
-yakr/v0.4/ratchet-recv
+yakr/v1.0/double-ratchet-root
+yakr/v1.0/double-ratchet-send
+yakr/v1.0/double-ratchet-recv
+yakr/v1.0/double-ratchet-rk
+yakr/v1.0/double-ratchet-ck
+yakr/v1.0/local-message-store
 yakr/v0.6/hybrid-master
 yakr/v0.7/relay-delay
 ```

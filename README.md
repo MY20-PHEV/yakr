@@ -12,6 +12,9 @@ A decentralised, social-relay, post-quantum messaging protocol.
 | [docs/spec/relay-rendezvous.md](docs/spec/relay-rendezvous.md) | Group relay as pairing rendezvous (implemented) |
 | [docs/spec/relay-authorization.md](docs/spec/relay-authorization.md) | Who may advertise which relays |
 | [docs/spec/presence-v1.md](docs/spec/presence-v1.md) | Planned v1.1 presence + group relay polling |
+| [docs/spec/ephemeral-messages.md](docs/spec/ephemeral-messages.md) | 24h ephemeral message TTL |
+| [docs/spec/double-ratchet.md](docs/spec/double-ratchet.md) | X25519 double ratchet |
+| [docs/spec/mesh-testing-and-resilience.md](docs/spec/mesh-testing-and-resilience.md) | Mesh stress and relay outage test status |
 | [docs/html/index.html](docs/html/index.html) | Visual protocol guide (HTML + flowcharts) |
 | [docs/demo-vps-charlie.md](docs/demo-vps-charlie.md) | Alice/Bob local + Charlie on VPS demo |
 
@@ -19,10 +22,13 @@ A decentralised, social-relay, post-quantum messaging protocol.
 
 **Phase 9 complete** — Yakr Protocol v1.0 frozen with test vectors, security analysis, and interop verifier.
 
-**Post-v1 additions:** offline 3-QR pairing, relay rendezvous pairing, relay authorization for delivery profiles.
+**Post-v1 additions:** offline 3-QR pairing, relay rendezvous pairing, relay authorization for delivery profiles, **24h ephemeral messages**, **X25519 double ratchet (v2)**, Charlie mesh stress + relay outage tests.
 
 | Document | Description |
 |----------|-------------|
+| [docs/spec/ephemeral-messages.md](docs/spec/ephemeral-messages.md) | 24h TTL policy (non-negotiable) |
+| [docs/spec/double-ratchet.md](docs/spec/double-ratchet.md) | DH double ratchet (`ratchet.version == 2`) |
+| [docs/spec/mesh-testing-and-resilience.md](docs/spec/mesh-testing-and-resilience.md) | Current test status, resilience findings, known gaps |
 | [docs/spec/test-vectors-v1/](docs/spec/test-vectors-v1/) | Interop test vectors |
 | [docs/security/analysis-v1.md](docs/security/analysis-v1.md) | Threat model and mitigations |
 | [interop/README.md](interop/README.md) | Third-party client checklist |

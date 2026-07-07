@@ -36,5 +36,9 @@ class ContactNotFoundError(YakrError):
     code = "YAKR_ERR_CONTACT_NOT_FOUND"
 
 
+class MessageExpiredError(YakrError):
+    code = "YAKR_ERR_MESSAGE_EXPIRED"
+
+
 class RekeyRequiredError(YakrError):
     code = "YAKR_ERR_PQ_REKEY_REQUIRED"

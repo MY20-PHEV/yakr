@@ -6,6 +6,8 @@ import time
 from dataclasses import asdict, dataclass
 from typing import Any, Literal
 
+from yakr_core.ephemeral import MESSAGE_TTL_MS, message_valid_until
+
 
 MessageType = Literal["text", "receipt", "profile"]
 
@@ -17,6 +19,7 @@ class InnerMessage:
     sender_device_id: str
     seq: int
     created_at: int
+    valid_until: int
     type: MessageType
     body: str = ""
     message_id: str | None = None
@@ -28,12 +31,15 @@ class InnerMessage:
     @classmethod
     def from_bytes(cls, data: bytes) -> InnerMessage:
         payload: dict[str, Any] = json.loads(data.decode("utf-8"))
+        created_at = int(payload["created_at"])
+        valid_until = int(payload.get("valid_until", created_at + MESSAGE_TTL_MS))
         return cls(
             version=int(payload["version"]),
             conversation_id=str(payload["conversation_id"]),
             sender_device_id=str(payload["sender_device_id"]),
             seq=int(payload["seq"]),
-            created_at=int(payload["created_at"]),
+            created_at=created_at,
+            valid_until=valid_until,
             type=payload["type"],
             body=str(payload.get("body", "")),
             message_id=payload.get("message_id"),
@@ -47,13 +53,16 @@ class InnerMessage:
         sender_device_id: str,
         seq: int,
         body: str,
+        created_at: int | None = None,
     ) -> InnerMessage:
+        now = created_at if created_at is not None else int(time.time() * 1000)
         return cls(
             version=1,
             conversation_id=conversation_id,
             sender_device_id=sender_device_id,
             seq=seq,
-            created_at=int(time.time() * 1000),
+            created_at=now,
+            valid_until=message_valid_until(created_at_ms=now),
             type="text",
             body=body,
         )
@@ -66,13 +75,16 @@ class InnerMessage:
         sender_device_id: str,
         seq: int,
         message_id: str,
+        created_at: int | None = None,
     ) -> InnerMessage:
+        now = created_at if created_at is not None else int(time.time() * 1000)
         return cls(
             version=1,
             conversation_id=conversation_id,
             sender_device_id=sender_device_id,
             seq=seq,
-            created_at=int(time.time() * 1000),
+            created_at=now,
+            valid_until=message_valid_until(created_at_ms=now),
             type="receipt",
             message_id=message_id,
         )
@@ -85,13 +97,16 @@ class InnerMessage:
         sender_device_id: str,
         seq: int,
         profile_b64: str,
+        created_at: int | None = None,
     ) -> InnerMessage:
+        now = created_at if created_at is not None else int(time.time() * 1000)
         return cls(
             version=1,
             conversation_id=conversation_id,
             sender_device_id=sender_device_id,
             seq=seq,
-            created_at=int(time.time() * 1000),
+            created_at=now,
+            valid_until=message_valid_until(created_at_ms=now),
             type="profile",
             body=profile_b64,
         )
