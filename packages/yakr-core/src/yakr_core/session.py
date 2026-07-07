@@ -132,6 +132,32 @@ class Session:
             padding_bytes=padding_bytes,
         )
 
+    def encrypt_presence(self, payload: "PresencePayload") -> EncryptedMessage:
+        from yakr_core.presence import PresencePayload
+
+        if not isinstance(payload, PresencePayload):
+            raise TypeError("expected PresencePayload")
+        self._require_fresh_session()
+        seq = self.contact.next_send_seq
+        inner = InnerMessage.presence(
+            conversation_id=self.contact.conversation_id,
+            sender_device_id=self.identity.device_id,
+            seq=seq,
+            presence_b64=payload.to_b64(),
+            valid_until=payload.valid_until,
+        )
+        ciphertext, padding_bytes = self._encrypt_inner(inner)
+        tag = self.mailbox_deriver(outbound=True).derive(self.send_direction)
+        outer = self._outer_blob(ciphertext, tag)
+        self.contact.next_send_seq += 1
+        return EncryptedMessage(
+            outer_blob=outer,
+            inner_message=inner,
+            msg_id=message_id(outer.ciphertext),
+            mailbox_tag=tag,
+            padding_bytes=padding_bytes,
+        )
+
     def decrypt_outer(self, outer: OuterBlob) -> InnerMessage:
         mode = self.contact.privacy_mode
         try:

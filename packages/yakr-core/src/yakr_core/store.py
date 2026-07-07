@@ -49,6 +49,12 @@ class LocalStore(Protocol):
 
     def save_route_state(self, contact_name: str, state: RouteState) -> None: ...
 
+    def save_presence(self, payload: "PresencePayload", *, source_contact: str) -> None: ...
+
+    def load_presence(self, operator_name: str) -> "PresencePayload | None": ...
+
+    def list_presences(self) -> list["PresencePayload"]: ...
+
 
 @dataclass
 class FileLocalStore:
@@ -150,6 +156,18 @@ class FileLocalStore:
                 )
                 """
             )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS relay_presence (
+                operator_name TEXT PRIMARY KEY,
+                reachable_url TEXT NOT NULL,
+                relay_active INTEGER NOT NULL,
+                valid_until INTEGER NOT NULL,
+                source_contact TEXT NOT NULL,
+                updated_at INTEGER NOT NULL
+            )
+            """
+        )
         conn.commit()
 
     def save_inbound_message(
@@ -331,3 +349,70 @@ class FileLocalStore:
     def save_privacy_metrics(self, metrics: PrivacyMetrics) -> None:
         self.privacy_metrics_path.parent.mkdir(parents=True, exist_ok=True)
         self.privacy_metrics_path.write_text(json.dumps(metrics.to_dict(), indent=2), encoding="utf-8")
+
+    def save_presence(self, payload: "PresencePayload", *, source_contact: str) -> None:
+        from yakr_core.presence import PresencePayload
+
+        if not isinstance(payload, PresencePayload):
+            raise TypeError("expected PresencePayload")
+        now = int(time.time() * 1000)
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO relay_presence
+                (operator_name, reachable_url, relay_active, valid_until, source_contact, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    payload.operator_name,
+                    payload.reachable_url.rstrip("/"),
+                    1 if payload.relay_active else 0,
+                    payload.valid_until,
+                    source_contact,
+                    now,
+                ),
+            )
+            conn.commit()
+
+    def load_presence(self, operator_name: str) -> "PresencePayload | None":
+        from yakr_core.presence import PresencePayload
+
+        with self._connect() as conn:
+            row = conn.execute(
+                """
+                SELECT reachable_url, relay_active, valid_until
+                FROM relay_presence
+                WHERE operator_name = ?
+                """,
+                (operator_name,),
+            ).fetchone()
+        if row is None:
+            return None
+        url, active, valid_until = row
+        return PresencePayload(
+            operator_name=operator_name,
+            reachable_url=str(url),
+            relay_active=bool(active),
+            valid_until=int(valid_until),
+        )
+
+    def list_presences(self) -> list["PresencePayload"]:
+        from yakr_core.presence import PresencePayload
+
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT operator_name, reachable_url, relay_active, valid_until
+                FROM relay_presence
+                ORDER BY operator_name
+                """
+            ).fetchall()
+        return [
+            PresencePayload(
+                operator_name=str(name),
+                reachable_url=str(url),
+                relay_active=bool(active),
+                valid_until=int(valid_until),
+            )
+            for name, url, active, valid_until in rows
+        ]

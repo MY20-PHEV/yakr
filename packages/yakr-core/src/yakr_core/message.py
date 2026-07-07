@@ -9,7 +9,7 @@ from typing import Any, Literal
 from yakr_core.ephemeral import MESSAGE_TTL_MS, message_valid_until
 
 
-MessageType = Literal["text", "receipt", "profile"]
+MessageType = Literal["text", "receipt", "profile", "presence"]
 
 
 @dataclass
@@ -109,6 +109,31 @@ class InnerMessage:
             valid_until=message_valid_until(created_at_ms=now),
             type="profile",
             body=profile_b64,
+        )
+
+    @classmethod
+    def presence(
+        cls,
+        *,
+        conversation_id: str,
+        sender_device_id: str,
+        seq: int,
+        presence_b64: str,
+        created_at: int | None = None,
+        valid_until: int | None = None,
+    ) -> InnerMessage:
+        from yakr_core.presence import presence_valid_until
+
+        now = created_at if created_at is not None else int(time.time() * 1000)
+        return cls(
+            version=1,
+            conversation_id=conversation_id,
+            sender_device_id=sender_device_id,
+            seq=seq,
+            created_at=now,
+            valid_until=valid_until if valid_until is not None else presence_valid_until(created_at_ms=now),
+            type="presence",
+            body=presence_b64,
         )
 
 
