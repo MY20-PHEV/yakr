@@ -764,6 +764,35 @@ interop/                          third-party client checklist
 
 ---
 
+## Phase 10 — Presence and Group Relay Polling
+
+**Depends on:** Phase 9  
+**Status:** Planned  
+**Protocol:** `yakr-v1.1` (proposed extension)
+
+### Goal
+
+Peers exchange **live reachability and relay status** with paired contacts. A **reachable group relay** in the friend graph provides store-and-forward; all clients **poll** it for message updates.
+
+### Deliverables
+
+```text
+docs/spec/presence-v1.md
+docs/adr/007-presence-and-group-relays.md
+embedded client relay + presence push
+group-relay poll routing in send/fetch
+```
+
+See [docs/spec/phase-10-presence.md](spec/phase-10-presence.md).
+
+### Exit Criteria
+
+- [ ] Presence messages (`type=presence`) between paired contacts
+- [ ] Send/fetch routing: presence → profile → group relay
+- [ ] Five-peer testkit with one shared relay and poll-based offline delivery
+
+---
+
 ## 6. Cross-Cutting Concerns
 
 ### Error Model
