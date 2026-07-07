@@ -757,10 +757,10 @@ interop/                          third-party client checklist
 
 ### Exit Criteria
 
-- [ ] Second client (minimal CLI or mobile) passes interop suite using only public spec
-- [ ] Security analysis reviewed against stated threat model
-- [ ] Versioning and extension rules documented
-- [ ] Relay reference implementation passes abuse-limit conformance tests
+- [x] Second client (minimal CLI or mobile) passes interop suite using only public spec
+- [x] Security analysis reviewed against stated threat model
+- [x] Versioning and extension rules documented
+- [x] Relay reference implementation passes abuse-limit conformance tests
 
 ---
 

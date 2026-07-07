@@ -26,7 +26,7 @@ from yakr_core.errors import RekeyRequiredError
 from cryptography.hazmat.primitives.asymmetric import x25519
 from yakr_testkit.hybrid_verify import verify_hybrid_master
 
-FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "hybrid_kex_vectors.json"
+FIXTURES = Path(__file__).resolve().parents[3] / "docs" / "spec" / "test-vectors-v1" / "hybrid_kex.json"
 
 
 def test_hybrid_kex_vectors_match_independent_verifier() -> None:

@@ -8,10 +8,18 @@ A decentralised, social-relay, post-quantum messaging protocol.
 |----------|-------------|
 | [whitepaper.md](whitepaper.md) | Conceptual protocol whitepaper (Draft v0.1) |
 | [docs/REFERENCE_DESIGN.md](docs/REFERENCE_DESIGN.md) | Phased reference implementation plan |
+| [docs/spec/yakr-protocol-v1.md](docs/spec/yakr-protocol-v1.md) | Normative v1.0 protocol spec |
 
 ## Status
 
-**Phase 1 (in progress)** — single-hop offline delivery via Dockerised CLI clients and HTTP relay.
+**Phase 9 complete** — Yakr Protocol v1.0 frozen with test vectors, security analysis, and interop verifier.
+
+| Document | Description |
+|----------|-------------|
+| [docs/spec/yakr-protocol-v1.md](docs/spec/yakr-protocol-v1.md) | Normative v1.0 protocol spec |
+| [docs/spec/test-vectors-v1/](docs/spec/test-vectors-v1/) | Interop test vectors |
+| [docs/security/analysis-v1.md](docs/security/analysis-v1.md) | Threat model and mitigations |
+| [interop/README.md](interop/README.md) | Third-party client checklist |
 
 ## Quick Summary
 
@@ -44,6 +52,15 @@ Spin up isolated client identities with persistent volumes — easiest way to te
 ./scripts/demo_invite_pairing.sh        # Phase 4 invite pairing + tickets
 ./scripts/demo_profile_delivery.sh      # Phase 5 delivery profiles + direct P2P
 ./scripts/demo_hybrid_pairing.sh          # Phase 6 hybrid PQ pairing
+
+## Interop (Phase 9)
+
+```bash
+uv run pytest packages/yakr-testkit/tests/test_phase9_interop.py -q
+uv run pytest packages/yakr-testkit/tests/test_phase9_relay_abuse.py -q
+```
+
+See [interop/README.md](interop/README.md) and [docs/spec/yakr-protocol-v1.md](docs/spec/yakr-protocol-v1.md).
 
 ## Android (Phase 8)
 
