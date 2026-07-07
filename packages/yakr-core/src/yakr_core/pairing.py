@@ -11,12 +11,15 @@ from cryptography.hazmat.primitives.asymmetric import x25519
 from yakr_core.crypto import hkdf_derive, x25519_shared_secret
 from yakr_core.delivery_profile import DeliveryProfile, verify_delivery_profile
 from yakr_core.hybrid_pq import derive_hybrid_master, kem_decapsulate, kem_encapsulate
-from yakr_core.identity import Contact, Identity, conversation_id_for
+from yakr_core.identity import Contact, Identity, b64decode, b64encode, conversation_id_for
 from yakr_core.invite import InviteBundle, invite_supports_hybrid
 from yakr_core.ratchet import RatchetState
 
 
 PAIR_MASTER_INFO = b"yakr/v0.4/pair-master"
+PAIR_REQUEST_PREFIX = "yakr://pair-request/"
+PAIR_RESPONSE_PREFIX = "yakr://pair-response/"
+OFFLINE_RENDEZVOUS_HINT = "offline://qr"
 
 
 @dataclass(frozen=True)
@@ -193,6 +196,135 @@ def profile_from_pairing_bytes(data: bytes, signing_public: bytes) -> DeliveryPr
     profile = DeliveryProfile.from_bytes(data)
     verify_delivery_profile(profile, signing_public)
     return profile
+
+
+def pair_request_to_url(request: PairingRequest) -> str:
+    encoded = b64encode(request.to_bytes())
+    return f"{PAIR_REQUEST_PREFIX}{encoded}"
+
+
+def pair_request_from_url(url: str) -> PairingRequest:
+    if not url.startswith(PAIR_REQUEST_PREFIX):
+        raise ValueError("invalid pair request url")
+    return PairingRequest.from_bytes(b64decode(url[len(PAIR_REQUEST_PREFIX) :]))
+
+
+def pair_response_to_url(response: PairingResponse) -> str:
+    encoded = b64encode(response.to_bytes())
+    return f"{PAIR_RESPONSE_PREFIX}{encoded}"
+
+
+def pair_response_from_url(url: str) -> PairingResponse:
+    if not url.startswith(PAIR_RESPONSE_PREFIX):
+        raise ValueError("invalid pair response url")
+    return PairingResponse.from_bytes(b64decode(url[len(PAIR_RESPONSE_PREFIX) :]))
+
+
+@dataclass(frozen=True)
+class PendingPairingSession:
+    invite_url: str
+    request_url: str
+    ephemeral_private_hex: str
+    pq_secret_hex: str | None = None
+
+    def to_dict(self) -> dict[str, str | None]:
+        return {
+            "invite_url": self.invite_url,
+            "request_url": self.request_url,
+            "ephemeral_private_hex": self.ephemeral_private_hex,
+            "pq_secret_hex": self.pq_secret_hex,
+        }
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, str | None]) -> PendingPairingSession:
+        return cls(
+            invite_url=str(payload["invite_url"]),
+            request_url=str(payload["request_url"]),
+            ephemeral_private_hex=str(payload["ephemeral_private_hex"]),
+            pq_secret_hex=payload.get("pq_secret_hex"),
+        )
+
+    def secrets(self) -> PairingSecrets:
+        private = x25519.X25519PrivateKey.from_private_bytes(bytes.fromhex(self.ephemeral_private_hex))
+        pq_secret = bytes.fromhex(self.pq_secret_hex) if self.pq_secret_hex else None
+        return PairingSecrets(ephemeral_private=private, pq_secret=pq_secret)
+
+
+def _ephemeral_private_hex(key: x25519.X25519PrivateKey) -> str:
+    return key.private_bytes(
+        encoding=serialization.Encoding.Raw,
+        format=serialization.PrivateFormat.Raw,
+        encryption_algorithm=serialization.NoEncryption(),
+    ).hex()
+
+
+def build_offline_pairing_request(
+    identity: Identity,
+    invite: InviteBundle,
+    *,
+    joiner_name: str | None = None,
+    joiner_profile: bytes = b"",
+) -> tuple[PairingRequest, PairingSecrets, str]:
+    request, secrets = build_pairing_request(
+        identity,
+        invite,
+        joiner_name=joiner_name or identity.name,
+        joiner_profile=joiner_profile,
+    )
+    return request, secrets, pair_request_to_url(request)
+
+
+def respond_to_pair_request(
+    identity: Identity,
+    invite: InviteBundle,
+    request: PairingRequest,
+    *,
+    inviter_profile: bytes = b"",
+    inviter_ephemeral_private: x25519.X25519PrivateKey | None = None,
+) -> tuple[PairingResponse, Contact, str]:
+    from yakr_core.invite import verify_invite
+
+    verify_invite(invite)
+    if request.invite_secret != invite.invite_secret:
+        raise ValueError("pairing request invite secret mismatch")
+    ephemeral = inviter_ephemeral_private or x25519.X25519PrivateKey.generate()
+    response, contact = inviter_complete_pairing(
+        identity,
+        invite,
+        request,
+        ephemeral,
+        inviter_profile=inviter_profile,
+    )
+    return response, contact, pair_response_to_url(response)
+
+
+def finish_offline_pairing(
+    identity: Identity,
+    invite: InviteBundle,
+    request: PairingRequest,
+    secrets: PairingSecrets,
+    response_url: str,
+    *,
+    contact_name: str | None = None,
+) -> Contact:
+    response = pair_response_from_url(response_url)
+    contact = joiner_complete_pairing(identity, invite, request, secrets, response)
+    contact.name = contact_name or invite.inviter_name
+    return contact
+
+
+def pending_session_from_request(
+    invite_url: str,
+    request: PairingRequest,
+    secrets: PairingSecrets,
+) -> PendingPairingSession:
+    pq_hex = secrets.pq_secret.hex() if secrets.pq_secret else None
+    return PendingPairingSession(
+        invite_url=invite_url,
+        request_url=pair_request_to_url(request),
+        ephemeral_private_hex=_ephemeral_private_hex(secrets.ephemeral_private),
+        pq_secret_hex=pq_hex,
+    )
 
 
 def inviter_complete_pairing(

@@ -23,11 +23,15 @@ from yakr_core.pairing import (
     build_pairing_request,
     joiner_complete_pairing,
 )
+from yakr_core.pairing import OFFLINE_RENDEZVOUS_HINT
 from yakr_core.store import FileLocalStore
 from yakr_cli.profile_cmds import build_local_profile
+from yakr_cli.offline_cmds import offline_app
+from yakr_cli.rendezvous import RendezvousState, create_rendezvous_app
 
 console = Console()
 invite_app = typer.Typer(help="Invite-based contact pairing")
+invite_app.add_typer(offline_app, name="offline")
 
 
 @invite_app.command("create")
@@ -35,14 +39,16 @@ def invite_create(
     listen_host: str = typer.Option("127.0.0.1", "--host"),
     listen_port: int = typer.Option(8090, "--port"),
     wait: bool = typer.Option(True, "--wait/--no-wait", help="Wait for a joiner"),
+    offline: bool = typer.Option(False, "--offline", help="In-person QR pairing only (no rendezvous server)"),
     hybrid_pq: bool = typer.Option(False, "--hybrid/--no-hybrid", help="Publish hybrid PQ invite"),
+    qr_out: Path | None = typer.Option(None, "--qr-out", help="Write invite QR PNG"),
 ) -> None:
     """Create a signed invite and optionally serve rendezvous pairing."""
     from yakr_cli.main import _require_identity, _store
 
     store = _store()
     identity = _require_identity(store)
-    rendezvous_hint = f"http://{listen_host}:{listen_port}"
+    rendezvous_hint = OFFLINE_RENDEZVOUS_HINT if offline else f"http://{listen_host}:{listen_port}"
     bundle = create_invite(identity, rendezvous_hint=rendezvous_hint, hybrid_pq=hybrid_pq)
     url = invite_to_url(bundle)
     code = safety_code(bundle)
@@ -59,6 +65,18 @@ def invite_create(
 
     console.print(f"[green]Invite URL:[/green] {url}")
     console.print(f"[green]Safety code:[/green] {code}")
+    if offline:
+        console.print("[yellow]Offline pairing:[/yellow] show invite QR, then run:")
+        console.print("  joiner: yakr invite offline joiner-start <invite-url>")
+        console.print("  inviter: yakr invite offline inviter-respond <pair-request-url>")
+        console.print("  joiner: yakr invite offline joiner-finish <pair-response-url>")
+        if qr_out is not None:
+            from yakr_cli.qr_util import url_to_qr_png
+
+            qr_out.parent.mkdir(parents=True, exist_ok=True)
+            qr_out.write_bytes(url_to_qr_png(url))
+            console.print(f"[cyan]QR PNG:[/cyan] {qr_out}")
+        return
 
     if not wait:
         return
@@ -106,6 +124,9 @@ def invite_accept(
         bundle = invite_from_url(Path(invite).read_text(encoding="utf-8").strip())
 
     verify_invite(bundle)
+    if bundle.rendezvous_hint == OFFLINE_RENDEZVOUS_HINT:
+        console.print("[red]Offline invite — use: yakr invite offline joiner-start <invite-url>[/red]")
+        raise typer.Exit(code=1)
     console.print(f"[green]Safety code:[/green] {safety_code(bundle)}")
 
     request, secrets = build_pairing_request(

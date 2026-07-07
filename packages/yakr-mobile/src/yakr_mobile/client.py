@@ -13,13 +13,24 @@ from yakr_core.errors import YakrError
 from yakr_core.identity import Identity
 from yakr_core.invite import invite_from_url, verify_invite
 from yakr_core.message import OuterBlob
-from yakr_core.pairing import PairingResponse, PairingSecrets, build_pairing_request, joiner_complete_pairing
+from yakr_core.pairing import (
+    OFFLINE_RENDEZVOUS_HINT,
+    PairingResponse,
+    PairingSecrets,
+    build_offline_pairing_request,
+    build_pairing_request,
+    finish_offline_pairing,
+    joiner_complete_pairing,
+    pair_request_from_url,
+    pending_session_from_request,
+    respond_to_pair_request,
+)
 from yakr_core.privacy import fetch_tags_for_mode
 from yakr_core.session import Session
 
 from yakr_mobile.device_settings import DeviceSettings, fetch_poll_interval, relay_may_run
 from yakr_mobile.encrypted_store import MobileStore
-from yakr_mobile.invite_qr import InvitePresentation, build_invite_presentation
+from yakr_mobile.invite_qr import InvitePresentation, QrPayload, build_invite_presentation, build_qr_payload
 
 
 @dataclass
@@ -57,15 +68,75 @@ class YakrMobileClient:
     def create_invite(
         self,
         *,
-        rendezvous_hint: str,
+        rendezvous_hint: str | None = None,
         hybrid_pq: bool = False,
+        offline: bool = False,
     ) -> InvitePresentation:
         identity = self._require_identity()
+        hint = OFFLINE_RENDEZVOUS_HINT if offline else (rendezvous_hint or "http://127.0.0.1:8090")
         return build_invite_presentation(
             identity,
-            rendezvous_hint=rendezvous_hint,
+            rendezvous_hint=hint,
             hybrid_pq=hybrid_pq,
         )
+
+    def start_offline_pairing(self, invite_url: str) -> QrPayload:
+        identity = self._require_identity()
+        bundle = invite_from_url(invite_url)
+        verify_invite(bundle)
+        profile = self.store.file_store.load_local_profile()
+        if profile is None:
+            from yakr_cli.profile_cmds import build_local_profile
+
+            profile = build_local_profile(identity)
+            self.store.file_store.save_local_profile(profile)
+        request, secrets, request_url = build_offline_pairing_request(
+            identity,
+            bundle,
+            joiner_name=identity.name,
+            joiner_profile=profile.to_bytes(),
+        )
+        session = pending_session_from_request(invite_url, request, secrets)
+        self.store.file_store.save_pending_pairing(session)
+        return build_qr_payload(request_url)
+
+    def respond_offline_pairing(self, invite_url: str, request_url: str):
+        identity = self._require_identity()
+        bundle = invite_from_url(invite_url)
+        request = pair_request_from_url(request_url)
+        profile = self.store.file_store.load_local_profile()
+        if profile is None:
+            from yakr_cli.profile_cmds import build_local_profile
+
+            profile = build_local_profile(identity)
+            self.store.file_store.save_local_profile(profile)
+        _, contact, response_url = respond_to_pair_request(
+            identity,
+            bundle,
+            request,
+            inviter_profile=profile.to_bytes(),
+        )
+        self.store.save_contact(contact)
+        return contact, build_qr_payload(response_url)
+
+    def finish_offline_pairing(self, response_url: str, *, contact_name: str | None = None):
+        identity = self._require_identity()
+        session = self.store.file_store.load_pending_pairing()
+        if session is None:
+            raise YakrError("no pending offline pairing session")
+        bundle = invite_from_url(session.invite_url)
+        request = pair_request_from_url(session.request_url)
+        contact = finish_offline_pairing(
+            identity,
+            bundle,
+            request,
+            session.secrets(),
+            response_url,
+            contact_name=contact_name,
+        )
+        self.store.save_contact(contact)
+        self.store.file_store.clear_pending_pairing()
+        return contact
 
     def complete_pairing_as_joiner(
         self,

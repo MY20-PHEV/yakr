@@ -33,6 +33,7 @@ Mobile clients (Phase 8) are a reference profile, not a wire-format requirement.
 | `yakr-v0.6` | Hybrid PQ pairing |
 | `yakr-v0.7` | Privacy metadata extensions |
 | `yakr-v1.0` | Frozen interop baseline (this document) |
+| `yakr-v1.1` | Presence + group relay polling (draft, see `presence-v1.md`) |
 
 A `yakr-v1.0` implementation MUST accept all prior wire objects where noted below and MUST NOT emit deprecated fields.
 
@@ -139,7 +140,7 @@ tag = HMAC-SHA256(
 }
 ```
 
-Types: `text`, `receipt`, `profile`. Keys are sorted lexicographically on encode.
+Types: `text`, `receipt`, `profile`, `presence` (v1.1). Keys are sorted lexicographically on encode.
 
 Plaintext is encrypted with XChaCha20-Poly1305 under `message_key(seq)`. Ciphertext format: `nonce(24) || ciphertext+tag`.
 
@@ -163,6 +164,15 @@ Hybrid invites (`yakr-v0.6`) add `kem_public`, `pq_signing_public`, `pq_signatur
 Signature covers the CBOR map **without** `signature` / `pq_signature` keys.
 
 Invite URL: `yakr://invite/<base64url(cbor)>`.
+
+Offline pairing (no network during handshake):
+
+```text
+yakr://pair-request/<base64url cbor PairingRequest>
+yakr://pair-response/<base64url cbor PairingResponse>
+```
+
+See `docs/spec/offline-pairing.md`.
 
 **Safety code** (out-of-band verification):
 
@@ -261,6 +271,8 @@ Independent implementations MUST pass the interop verifier suite (see `interop/R
 ## 9. Security Considerations
 
 See `docs/security/analysis-v1.md` for threat model, trust assumptions, and mitigations.
+
+Planned extensions: `docs/spec/presence-v1.md` (live reachability, group relay polling).
 
 ## 10. References
 

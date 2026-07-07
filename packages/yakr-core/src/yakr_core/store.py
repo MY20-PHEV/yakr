@@ -187,6 +187,30 @@ class FileLocalStore:
         self.local_profile_path.write_text(profile.to_b64(), encoding="utf-8")
 
     @property
+    def pending_pairing_path(self) -> Path:
+        return self.root / "pending_pairing.json"
+
+    def save_pending_pairing(self, session) -> None:
+        from yakr_core.pairing import PendingPairingSession
+
+        if not isinstance(session, PendingPairingSession):
+            raise TypeError("expected PendingPairingSession")
+        self.pending_pairing_path.parent.mkdir(parents=True, exist_ok=True)
+        self.pending_pairing_path.write_text(json.dumps(session.to_dict(), indent=2), encoding="utf-8")
+
+    def load_pending_pairing(self):
+        from yakr_core.pairing import PendingPairingSession
+
+        if not self.pending_pairing_path.exists():
+            return None
+        payload = json.loads(self.pending_pairing_path.read_text(encoding="utf-8"))
+        return PendingPairingSession.from_dict(payload)
+
+    def clear_pending_pairing(self) -> None:
+        if self.pending_pairing_path.exists():
+            self.pending_pairing_path.unlink()
+
+    @property
     def privacy_metrics_path(self) -> Path:
         return self.root / "privacy_metrics.json"
 
