@@ -26,20 +26,18 @@ from yakr_relay.store import BlobStore
 
 
 @dataclass
-class CharlieMesh:
+class RelayHandle:
+    name: str
     relay_url: str
     relay_port: int
-    alice: MeshParticipant
-    bob: MeshParticipant
-    charlie: MeshParticipant
-    server: uvicorn.Server | None
-    thread: threading.Thread | None
+    wrap_secret: bytes
     relay_data_path: Path
     pairing_path: Path
-    wrap_secret: bytes
+    server: uvicorn.Server | None = None
+    thread: threading.Thread | None = None
     relay_host: str = "127.0.0.1"
 
-    def stop_relay(self) -> None:
+    def stop(self) -> None:
         if self.server is None:
             return
         self.server.should_exit = True
@@ -49,14 +47,14 @@ class CharlieMesh:
         self.thread = None
         time.sleep(0.15)
 
-    def start_relay(self) -> None:
+    def start(self) -> None:
         if self.server is not None:
             return
         store = BlobStore(self.relay_data_path)
         pairing_store = PairingStore(self.pairing_path)
         app = create_app(
             store,
-            RelayRuntime(role="both", wrap_secret=self.wrap_secret, name="charlie"),
+            RelayRuntime(role="both", wrap_secret=self.wrap_secret, name=self.name),
             pairing_store=pairing_store,
         )
         config = uvicorn.Config(
@@ -72,14 +70,52 @@ class CharlieMesh:
         while not server.started and time.time() < deadline:
             time.sleep(0.05)
         if not server.started:
-            raise RuntimeError("relay failed to start")
+            raise RuntimeError(f"relay {self.name} failed to start")
         self.server = server
         self.thread = thread
         self.relay_url = f"http://{self.relay_host}:{self.relay_port}"
         _wait_relay_healthy(self.relay_url)
 
+
+@dataclass
+class CharlieMesh:
+    charlie_relay: RelayHandle
+    dennis_relay: RelayHandle
+    alice: MeshParticipant
+    bob: MeshParticipant
+    charlie: MeshParticipant
+    dennis: MeshParticipant
+
+    @property
+    def relay_url(self) -> str:
+        return self.charlie_relay.relay_url
+
+    @property
+    def relay_port(self) -> int:
+        return self.charlie_relay.relay_port
+
+    def stop_relay(self) -> None:
+        self.charlie_relay.stop()
+
+    def start_relay(self) -> None:
+        self.charlie_relay.start()
+
+    def stop_dennis_relay(self) -> None:
+        self.dennis_relay.stop()
+
+    def start_dennis_relay(self) -> None:
+        self.dennis_relay.start()
+
+    def stop_all_relays(self) -> None:
+        self.charlie_relay.stop()
+        self.dennis_relay.stop()
+
+    def start_all_relays(self) -> None:
+        self.charlie_relay.start()
+        self.dennis_relay.start()
+
     def stop(self) -> None:
-        self.stop_relay()
+        self.stop_all_relays()
 
 
 def _wait_relay_healthy(relay_url: str, *, timeout_secs: float = 5.0) -> None:
@@ -101,14 +137,15 @@ def _start_relay_server(
     pairing_path: Path,
     wrap_secret: bytes,
     *,
+    name: str,
     host: str = "127.0.0.1",
     port: int = 0,
-) -> tuple[uvicorn.Server, threading.Thread, int]:
+) -> RelayHandle:
     store = BlobStore(relay_data_path)
     pairing_store = PairingStore(pairing_path)
     app = create_app(
         store,
-        RelayRuntime(role="both", wrap_secret=wrap_secret, name="charlie"),
+        RelayRuntime(role="both", wrap_secret=wrap_secret, name=name),
         pairing_store=pairing_store,
     )
     config = uvicorn.Config(app, host=host, port=port, log_level="error")
@@ -119,11 +156,21 @@ def _start_relay_server(
     while not server.started and time.time() < deadline:
         time.sleep(0.05)
     if not server.started:
-        raise RuntimeError("relay failed to start")
+        raise RuntimeError(f"relay {name} failed to start")
     relay_port = server.servers[0].sockets[0].getsockname()[1]
     relay_url = f"http://{host}:{relay_port}"
     _wait_relay_healthy(relay_url)
-    return server, thread, relay_port
+    return RelayHandle(
+        name=name,
+        relay_url=relay_url,
+        relay_port=relay_port,
+        wrap_secret=wrap_secret,
+        relay_data_path=relay_data_path,
+        pairing_path=pairing_path,
+        server=server,
+        thread=thread,
+        relay_host=host,
+    )
 
 
 def _joiner_accept(relay_url: str, invite_url: str, bob_store: FileLocalStore, bob: Identity) -> Contact:
@@ -144,34 +191,73 @@ def _joiner_accept(relay_url: str, invite_url: str, bob_store: FileLocalStore, b
 
 
 def build_charlie_mesh(tmp_path: Path, *, wrap_secret: bytes | None = None) -> CharlieMesh:
-    wrap_secret = wrap_secret or secrets.token_bytes(32)
-    relay_data_path = tmp_path / "relay-data"
-    pairing_path = tmp_path / "pairing"
-    server, thread, relay_port = _start_relay_server(relay_data_path, pairing_path, wrap_secret)
-    relay_url = f"http://127.0.0.1:{relay_port}"
+    charlie_wrap = wrap_secret or secrets.token_bytes(32)
+    dennis_wrap = secrets.token_bytes(32)
+    charlie_relay = _start_relay_server(
+        tmp_path / "relay-charlie",
+        tmp_path / "pairing-charlie",
+        charlie_wrap,
+        name="charlie",
+    )
+    dennis_relay = _start_relay_server(
+        tmp_path / "relay-dennis",
+        tmp_path / "pairing-dennis",
+        dennis_wrap,
+        name="dennis",
+    )
+    relay_url = charlie_relay.relay_url
 
     alice = Identity.generate("alice")
     bob = Identity.generate("bob")
     charlie = Identity.generate("charlie")
+    dennis = Identity.generate("dennis")
 
     alice_store = FileLocalStore(tmp_path / "alice")
     bob_store = FileLocalStore(tmp_path / "bob")
     charlie_store = FileLocalStore(tmp_path / "charlie")
-    for ident, st in ((alice, alice_store), (bob, bob_store), (charlie, charlie_store)):
+    dennis_store = FileLocalStore(tmp_path / "dennis")
+    for ident, st in (
+        (alice, alice_store),
+        (bob, bob_store),
+        (charlie, charlie_store),
+        (dennis, dennis_store),
+    ):
         st.save_identity(ident)
 
     charlie_profile = create_delivery_profile(
         charlie,
-        relay_descriptors=[RelayDescriptor("charlie", "both", relay_url, wrap_secret)],
+        relay_descriptors=[RelayDescriptor("charlie", "both", charlie_relay.relay_url, charlie_wrap)],
     )
     charlie_store.save_local_profile(charlie_profile)
+
+    dennis_profile = create_delivery_profile(
+        dennis,
+        relay_descriptors=[RelayDescriptor("dennis", "both", dennis_relay.relay_url, dennis_wrap)],
+    )
+    dennis_store.save_local_profile(dennis_profile)
 
     alice_charlie = Contact.establish(alice, "charlie", export_public_bundle(charlie))
     alice_charlie.delivery_profile = charlie_profile
     alice_store.save_contact(alice_charlie)
 
+    alice_dennis = Contact.establish(alice, "dennis", export_public_bundle(dennis))
+    alice_dennis.delivery_profile = dennis_profile
+    alice_store.save_contact(alice_dennis)
+
     charlie_alice = Contact.establish(charlie, "alice", export_public_bundle(alice))
     charlie_store.save_contact(charlie_alice)
+
+    dennis_alice = Contact.establish(dennis, "alice", export_public_bundle(alice))
+    dennis_store.save_contact(dennis_alice)
+
+    alice_profile = create_delivery_profile(
+        alice,
+        relay_descriptors=[
+            RelayDescriptor("charlie", "both", charlie_relay.relay_url, charlie_wrap),
+            RelayDescriptor("dennis", "both", dennis_relay.relay_url, dennis_wrap),
+        ],
+    )
+    alice_store.save_local_profile(alice_profile)
 
     invite = create_invite(alice, rendezvous_hint=relay_url)
     invite_url = invite_to_url(invite)
@@ -197,6 +283,10 @@ def build_charlie_mesh(tmp_path: Path, *, wrap_secret: bytes | None = None) -> C
     )
     alice_bob.name = "bob"
     alice_store.save_contact(alice_bob)
+    bob_alice = bob_store.get_contact("alice")
+    if bob_alice is not None:
+        bob_alice.delivery_profile = alice_profile
+        bob_store.save_contact(bob_alice)
     joiner_thread.join(timeout=15)
     if joiner_error:
         raise joiner_error[0]
@@ -208,7 +298,7 @@ def build_charlie_mesh(tmp_path: Path, *, wrap_secret: bytes | None = None) -> C
     charlie_bob = Contact.establish(charlie, "bob", export_public_bundle(bob))
     charlie_store.save_contact(charlie_bob)
 
-    for st in (alice_store, bob_store, charlie_store):
+    for st in (bob_store, charlie_store, dennis_store):
         previous = os.environ.get("YAKR_RELAY_URL")
         os.environ["YAKR_RELAY_URL"] = relay_url
         try:
@@ -221,16 +311,12 @@ def build_charlie_mesh(tmp_path: Path, *, wrap_secret: bytes | None = None) -> C
                 os.environ["YAKR_RELAY_URL"] = previous
 
     return CharlieMesh(
-        relay_url=relay_url,
-        relay_port=relay_port,
-        alice=MeshParticipant("alice", alice, alice_store, relay_url),
-        bob=MeshParticipant("bob", bob, bob_store, relay_url),
-        charlie=MeshParticipant("charlie", charlie, charlie_store, relay_url),
-        server=server,
-        thread=thread,
-        relay_data_path=relay_data_path,
-        pairing_path=pairing_path,
-        wrap_secret=wrap_secret,
+        charlie_relay=charlie_relay,
+        dennis_relay=dennis_relay,
+        alice=MeshParticipant("alice", alice, alice_store, charlie_relay.relay_url),
+        bob=MeshParticipant("bob", bob, bob_store, charlie_relay.relay_url),
+        charlie=MeshParticipant("charlie", charlie, charlie_store, charlie_relay.relay_url),
+        dennis=MeshParticipant("dennis", dennis, dennis_store, dennis_relay.relay_url),
     )
 
 

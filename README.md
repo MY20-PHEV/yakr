@@ -28,7 +28,7 @@ A decentralised, social-relay, post-quantum messaging protocol.
 |----------|-------------|
 | [docs/spec/ephemeral-messages.md](docs/spec/ephemeral-messages.md) | 24h TTL policy (non-negotiable) |
 | [docs/spec/double-ratchet.md](docs/spec/double-ratchet.md) | DH double ratchet (`ratchet.version == 2`) |
-| [docs/spec/mesh-testing-and-resilience.md](docs/spec/mesh-testing-and-resilience.md) | Current test status, resilience findings, known gaps |
+| [docs/spec/relay-failover.md](docs/spec/relay-failover.md) | Ordered relay failover + `yakr resend` |
 | [docs/spec/test-vectors-v1/](docs/spec/test-vectors-v1/) | Interop test vectors |
 | [docs/security/analysis-v1.md](docs/security/analysis-v1.md) | Threat model and mitigations |
 | [interop/README.md](interop/README.md) | Third-party client checklist |

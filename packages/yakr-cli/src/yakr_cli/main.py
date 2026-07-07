@@ -24,6 +24,8 @@ from yakr_cli.network import (
     delivery_mailbox_urls,
     fetch_direct_blobs,
     fetch_mailbox_urls,
+    fetch_relay_blobs,
+    resend_pending_for_contact,
     resolve_contact_route,
 )
 from yakr_core.privacy import SIZE_4K, fetch_tags_for_mode, generate_dummy_ciphertext
@@ -205,13 +207,9 @@ def fetch_cmd(
         if direct_hints:
             for item in fetch_direct_blobs(tag.tag_b64, direct_hints):
                 items.append((None, item))
-        for fetch_base in fetch_bases:
-            response = httpx.get(f"{fetch_base}/v1/blobs/{tag.tag_b64}", timeout=10.0)
-            if response.status_code != 200:
-                raise YakrError(f"relay fetch failed: {response.status_code} {response.text}")
-            for item in response.json():
-                items.append((fetch_base, item))
-            metrics.record_fetch(len(response.content), decoy=is_decoy)
+        for item in fetch_relay_blobs(tag.tag_b64, fetch_bases):
+            items.append((None, item))
+            metrics.record_fetch(len(str(item.get("ciphertext", ""))), decoy=is_decoy)
 
         seen: set[str] = set()
         for fetch_base, item in items:
@@ -284,6 +282,24 @@ def pending_cmd(
         return
     for msg_id, seq, body in pending:
         console.print(f"seq={seq} id={msg_id[:12]}… body={body!r}")
+
+
+@app.command("resend")
+def resend_cmd(
+    contact_name: str = typer.Argument(..., help="Contact to resend pending messages for"),
+    route: str | None = typer.Option(None, "--route", help="entry,mailbox or auto"),
+) -> None:
+    """Re-encrypt and deliver outbound messages still awaiting delivery receipts."""
+    store = _store()
+    identity = _require_identity(store)
+    if store.get_contact(contact_name) is None:
+        raise ContactNotFoundError(f"unknown contact: {contact_name}")
+
+    count = resend_pending_for_contact(store, identity, contact_name, route=route)
+    if count == 0:
+        console.print(f"[yellow]No pending messages resent for {contact_name}[/yellow]")
+    else:
+        console.print(f"[green]Resent {count} pending message(s) to {contact_name}[/green]")
 
 
 @app.command("export-public")

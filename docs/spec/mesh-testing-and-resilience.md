@@ -15,7 +15,8 @@ Yakr now has:
 | Local encrypted SQLite store (no plaintext at rest) | Implemented | [ephemeral-messages.md](./ephemeral-messages.md) |
 | Charlie 3-peer mesh stress harness | Implemented | this doc |
 | Relay outage / flap resilience tests | Implemented | this doc |
-| Automatic send retry after relay outage | **Not implemented** | — |
+| Automatic send retry after relay outage | **`yakr resend`** (implemented) | [relay-failover.md](./relay-failover.md) |
+| Send failover across ordered relays | Implemented | [relay-failover.md](./relay-failover.md) |
 | Production receipt retry on relay down | **Partial** (testkit only) | — |
 
 **Testkit:** 81 pytest tests passing (`packages/yakr-testkit/tests/`).
@@ -123,7 +124,9 @@ For operators and future send-retry worker design:
 
 ## Next work (not in this commit)
 
-- [ ] `yakr resend` / background send-retry worker (replay `outbound_pending` when relay healthy)
+- [x] `yakr resend` / replay `outbound_pending` when relay healthy
+- [x] Send failover across ordered `relay_descriptors` (Charlie → Dennis)
+- [x] Mesh stress harness includes Charlie + Dennis dual relay
 - [ ] CLI receipt flush resilience (match testkit `_unreceipted` retry)
 - [ ] Live homelab stress (`stress_charlie_mesh.py --live` wired to `CHARLIE_URL`)
 - [ ] Drop Bob↔Charlie test shortcut if stress should match VPS trust model exactly

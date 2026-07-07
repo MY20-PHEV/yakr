@@ -40,7 +40,7 @@ def test_relay_restart_preserves_queued_blobs(charlie_mesh) -> None:
     with pytest.raises((httpx.ConnectError, httpx.ReadError, OSError)):
         httpx.get(f"{mesh.relay_url}/v1/blobs/dummy", timeout=1.0)
 
-    mesh.start_relay()
+    mesh.start_all_relays()
     got = mesh.bob.fetch("alice", send_receipts=True)
     assert [m.body for m in got] == ["survives restart"]
 
@@ -52,25 +52,25 @@ def test_fetch_fails_while_relay_down_then_recovers(charlie_mesh) -> None:
 
     mesh.stop_relay()
     msgs, err = mesh.bob.try_fetch("alice", send_receipts=True)
-    assert msgs is None
-    assert err is not None
+    assert err is None
+    assert msgs == []
 
-    mesh.start_relay()
+    mesh.start_all_relays()
     got = mesh.bob.fetch("alice", send_receipts=True)
     assert len(got) == 5
     assert [m.body for m in got] == [f"pre-outage-{i}" for i in range(5)]
 
 
-def test_send_fails_while_relay_down_pending_orphaned(charlie_mesh) -> None:
+def test_send_fails_while_all_relays_down_pending_orphaned(charlie_mesh) -> None:
     mesh = charlie_mesh
-    mesh.stop_relay()
+    mesh.stop_all_relays()
 
     record, err = mesh.alice.try_send("bob", "lost on outage")
     assert record is None
     assert err is not None
     assert mesh.alice.pending_count("bob") == 1
 
-    mesh.start_relay()
+    mesh.start_all_relays()
     resent = mesh.alice.resend_pending("bob")
     assert len(resent) == 1
 
@@ -78,7 +78,34 @@ def test_send_fails_while_relay_down_pending_orphaned(charlie_mesh) -> None:
     assert [m.body for m in got] == ["lost on outage"]
 
 
-def test_outage_mid_burst_partial_delivery(charlie_mesh) -> None:
+def test_send_failover_to_dennis_when_charlie_down(charlie_mesh) -> None:
+    mesh = charlie_mesh
+    mesh.stop_relay()
+
+    record, err = mesh.alice.try_send("bob", "via dennis failover")
+    assert err is None
+    assert record is not None
+
+    got = mesh.bob.fetch("alice", send_receipts=True)
+    assert [m.body for m in got] == ["via dennis failover"]
+
+
+def test_outage_mid_burst_failover_to_dennis(charlie_mesh) -> None:
+    mesh = charlie_mesh
+    for i in range(5):
+        mesh.alice.send("bob", f"burst-{i}")
+
+    mesh.stop_relay()
+    for i in range(5, 10):
+        mesh.alice.send("bob", f"burst-{i}")
+
+    mesh.start_all_relays()
+    got = mesh.bob.fetch("alice", send_receipts=True)
+    assert len(got) == 10
+    assert sorted(m.body for m in got) == [f"burst-{i}" for i in range(10)]
+
+
+def test_outage_mid_burst_total_failure_when_all_relays_down(charlie_mesh) -> None:
     mesh = charlie_mesh
     delivered: list[str] = []
     failed: list[str] = []
@@ -91,12 +118,12 @@ def test_outage_mid_burst_partial_delivery(charlie_mesh) -> None:
         else:
             failed.append(body)
         if i == 4:
-            mesh.stop_relay()
+            mesh.stop_all_relays()
 
     assert len(delivered) == 5
     assert len(failed) == 5
 
-    mesh.start_relay()
+    mesh.start_all_relays()
     first_batch = mesh.bob.fetch("alice", send_receipts=True)
     assert len(first_batch) == 5
     mesh.alice.drain_receipts()
@@ -117,16 +144,16 @@ def test_rapid_relay_flap_during_sends(charlie_mesh) -> None:
     for i in range(20):
         body = f"flap-{i:02d}"
         if i in {5, 10, 15}:
-            mesh.stop_relay()
+            mesh.stop_all_relays()
         if i in {7, 12, 17}:
-            mesh.start_relay()
+            mesh.start_all_relays()
         record, err = mesh.alice.try_send("bob", body)
         if err is None:
             bodies.append(body)
         else:
             errors += 1
 
-    mesh.start_relay()
+    mesh.start_all_relays()
     got = mesh.bob.fetch("alice", send_receipts=True)
     mesh.alice.drain_receipts()
     resent = mesh.alice.resend_pending("bob")
@@ -145,7 +172,7 @@ def test_concurrent_sends_during_relay_flap(charlie_mesh) -> None:
     bodies: list[str] = []
     send_errors = 0
 
-    mesh.stop_relay()
+    mesh.stop_all_relays()
 
     def sender(prefix: str, count: int) -> None:
         nonlocal send_errors
@@ -168,7 +195,7 @@ def test_concurrent_sends_during_relay_flap(charlie_mesh) -> None:
     assert not any(t.is_alive() for t in threads), "sender threads still running"
     assert send_errors == len(bodies), "expected all concurrent sends to fail while relay is down"
 
-    mesh.start_relay()
+    mesh.start_all_relays()
     mesh.alice.resend_pending("bob")
     got = mesh.bob.fetch("alice", send_receipts=True)
     got_set = {m.body for m in got}
@@ -176,7 +203,7 @@ def test_concurrent_sends_during_relay_flap(charlie_mesh) -> None:
         assert body in got_set, f"concurrent send {body} not delivered after resend"
 
 
-def test_charlie_relay_outage_blocks_all_participants(charlie_mesh) -> None:
+def test_charlie_relay_outage_delays_fetch_until_primary_returns(charlie_mesh) -> None:
     mesh = charlie_mesh
     mesh.alice.send("bob", "before")
     mesh.charlie.send("alice", "charlie-before")
@@ -189,10 +216,10 @@ def test_charlie_relay_outage_blocks_all_participants(charlie_mesh) -> None:
         (mesh.charlie, "bob"),
     ):
         msgs, err = party.try_fetch(peer, send_receipts=True)
-        assert msgs is None
-        assert err is not None
+        assert err is None
+        assert msgs == []
 
-    mesh.start_relay()
+    mesh.start_all_relays()
 
     assert len(mesh.bob.fetch("alice", send_receipts=True)) == 1
     assert len(mesh.alice.fetch("charlie", send_receipts=True)) == 1
@@ -216,7 +243,7 @@ def test_stress_then_relay_kill_and_resume(charlie_mesh) -> None:
             expected.append((sender, recipient, body))
 
     mesh.stop_relay()
-    mesh.start_relay()
+    mesh.start_all_relays()
 
     for party in participants.values():
         party.flush_receipts()
@@ -246,12 +273,13 @@ def test_receipts_stuck_until_relay_returns(charlie_mesh) -> None:
     mesh.bob.fetch("alice", send_receipts=False)
     assert mesh.alice.pending_count("bob") == 1
 
-    mesh.stop_relay()
+    mesh.stop_all_relays()
     mesh.bob.flush_receipts("alice")
-    _, err = mesh.alice.try_fetch("bob", send_receipts=False, save_local=False)
-    assert err is not None
+    msgs, err = mesh.alice.try_fetch("bob", send_receipts=False, save_local=False)
+    assert err is None
+    assert msgs == []
 
-    mesh.start_relay()
+    mesh.start_all_relays()
     mesh.bob.flush_receipts("alice")
     mesh.alice.drain_receipts()
     assert mesh.alice.pending_count("bob") == 0
@@ -277,9 +305,9 @@ def test_aggressive_outage_during_full_schedule(charlie_mesh) -> None:
             party.try_send(recipient, body)
             expected.append((sender, recipient, body))
             if idx in kill_at and i == count // 2:
-                mesh.start_relay()
+                mesh.start_all_relays()
 
-    mesh.start_relay()
+    mesh.start_all_relays()
     for _round in range(2):
         for party in participants.values():
             for peer in party.store.list_contacts():
@@ -306,12 +334,12 @@ def test_aggressive_outage_during_full_schedule(charlie_mesh) -> None:
 
 
 def test_failed_send_without_resend_never_arrives(charlie_mesh) -> None:
-    """Documents gap: failed deliver leaves pending but message never reaches relay."""
+    """When all relays are down, pending is saved but blob never reaches any relay."""
     mesh = charlie_mesh
-    mesh.stop_relay()
+    mesh.stop_all_relays()
     mesh.alice.try_send("bob", "orphan")
 
-    mesh.start_relay()
+    mesh.start_all_relays()
     got = mesh.bob.fetch("alice", send_receipts=True)
     assert got == []
     assert mesh.alice.pending_count("bob") == 1
