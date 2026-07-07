@@ -636,7 +636,8 @@ master    = HKDF-SHA256(
 ## Phase 7 — Metadata Hardening
 
 **Depends on:** Phase 6  
-**Protocol:** `yakr-v0.7`
+**Protocol:** `yakr-v0.7`  
+**Status:** Complete
 
 ### Goal
 
@@ -668,10 +669,10 @@ Add **practical metadata reduction** with explicit privacy modes, without making
 
 ### Exit Criteria
 
-- [ ] Balanced mode: relay observer cannot distinguish 300 B vs 2 KiB message at ciphertext level
-- [ ] High mode: scripted traffic analysis test shows reduced upload/fetch correlation
-- [ ] Fast mode latency within 2× of Phase 5 baseline in local benchmark
-- [ ] Battery/bandwidth cost documented per mode
+- [x] Balanced mode: relay observer cannot distinguish 300 B vs 2 KiB message at ciphertext level
+- [x] High mode: scripted traffic analysis test shows reduced upload/fetch correlation
+- [x] Fast mode latency within 2× of Phase 5 baseline in local benchmark
+- [x] Battery/bandwidth cost documented per mode
 
 ---
 
