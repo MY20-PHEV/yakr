@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import base64
+import random
+import time
 from dataclasses import dataclass
 from typing import Literal
 
@@ -44,6 +46,7 @@ class RelayRuntime:
     wrap_secret: bytes | None
     name: str
     require_tickets: bool = False
+    forward_delay_max_secs: int = 0
 
 
 def _check_ticket(ticket_b64: str | None, *, runtime: RelayRuntime, permission: str) -> None:
@@ -112,6 +115,10 @@ def create_app(store: BlobStore, runtime: RelayRuntime | None = None) -> FastAPI
             next_url, inner_cipher = decode_entry_packet(packet, runtime.wrap_secret)
         except Exception as exc:
             raise HTTPException(status_code=400, detail="invalid relay packet") from exc
+
+        if runtime.forward_delay_max_secs > 0:
+            delay = random.uniform(0, runtime.forward_delay_max_secs)
+            time.sleep(delay)
 
         response = httpx.post(
             next_url,

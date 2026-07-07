@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from pathlib import Path
 
 import httpx
@@ -9,6 +10,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from yakr_core.crypto import derive_mailbox_secret
 from yakr_core.delivery_profile import DeliveryProfile, verify_delivery_profile
 from yakr_core.errors import ContactNotFoundError, YakrError
 from yakr_core.identity import Contact, Identity, export_public_bundle
@@ -22,11 +24,15 @@ from yakr_cli.network import (
     mailbox_urls,
     resolve_contact_route,
 )
+from yakr_core.privacy import SIZE_4K, fetch_tags_for_mode, generate_dummy_ciphertext
+from yakr_cli.privacy_cmds import privacy_app
+
 from yakr_cli.profile_cmds import profile_app
 
 app = typer.Typer(no_args_is_help=True, help="Yakr reference client")
 app.add_typer(invite_app, name="invite")
 app.add_typer(profile_app, name="profile")
+app.add_typer(privacy_app, name="privacy")
 console = Console()
 
 
@@ -149,7 +155,16 @@ def send_cmd(
         route=route,
         store=store,
     )
-    console.print(f"[green]Sent to {contact_name}[/green] ({mode}, seq={encrypted.inner_message.seq})")
+    metrics = store.load_privacy_metrics()
+    metrics.record_send(len(encrypted.outer_blob.ciphertext), padding_bytes=encrypted.padding_bytes)
+    if contact.privacy_mode == "high":
+        _send_dummy_blob(store, contact, identity, session, route)
+        metrics.dummy_blobs_sent += 1
+    store.save_privacy_metrics(metrics)
+    console.print(
+        f"[green]Sent to {contact_name}[/green] "
+        f"({mode}, privacy={contact.privacy_mode}, seq={encrypted.inner_message.seq})"
+    )
 
 
 @app.command("fetch")
@@ -166,13 +181,22 @@ def fetch_cmd(
 
     session = Session(identity, contact)
     deriver = session.mailbox_deriver(outbound=False)
-    tags = deriver.candidate_epochs(session.recv_direction)
+    mailbox_secret = derive_mailbox_secret(contact.master_secret, session.recv_direction)
+    tags = fetch_tags_for_mode(
+        deriver,
+        session.recv_direction,
+        contact.privacy_mode,
+        mailbox_secret=mailbox_secret,
+    )
+    real_tag_set = {tag.tag_b64 for tag in deriver.candidate_epochs(session.recv_direction)}
     resolved_route = _resolve_route(store, contact, route, "fetch") if route else None
     fetch_bases = mailbox_urls(contact, resolved_route)
     direct_hints = list(contact.delivery_profile.direct_hints) if contact.delivery_profile else []
 
     fetched = 0
+    metrics = store.load_privacy_metrics()
     for tag in tags:
+        is_decoy = tag.tag_b64 not in real_tag_set
         items: list[dict[str, str | int]] = []
         if direct_hints:
             items.extend(fetch_direct_blobs(tag.tag_b64, direct_hints))
@@ -181,6 +205,7 @@ def fetch_cmd(
             if response.status_code != 200:
                 raise YakrError(f"relay fetch failed: {response.status_code} {response.text}")
             items.extend(response.json())
+            metrics.record_fetch(len(response.content), decoy=is_decoy)
 
         seen: set[str] = set()
         for item in items:
@@ -233,6 +258,7 @@ def fetch_cmd(
                     allow_direct=False,
                 )
 
+    store.save_privacy_metrics(metrics)
     if fetched == 0:
         console.print(f"[yellow]No new messages from {contact_name}[/yellow]")
     else:
@@ -262,6 +288,33 @@ def export_public_cmd(output: Path = typer.Option(None, "--output", "-o")) -> No
     target = output or (store.root / "public.json")
     target.write_text(json.dumps(bundle, indent=2), encoding="utf-8")
     console.print(f"[green]Wrote public bundle to {target}[/green]")
+
+
+def _send_dummy_blob(
+    store: FileLocalStore,
+    contact: Contact,
+    identity: Identity,
+    session: Session,
+    route: str | None,
+) -> None:
+    deriver = session.mailbox_deriver(outbound=True)
+    mailbox_secret = derive_mailbox_secret(contact.master_secret, session.send_direction)
+    decoy = fetch_tags_for_mode(
+        deriver,
+        session.send_direction,
+        "high",
+        mailbox_secret=mailbox_secret,
+        lookback=0,
+    )[0]
+    dummy = generate_dummy_ciphertext(size_class=SIZE_4K)
+    outer = OuterBlob(
+        version=1,
+        mailbox_tag=decoy.tag,
+        expires_at=int(time.time() * 1000) + 7 * 24 * 60 * 60 * 1000,
+        ciphertext=dummy,
+    )
+    relay_url = mailbox_urls(contact, route)[0]
+    httpx.post(f"{relay_url}/v1/blobs", json=outer.to_relay_json(), timeout=5.0)
 
 
 def main() -> None:

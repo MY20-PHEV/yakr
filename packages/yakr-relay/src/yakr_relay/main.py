@@ -29,6 +29,7 @@ def main() -> None:
     parser.add_argument("--name", default="relay")
     parser.add_argument("--wrap-secret", default=None)
     parser.add_argument("--require-tickets", action="store_true")
+    parser.add_argument("--forward-delay-max", type=int, default=0, help="Max random forward delay seconds")
     args = parser.parse_args()
 
     if args.command == "serve":
@@ -38,6 +39,7 @@ def main() -> None:
             wrap_secret=_parse_wrap_secret(args.wrap_secret),
             name=args.name,
             require_tickets=args.require_tickets,
+            forward_delay_max_secs=args.forward_delay_max,
         )
         app = create_app(store, runtime)
 
