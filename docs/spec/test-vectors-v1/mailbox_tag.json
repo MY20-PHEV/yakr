@@ -1,0 +1,8 @@
+{
+  "name": "mailbox-tag-v1",
+  "master_secret_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "direction": "alice->bob",
+  "epoch": 1000,
+  "epoch_secs": 3600,
+  "expected_tag_hex": "7f409c7b34bd6c82131f8fbb1082a43394f045b78c004c320bb6f347f51acf08"
+}

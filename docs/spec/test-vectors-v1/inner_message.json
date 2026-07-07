@@ -1,0 +1,7 @@
+{
+  "name": "inner-text-v1",
+  "json": "{\"body\":\"hello vector\",\"conversation_id\":\"pairwise_alice_bob\",\"created_at\":1700000000000,\"message_id\":null,\"sender_device_id\":\"abc123\",\"seq\":1,\"type\":\"text\",\"version\":1}",
+  "conversation_id": "pairwise_alice_bob",
+  "seq": 1,
+  "body": "hello vector"
+}
