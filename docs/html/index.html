@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Yakr Protocol — Visual Guide</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-icon">Y</div>
+        <div>
+          <h1>Yakr Protocol</h1>
+          <p>v1.0 visual guide</p>
+        </div>
+      </div>
+      <nav>
+        <div class="nav-section">
+          <h2>Guide</h2>
+          <a href="index.html" class="active">Home</a>
+          <a href="overview.html">Overview &amp; Actors</a>
+          <a href="lifecycle.html">End-to-End Lifecycle</a>
+          <a href="delivery.html">Delivery &amp; Relays</a>
+          <a href="crypto.html">Cryptography</a>
+          <a href="examples.html">Wire Examples</a>
+        </div>
+        <div class="nav-section">
+          <h2>Spec</h2>
+          <a href="../spec/yakr-protocol-v1.md">Normative spec (MD)</a>
+          <a href="../security/analysis-v1.md">Security analysis</a>
+          <a href="../../interop/README.md">Interop checklist</a>
+        </div>
+      </nav>
+    </aside>
+
+    <main>
+      <div class="hero">
+        <h1>Yakr Protocol — End to End</h1>
+        <p>
+          Interactive HTML documentation with flowcharts, sequence diagrams, and real examples
+          from the v1.0 test vectors. No central message server — just encrypted blobs moving
+          through your friends' relays.
+        </p>
+      </div>
+
+      <section>
+        <h2>What is Yakr?</h2>
+        <p>
+          Yakr is a decentralised messaging protocol. Alice encrypts a message, stores an opaque
+          blob at a friend's relay, and Bob fetches it later — even while offline. Relays never
+          see plaintext. Contacts are established pairwise via signed invites, not global user IDs.
+        </p>
+
+        <div class="diagram">
+          <pre class="mermaid">
+flowchart LR
+  A[Alice Client] -->|encrypt + store| R[Friend Relay]
+  R -->|opaque blob| R
+  B[Bob Client] -->|fetch + decrypt| R
+  style R fill:#1a2433,stroke:#5eb3ff
+  style A fill:#1a2433,stroke:#4ade80
+  style B fill:#1a2433,stroke:#c084fc
+          </pre>
+        </div>
+
+        <div class="callout">
+          <strong>Core claim:</strong> Offline delivery works without a central server. The relay
+          only validates structure, size, expiry, and optional auth tickets — never message content.
+        </div>
+      </section>
+
+      <section>
+        <h2>Documentation Pages</h2>
+        <div class="card-grid">
+          <a href="overview.html" class="card" style="text-decoration:none;color:inherit">
+            <span class="badge badge-blue">Start here</span>
+            <h3>Overview &amp; Actors</h3>
+            <p>Identity, contacts, relays, phases 1–9 roadmap, threat model summary.</p>
+          </a>
+          <a href="lifecycle.html" class="card" style="text-decoration:none;color:inherit">
+            <span class="badge badge-green">Core flow</span>
+            <h3>End-to-End Lifecycle</h3>
+            <p>Invite → pairing → profile → send → fetch, with sequence diagrams.</p>
+          </a>
+          <a href="delivery.html" class="card" style="text-decoration:none;color:inherit">
+            <span class="badge badge-amber">Routing</span>
+            <h3>Delivery &amp; Relays</h3>
+            <p>Single-hop, two-hop onion, path rotation, privacy modes, relay API.</p>
+          </a>
+          <a href="crypto.html" class="card" style="text-decoration:none;color:inherit">
+            <span class="badge badge-purple">Crypto</span>
+            <h3>Cryptography</h3>
+            <p>Primitives, HKDF domains, hybrid PQ, mailbox tags with vector values.</p>
+          </a>
+          <a href="examples.html" class="card" style="text-decoration:none;color:inherit">
+            <span class="badge badge-blue">Reference</span>
+            <h3>Wire Examples</h3>
+            <p>JSON, CBOR, HTTP requests copied from test vectors and CLI demos.</p>
+          </a>
+        </div>
+      </section>
+
+      <section>
+        <h2>Protocol Phases at a Glance</h2>
+        <div class="diagram">
+          <pre class="mermaid">
+flowchart TB
+  P1[Phase 1<br/>Single-hop offline] --> P2[Phase 2<br/>Two-hop onion]
+  P2 --> P3[Phase 3<br/>Path rotation]
+  P3 --> P4[Phase 4<br/>Invites + tickets]
+  P4 --> P5[Phase 5<br/>Delivery profiles]
+  P5 --> P6[Phase 6<br/>Hybrid PQ]
+  P6 --> P7[Phase 7<br/>Metadata privacy]
+  P7 --> P8[Phase 8<br/>Mobile client]
+  P8 --> P9[Phase 9<br/>v1.0 spec freeze]
+          </pre>
+        </div>
+      </section>
+
+      <section>
+        <h2>Quick Example</h2>
+        <p>Alice sends <code>"hello vector"</code> to Bob while Bob is offline:</p>
+        <div class="timeline">
+          <div class="timeline-step">
+            <h4>1. Build inner message</h4>
+            <p>JSON payload with conversation ID, sequence number, and body text.</p>
+          </div>
+          <div class="timeline-step">
+            <h4>2. Encrypt with session key</h4>
+            <p><code>message_key(seq=1)</code> from pairwise master secret → XChaCha20-Poly1305.</p>
+          </div>
+          <div class="timeline-step">
+            <h4>3. Derive mailbox tag</h4>
+            <p>HMAC over <code>alice-&gt;bob|{epoch}</code> — relay sees only the 32-byte tag.</p>
+          </div>
+          <div class="timeline-step">
+            <h4>4. POST to relay</h4>
+            <p><code>POST /v1/blobs</code> with tag, expiry, and ciphertext. Relay stores opaque data.</p>
+          </div>
+          <div class="timeline-step">
+            <h4>5. Bob fetches later</h4>
+            <p><code>GET /v1/blobs/{tag}</code> for current + lookback epochs, decrypt, display message.</p>
+          </div>
+        </div>
+        <p><a href="examples.html">See full wire-format examples →</a></p>
+      </section>
+
+      <footer class="footer">
+        Yakr reference implementation · Protocol <code>yakr-v1.0</code> ·
+        <a href="../spec/yakr-protocol-v1.md">Normative spec</a>
+      </footer>
+    </main>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+  <script src="assets/app.js"></script>
+</body>
+</html>

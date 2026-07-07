@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>End-to-End Lifecycle — Yakr Protocol</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-icon">Y</div>
+        <div>
+          <h1>Yakr Protocol</h1>
+          <p>v1.0 visual guide</p>
+        </div>
+      </div>
+      <nav>
+        <div class="nav-section">
+          <h2>Guide</h2>
+          <a href="index.html">Home</a>
+          <a href="overview.html">Overview &amp; Actors</a>
+          <a href="lifecycle.html" class="active">End-to-End Lifecycle</a>
+          <a href="delivery.html">Delivery &amp; Relays</a>
+          <a href="crypto.html">Cryptography</a>
+          <a href="examples.html">Wire Examples</a>
+        </div>
+      </nav>
+    </aside>
+
+    <main>
+      <div class="hero">
+        <h1>End-to-End Lifecycle</h1>
+        <p>From strangers to delivered messages: invite, pairing, profile exchange, send, and fetch — the complete Yakr session story.</p>
+      </div>
+
+      <section id="master-flow">
+        <h2>Master Flow</h2>
+        <div class="diagram">
+          <pre class="mermaid">
+flowchart TB
+  Start([Two users want to chat]) --> Invite[1. Alice creates invite URL]
+  Invite --> Accept[2. Bob accepts invite]
+  Accept --> Safety[3. Verify safety code OOB]
+  Safety --> Pair[4. X25519 pairing handshake]
+  Pair --> Master[5. Derive master secret + ratchet]
+  Master --> Profile[6. Exchange delivery profiles]
+  Profile --> Send[7. Alice sends encrypted message]
+  Send --> Store[8. Relay stores opaque blob]
+  Store --> Fetch[9. Bob fetches and decrypts]
+  Fetch --> Done([Conversation established])
+          </pre>
+        </div>
+      </section>
+
+      <section id="invite">
+        <h2>Step 1–3: Invite &amp; Verification</h2>
+        <p>Alice generates a signed CBOR invite bundle and shares it as a URL or QR code. Bob decodes it, verifies the Ed25519 signature, and compares the safety code with Alice in person or over a trusted channel.</p>
+
+        <div class="diagram">
+          <pre class="mermaid">
+sequenceDiagram
+  participant Alice
+  participant Rendezvous as Rendezvous (optional)
+  participant Bob
+  Alice->>Alice: create_invite() + sign CBOR
+  Alice->>Bob: yakr://invite/... (QR, link, NFC)
+  Bob->>Bob: verify Ed25519 signature
+  Bob->>Bob: compute safety code
+  Note over Alice,Bob: Both display 4510 2126 16
+  Alice->>Bob: confirm codes match (voice/SMS)
+          </pre>
+        </div>
+
+        <div class="example">
+          <div class="example-header"><span class="label">CLI — Alice</span><span>Phase 4</span></div>
+          <pre>yakr invite create --port 8090
+# → yakr://invite/qWhwcm90b2NvbG... (truncated)
+# → Safety code: 4510 2126 16</pre>
+        </div>
+
+        <div class="example">
+          <div class="example-header"><span class="label">CLI — Bob</span><span>Phase 4</span></div>
+          <pre>yakr invite accept "yakr://invite/qWhwcm90b2NvbG..."
+# → Safety code: 4510 2126 16  ✓ match</pre>
+        </div>
+      </section>
+
+      <section id="pairing">
+        <h2>Step 4–5: Pairing &amp; Session Keys</h2>
+        <p>Bob sends a pairing request with ephemeral X25519 keys (and ML-KEM ciphertext for hybrid invites). Both sides combine shared secrets into a master key and initialise a double-ratchet for forward secrecy on subsequent messages.</p>
+
+        <div class="diagram">
+          <pre class="mermaid">
+sequenceDiagram
+  participant Bob as Bob (joiner)
+  participant RV as Rendezvous
+  participant Alice as Alice (inviter)
+  Bob->>RV: POST pairing request
+  Alice->>RV: poll / fetch request
+  Alice->>RV: POST pairing response
+  Bob->>RV: fetch response
+  Bob->>Bob: derive master_secret
+  Alice->>Alice: derive master_secret
+  Note over Alice,Bob: Same master → Contact created
+          </pre>
+        </div>
+
+        <h3>Classical master derivation</h3>
+        <div class="example">
+          <div class="example-header"><span class="label">HKDF</span><span>yakr-v0.4</span></div>
+          <pre>shared   = X25519(alice_agreement, bob_ephemeral)
+master   = HKDF-SHA256(
+             ikm  = shared,
+             salt = SHA256(pairing_transcript),
+             info = "yakr/v0.4/pair-master"
+           )</pre>
+        </div>
+
+        <h3>Hybrid PQ pairing (optional)</h3>
+        <div class="diagram">
+          <pre class="mermaid">
+flowchart LR
+  X1[X25519 identity shared] --> XS[x_secret]
+  X2[X25519 ephemeral shared] --> XS
+  PQ[ML-KEM-768 secret] --> HKDF
+  XS --> HKDF[HKDF hybrid-master]
+  TH[transcript hash] --> HKDF
+  HKDF --> MS[master_secret]
+          </pre>
+        </div>
+      </section>
+
+      <section id="profile">
+        <h2>Step 6: Delivery Profile Exchange</h2>
+        <p>Each contact publishes a signed profile describing relay URLs, wrap secrets, direct P2P hints, mailbox epoch length, and receipt policy. When Bob changes relays, Alice automatically uses the updated profile on next send.</p>
+
+        <div class="diagram">
+          <pre class="mermaid">
+sequenceDiagram
+  participant Bob
+  participant Alice
+  Bob->>Bob: profile publish (local)
+  Bob->>Alice: inner message type=profile
+  Alice->>Alice: verify Ed25519 sig, store profile
+  Note over Alice: Next send uses Bob's relay descriptors
+          </pre>
+        </div>
+
+        <div class="callout">
+          <strong>Route selection:</strong> Try direct P2P hints first (2 s timeout), then relay
+          descriptors from the contact's signed profile. Stale profiles trigger refresh and retry.
+        </div>
+      </section>
+
+      <section id="send">
+        <h2>Step 7–8: Send &amp; Store</h2>
+        <p>Alice builds an inner JSON message, encrypts it with the per-sequence message key, wraps it in an outer blob with a mailbox tag, and posts to the relay (directly or via two-hop onion).</p>
+
+        <div class="diagram">
+          <pre class="mermaid">
+flowchart TB
+  IM[Inner message JSON<br/>seq=1 body=hello] --> MK[message_key seq=1]
+  MK --> ENC[XChaCha20-Poly1305]
+  ENC --> OB[Outer blob]
+  MS[master_secret] --> MT[mailbox_secret<br/>direction alice→bob]
+  MT --> TAG[HMAC tag epoch=1000]
+  TAG --> OB
+  OB --> POST[POST /v1/blobs]
+  POST --> RELAY[(Mailbox Relay)]
+          </pre>
+        </div>
+      </section>
+
+      <section id="fetch">
+        <h2>Step 9: Fetch &amp; Decrypt</h2>
+        <p>Bob derives mailbox tags for the current epoch and several lookback epochs, fetches all matching blobs, decrypts with his copy of the master secret, and advances the receive ratchet.</p>
+
+        <div class="diagram">
+          <pre class="mermaid">
+sequenceDiagram
+  participant Bob
+  participant Relay as Mailbox Relay
+  Bob->>Bob: derive tags for epochs N, N-1, N-2
+  loop each tag
+    Bob->>Relay: GET /v1/blobs/{tag}
+    Relay-->>Bob: [{ciphertext, expires_at, ...}]
+  end
+  Bob->>Bob: decrypt with message_key(seq)
+  Bob->>Bob: display "hello vector"
+          </pre>
+        </div>
+
+        <div class="example">
+          <div class="example-header"><span class="label">CLI — offline delivery demo</span><span>Phase 1</span></div>
+          <pre># Alice sends while Bob is offline
+docker compose run --rm --no-deps alice send bob "hello"
+
+# Bob fetches later
+docker compose run --rm --no-deps bob fetch alice</pre>
+        </div>
+      </section>
+
+      <section id="receipts">
+        <h2>Delivery Receipts (Phase 2+)</h2>
+        <p>After Bob successfully decrypts a message, he may send an encrypted receipt back over the reversed two-hop route so Alice knows delivery succeeded.</p>
+        <div class="diagram">
+          <pre class="mermaid">
+sequenceDiagram
+  participant Alice
+  participant Entry
+  participant Mailbox
+  participant Bob
+  Note over Alice,Bob: Forward path: Alice → Entry → Mailbox → Bob
+  Bob->>Bob: create inner message type=receipt
+  Bob->>Mailbox: receipt over reversed route
+  Mailbox->>Entry: forward
+  Entry->>Alice: deliver receipt
+          </pre>
+        </div>
+      </section>
+
+      <footer class="footer">
+        <a href="overview.html">← Overview</a> · <a href="delivery.html">Next: Delivery &amp; Relays →</a>
+      </footer>
+    </main>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+  <script src="assets/app.js"></script>
+</body>
+</html>

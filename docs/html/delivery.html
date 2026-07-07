@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Delivery &amp; Relays — Yakr Protocol</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-icon">Y</div>
+        <div>
+          <h1>Yakr Protocol</h1>
+          <p>v1.0 visual guide</p>
+        </div>
+      </div>
+      <nav>
+        <div class="nav-section">
+          <h2>Guide</h2>
+          <a href="index.html">Home</a>
+          <a href="overview.html">Overview &amp; Actors</a>
+          <a href="lifecycle.html">End-to-End Lifecycle</a>
+          <a href="delivery.html" class="active">Delivery &amp; Relays</a>
+          <a href="crypto.html">Cryptography</a>
+          <a href="examples.html">Wire Examples</a>
+        </div>
+      </nav>
+    </aside>
+
+    <main>
+      <div class="hero">
+        <h1>Delivery &amp; Relays</h1>
+        <p>How messages travel through the social relay network: single-hop, two-hop onion, path rotation, privacy modes, and relay abuse limits.</p>
+      </div>
+
+      <section id="single-hop">
+        <h2>Phase 1: Single-Hop Delivery</h2>
+        <p>The simplest path. Alice posts directly to Bob's mailbox relay. The relay sees the mailbox tag and ciphertext size, but not who sent the message or what it says.</p>
+        <div class="diagram">
+          <pre class="mermaid">
+sequenceDiagram
+  participant Alice
+  participant Relay as Bob's Mailbox Relay
+  participant Bob
+  Alice->>Relay: POST /v1/blobs {tag, expiry, ciphertext}
+  Relay->>Relay: validate + store opaque blob
+  Note over Bob: offline...
+  Bob->>Relay: GET /v1/blobs/{tag}
+  Relay-->>Bob: [{ciphertext, expires_at}]
+  Bob->>Bob: decrypt
+          </pre>
+        </div>
+      </section>
+
+      <section id="two-hop">
+        <h2>Phase 2: Two-Hop Onion</h2>
+        <p>No single honest relay observes both the upload and the fetch. Alice sends to an <strong>entry relay</strong> (Carol's node), which decrypts one onion layer and forwards to the <strong>mailbox relay</strong> (Dave's node) without learning the mailbox tag.</p>
+        <div class="diagram">
+          <pre class="mermaid">
+flowchart LR
+  A[Alice] -->|POST /v1/relay<br/>onion packet| E[Entry Relay<br/>Carol]
+  E -->|decrypt layer 1<br/>POST /v1/ingest| M[Mailbox Relay<br/>Dave]
+  M -->|store blob| DB[(Blob DB)]
+  B[Bob] -->|GET /v1/blobs/tag| M
+          </pre>
+        </div>
+
+        <div class="example">
+          <div class="example-header"><span class="label">POST /v1/relay</span><span>Entry relay</span></div>
+          <pre>{
+  "packet": "&lt;base64url CBOR onion layer&gt;",
+  "ticket": "&lt;optional relay ticket&gt;"
+}</pre>
+        </div>
+
+        <div class="example">
+          <div class="example-header"><span class="label">POST /v1/ingest</span><span>Mailbox relay</span></div>
+          <pre>{
+  "inner": "&lt;base64url encrypted mailbox layer&gt;",
+  "ticket": "&lt;optional relay ticket&gt;"
+}</pre>
+        </div>
+
+        <div class="callout">
+          <strong>Metadata split:</strong> Entry relay sees Alice's upload timing. Mailbox relay sees
+          Bob's fetch timing and the mailbox tag. Neither sees both ends of the same message.
+        </div>
+      </section>
+
+      <section id="rotation">
+        <h2>Phase 3: Path Rotation</h2>
+        <p>Each message may use a different entry→mailbox relay pair from the contact's profile descriptors, reducing long-term correlation on a single route.</p>
+        <div class="diagram">
+          <pre class="mermaid">
+flowchart TB
+  P[Contact delivery profile<br/>relay_descriptors] --> R1[Route A: entry₁ → mailbox₁]
+  P --> R2[Route B: entry₂ → mailbox₂]
+  P --> R3[Route C: entry₃ → mailbox₃]
+  MSG1[Message seq=1] --> R1
+  MSG2[Message seq=2] --> R2
+  MSG3[Message seq=3] --> R3
+          </pre>
+        </div>
+      </section>
+
+      <section id="direct">
+        <h2>Phase 5: Direct P2P + Profile Fallback</h2>
+        <p>When both peers are online on the same LAN, the client tries direct HTTP delivery first. If that fails within 2 seconds, it falls back to relay descriptors from the signed profile.</p>
+        <div class="diagram">
+          <pre class="mermaid">
+flowchart TD
+  Send[Alice wants to send] --> Direct{Direct hint<br/>reachable?}
+  Direct -->|yes, &lt;2s| P2P[POST to Bob's local port]
+  Direct -->|no / timeout| Relay[Use profile relay_descriptors]
+  P2P --> Done[Delivered]
+  Relay --> Done
+          </pre>
+        </div>
+      </section>
+
+      <section id="tickets">
+        <h2>Phase 4: Relay Tickets</h2>
+        <p>Public relays can require signed tickets that grant <code>store</code> or <code>forward</code> permission. Tickets are issued during pairing and scoped to a relay name.</p>
+        <div class="diagram">
+          <pre class="mermaid">
+sequenceDiagram
+  participant Client
+  participant Relay
+  Client->>Client: build RelayTicket<br/>signed by contact key
+  Client->>Relay: POST /v1/blobs + ticket
+  Relay->>Relay: verify ticket.permission=store
+  alt valid
+    Relay-->>Client: 201 stored
+  else missing/invalid
+    Relay-->>Client: 401 unauthorized
+  end
+          </pre>
+        </div>
+      </section>
+
+      <section id="privacy">
+        <h2>Phase 7: Privacy Modes</h2>
+        <table>
+          <thead>
+            <tr><th>Mode</th><th>Padding</th><th>Fetch pattern</th><th>Relay delay</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>fast</code></td><td>none</td><td>real tags only</td><td>0 s</td></tr>
+            <tr><td><code>balanced</code></td><td>4 KiB classes</td><td>real + 3 decoy tags</td><td>0–15 s</td></tr>
+            <tr><td><code>high</code></td><td>4 / 32 KiB</td><td>real + 7 decoy + dummy blobs</td><td>5–90 s</td></tr>
+          </tbody>
+        </table>
+
+        <div class="diagram">
+          <pre class="mermaid">
+flowchart TB
+  subgraph balanced [Balanced mode fetch]
+    T1[real tag epoch N]
+    D1[decoy tag 1]
+    D2[decoy tag 2]
+    D3[decoy tag 3]
+  end
+  T1 --> Relay[(Relay)]
+  D1 --> Relay
+  D2 --> Relay
+  D3 --> Relay
+  Note over Relay: Observer cannot tell<br/>which tag had real data
+          </pre>
+        </div>
+
+        <div class="example">
+          <div class="example-header"><span class="label">CLI</span><span>Phase 7</span></div>
+          <pre>yakr privacy set bob --mode balanced
+yakr-relay serve --forward-delay-max 15</pre>
+        </div>
+      </section>
+
+      <section id="abuse">
+        <h2>Relay Abuse Limits</h2>
+        <p>Reference relay enforces structural limits without inspecting ciphertext:</p>
+        <table>
+          <thead>
+            <tr><th>Rule</th><th>Limit</th><th>HTTP status</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Mailbox tag length</td><td>exactly 32 bytes</td><td>400</td></tr>
+            <tr><td>Expiry</td><td><code>expires_at</code> &gt; now</td><td>400</td></tr>
+            <tr><td>Blob size</td><td>≤ 64 KiB</td><td>400</td></tr>
+            <tr><td>Blobs per tag</td><td>≤ 256 (default)</td><td>429</td></tr>
+            <tr><td>Relay ticket</td><td>valid when required</td><td>401</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="api">
+        <h2>Relay HTTP API Summary</h2>
+        <div class="diagram">
+          <pre class="mermaid">
+flowchart LR
+  H[GET /healthz] --> OK[status ok]
+  S[POST /v1/blobs] --> Store[Mailbox store]
+  F[GET /v1/blobs/tag] --> Fetch[Return blobs]
+  R[POST /v1/relay] --> Fwd[Entry forward]
+  I[POST /v1/ingest] --> Ing[Mailbox ingest]
+          </pre>
+        </div>
+      </section>
+
+      <footer class="footer">
+        <a href="lifecycle.html">← Lifecycle</a> · <a href="crypto.html">Next: Cryptography →</a>
+      </footer>
+    </main>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+  <script src="assets/app.js"></script>
+</body>
+</html>

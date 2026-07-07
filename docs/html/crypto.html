@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cryptography — Yakr Protocol</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-icon">Y</div>
+        <div>
+          <h1>Yakr Protocol</h1>
+          <p>v1.0 visual guide</p>
+        </div>
+      </div>
+      <nav>
+        <div class="nav-section">
+          <h2>Guide</h2>
+          <a href="index.html">Home</a>
+          <a href="overview.html">Overview &amp; Actors</a>
+          <a href="lifecycle.html">End-to-End Lifecycle</a>
+          <a href="delivery.html">Delivery &amp; Relays</a>
+          <a href="crypto.html" class="active">Cryptography</a>
+          <a href="examples.html">Wire Examples</a>
+        </div>
+      </nav>
+    </aside>
+
+    <main>
+      <div class="hero">
+        <h1>Cryptography</h1>
+        <p>Primitives, HKDF domain separation, key derivation chains, and worked examples from the v1.0 test vectors.</p>
+      </div>
+
+      <section id="stack">
+        <h2>Crypto Stack</h2>
+        <table>
+          <thead>
+            <tr><th>Purpose</th><th>Primitive</th><th>Key size</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Identity signing</td><td>Ed25519</td><td>32 B seed</td></tr>
+            <tr><td>Key agreement</td><td>X25519</td><td>32 B</td></tr>
+            <tr><td>Post-quantum KEM</td><td>ML-KEM-768</td><td>shared 32 B</td></tr>
+            <tr><td>PQ invite signing</td><td>ML-DSA-65</td><td>optional</td></tr>
+            <tr><td>KDF</td><td>HKDF-SHA256</td><td>32 B output</td></tr>
+            <tr><td>Message encryption</td><td>XChaCha20-Poly1305</td><td>32 B key, 24 B nonce</td></tr>
+            <tr><td>Mailbox tag</td><td>HMAC-SHA256</td><td>32 B tag</td></tr>
+            <tr><td>Safety code</td><td>SHA-256 → digits</td><td>display only</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="domains">
+        <h2>HKDF Domain Separation</h2>
+        <p>Every derived key uses a distinct <code>info</code> string so keys cannot be swapped across contexts:</p>
+        <div class="diagram">
+          <pre class="mermaid">
+flowchart TB
+  subgraph v01 [yakr-v0.1]
+    M[yakr/v0.1/master]
+    MK[yakr/v0.1/message-key + seq]
+    MT[yakr/v0.1/mailbox-tag + direction]
+  end
+  subgraph v04 [yakr-v0.4]
+    PM[yakr/v0.4/pair-master]
+    RS[yakr/v0.4/ratchet-send]
+    RR[yakr/v0.4/ratchet-recv]
+  end
+  subgraph v06 [yakr-v0.6]
+    HM[yakr/v0.6/hybrid-master]
+  end
+  subgraph v07 [yakr-v0.7]
+    RD[yakr/v0.7/relay-delay]
+  end
+          </pre>
+        </div>
+      </section>
+
+      <section id="derivation">
+        <h2>Key Derivation Chain</h2>
+        <div class="diagram">
+          <pre class="mermaid">
+flowchart TB
+  X25519[X25519 shared secret] --> MASTER[master_secret<br/>HKDF pair-master]
+  MASTER --> MSG[message_key seq<br/>HKDF message-key]
+  MASTER --> MBSEC[mailbox_secret<br/>HKDF mailbox-tag + direction]
+  MBSEC --> TAG[mailbox tag<br/>HMAC direction|epoch]
+  MSG --> AEAD[XChaCha encrypt inner JSON]
+  AEAD --> BLOB[outer blob ciphertext]
+  TAG --> BLOB
+          </pre>
+        </div>
+      </section>
+
+      <section id="mailbox-vector">
+        <h2>Worked Example: Mailbox Tag</h2>
+        <p>From <code>docs/spec/test-vectors-v1/mailbox_tag.json</code>:</p>
+        <div class="example">
+          <div class="example-header"><span class="label">Inputs</span><span>test vector</span></div>
+          <pre>master_secret = aa aa aa ... (32 bytes)
+direction     = "alice->bob"
+epoch         = 1000
+epoch_secs    = 3600</pre>
+        </div>
+        <div class="example">
+          <div class="example-header"><span class="label">Step 1 — mailbox secret</span></div>
+          <pre>mailbox_secret = HKDF-SHA256(
+  ikm  = master_secret,
+  salt = "",
+  info = "yakr/v0.1/mailbox-tag" || "alice->bob"
+)</pre>
+        </div>
+        <div class="example">
+          <div class="example-header"><span class="label">Step 2 — tag</span></div>
+          <pre>tag = HMAC-SHA256(
+  key = mailbox_secret,
+  msg = "alice->bob|1000"
+)
+
+expected = 7f409c7b34bd6c82131f8fbb1082a433
+           94f045b78c004c320bb6f347f51acf08</pre>
+        </div>
+        <div class="callout">
+          Tags rotate every <code>epoch_secs</code> (default 3600 s). Fetch checks current epoch
+          plus lookback epochs to handle clock skew and delayed delivery.
+        </div>
+      </section>
+
+      <section id="hybrid">
+        <h2>Worked Example: Hybrid PQ Master</h2>
+        <p>From <code>docs/spec/test-vectors-v1/hybrid_kex.json</code>:</p>
+        <div class="example">
+          <div class="example-header"><span class="label">Inputs</span><span>vector-1</span></div>
+          <pre>identity_shared  = 01020304...1f20  (32 bytes)
+ephemeral_shared = 21222324...3f40  (32 bytes)
+pq_secret        = 61626364...7f80  (32 bytes)
+transcript_hash  = 9f86d081884c7d659a2feaa0c55ad015
+                   a3bf4f1b2b0b822cd15d6c15b0f00a08</pre>
+        </div>
+        <div class="example">
+          <div class="example-header"><span class="label">Derivation</span></div>
+          <pre>x_secret = identity_shared || ephemeral_shared
+master   = HKDF-SHA256(
+  ikm  = x_secret || pq_secret,
+  salt = transcript_hash,
+  info = "yakr/v0.6/hybrid-master"
+)
+
+expected = f0d499a74a2c5dfcddb6a1e7290a70f3
+           c1641e67b1f7de126e80b51068a0479e</pre>
+        </div>
+
+        <div class="diagram">
+          <pre class="mermaid">
+flowchart LR
+  ID[X25519 identity DH] --> XS[x_secret 64B]
+  EP[X25519 ephemeral DH] --> XS
+  KEM[ML-KEM-768 decaps] --> PQ[pq_secret 32B]
+  XS --> HKDF
+  PQ --> HKDF[HKDF hybrid-master]
+  TR[transcript SHA-256] --> HKDF
+  HKDF --> M[master_secret]
+          </pre>
+        </div>
+      </section>
+
+      <section id="message-key">
+        <h2>Message Encryption</h2>
+        <div class="example">
+          <div class="example-header"><span class="label">Per-sequence key</span></div>
+          <pre>message_key(1) = HKDF-SHA256(
+  ikm  = master_secret,
+  salt = "",
+  info = "yakr/v0.1/message-key" || 0x0000000000000001
+)
+
+ciphertext = nonce(24 random bytes) || XChaCha20-Poly1305(
+  key  = message_key(1),
+  plaintext = inner_message_json,
+  ad   = b""
+)</pre>
+        </div>
+      </section>
+
+      <section id="invite-safety">
+        <h2>Invite Safety Code</h2>
+        <p>From <code>docs/spec/test-vectors-v1/invite.json</code> — both parties compute:</p>
+        <div class="example">
+          <div class="example-header"><span class="label">Safety code</span><span>classical-invite-v1</span></div>
+          <pre>signing_public  = 03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8
+agreement_public = (from invite CBOR)
+
+digest = SHA256(signing_public || agreement_public)
+digits = str(byte % 10) for byte in digest[0:10]
+
+safety_code = "4510 2126 16"</pre>
+        </div>
+      </section>
+
+      <section id="rekey">
+        <h2>PQ Rekey Policy</h2>
+        <p>Hybrid sessions must rekey when either threshold is reached:</p>
+        <div class="diagram">
+          <pre class="mermaid">
+flowchart TD
+  H{Hybrid session?} -->|no| OK[Continue]
+  H -->|yes| C{messages ≥ 10,000<br/>OR age ≥ 7 days?}
+  C -->|yes| RK[YAKR_ERR_PQ_REKEY_REQUIRED]
+  C -->|no| OK
+          </pre>
+        </div>
+      </section>
+
+      <section id="errors">
+        <h2>Crypto-Related Error Codes</h2>
+        <table>
+          <thead>
+            <tr><th>Code</th><th>When</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>YAKR_ERR_DECRYPT_FAILED</code></td><td>AEAD auth failure or wrong key</td></tr>
+            <tr><td><code>YAKR_ERR_INVITE_EXPIRED</code></td><td>Invite <code>expires_at</code> passed</td></tr>
+            <tr><td><code>YAKR_ERR_PQ_REKEY_REQUIRED</code></td><td>Hybrid session needs fresh KEX</td></tr>
+            <tr><td><code>YAKR_ERR_PROFILE_STALE</code></td><td>Delivery profile past <code>valid_until</code></td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <footer class="footer">
+        <a href="delivery.html">← Delivery</a> · <a href="examples.html">Next: Wire Examples →</a>
+      </footer>
+    </main>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+  <script src="assets/app.js"></script>
+</body>
+</html>

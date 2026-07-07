@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Overview &amp; Actors — Yakr Protocol</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-icon">Y</div>
+        <div>
+          <h1>Yakr Protocol</h1>
+          <p>v1.0 visual guide</p>
+        </div>
+      </div>
+      <nav>
+        <div class="nav-section">
+          <h2>Guide</h2>
+          <a href="index.html">Home</a>
+          <a href="overview.html" class="active">Overview &amp; Actors</a>
+          <a href="lifecycle.html">End-to-End Lifecycle</a>
+          <a href="delivery.html">Delivery &amp; Relays</a>
+          <a href="crypto.html">Cryptography</a>
+          <a href="examples.html">Wire Examples</a>
+        </div>
+      </nav>
+    </aside>
+
+    <main>
+      <div class="hero">
+        <h1>Overview &amp; Actors</h1>
+        <p>Who participates in Yakr, what they trust, and how the reference implementation is organised across nine phases.</p>
+      </div>
+
+      <section id="actors">
+        <h2>Protocol Actors</h2>
+        <div class="actor-row">
+          <div class="actor">
+            <div class="icon">👤</div>
+            <div class="name">Client</div>
+            <div class="desc">Alice, Bob — holds keys, encrypts messages, derives mailbox tags</div>
+          </div>
+          <div class="actor">
+            <div class="icon">📮</div>
+            <div class="name">Mailbox Relay</div>
+            <div class="desc">Stores opaque blobs indexed by 32-byte mailbox tags</div>
+          </div>
+          <div class="actor">
+            <div class="icon">🔀</div>
+            <div class="name">Entry Relay</div>
+            <div class="desc">Forwards onion packets without storing mailbox tags (Phase 2+)</div>
+          </div>
+          <div class="actor">
+            <div class="icon">🤝</div>
+            <div class="name">Rendezvous</div>
+            <div class="desc">Hint-only service for invite pairing (optional HTTP endpoint)</div>
+          </div>
+        </div>
+
+        <div class="diagram">
+          <pre class="mermaid">
+flowchart TB
+  subgraph clients [Clients — trusted with plaintext]
+    Alice[Alice]
+    Bob[Bob]
+  end
+  subgraph relays [Relays — untrusted for confidentiality]
+    Entry[Entry Relay<br/>Carol's node]
+    Mailbox[Mailbox Relay<br/>Dave's node]
+  end
+  Alice -->|onion packet| Entry
+  Entry -->|forward inner layer| Mailbox
+  Bob -->|GET blobs by tag| Mailbox
+  Alice -.->|signed invite URL| Bob
+          </pre>
+        </div>
+      </section>
+
+      <section id="objects">
+        <h2>Key Objects</h2>
+        <table>
+          <thead>
+            <tr><th>Object</th><th>Who sees it</th><th>Format</th><th>Purpose</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Identity</td><td>Owner only</td><td>Ed25519 + X25519 keys</td><td>Long-term signing and agreement</td></tr>
+            <tr><td>Invite bundle</td><td>Public (URL)</td><td>CBOR + Ed25519 sig</td><td>Bootstrap pairwise contact</td></tr>
+            <tr><td>Delivery profile</td><td>Contact only</td><td>CBOR + Ed25519 sig</td><td>How to reach someone offline</td></tr>
+            <tr><td>Inner message</td><td>Recipient only</td><td>JSON (encrypted)</td><td>Chat text, receipts, profile updates</td></tr>
+            <tr><td>Outer blob</td><td>Relay</td><td>tag + expiry + ciphertext</td><td>Store-and-forward unit</td></tr>
+            <tr><td>Mailbox tag</td><td>Relay</td><td>32 bytes HMAC</td><td>Opaque fetch index per epoch</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="trust">
+        <h2>Trust Model</h2>
+        <div class="diagram">
+          <pre class="mermaid">
+flowchart LR
+  subgraph trusted [Client trusts]
+    T1[Own device keys]
+    T2[Contact's signed invites/profiles]
+    T3[Safety code verified OOB]
+  end
+  subgraph untrusted [Relay assumed malicious]
+    U1[Cannot decrypt blobs]
+    U2[Can drop/delay/limit]
+    U3[Sees tags + sizes + timing]
+  end
+          </pre>
+        </div>
+        <div class="callout warn">
+          <strong>Relays are dumb by design.</strong> They validate tag length (32 B), future expiry,
+          size ≤ 64 KiB, per-tag blob caps, and optional relay tickets. They never parse chat semantics.
+        </div>
+      </section>
+
+      <section id="packages">
+        <h2>Reference Implementation</h2>
+        <div class="diagram">
+          <pre class="mermaid">
+flowchart TB
+  Core[yakr-core<br/>crypto, sessions, routing]
+  Relay[yakr-relay<br/>FastAPI blob store]
+  CLI[yakr-cli<br/>Typer demo client]
+  Mobile[yakr-mobile<br/>Android reference]
+  Testkit[yakr-testkit<br/>pytest + interop verifier]
+  Core --> CLI
+  Core --> Mobile
+  Core --> Testkit
+  Relay --> Testkit
+          </pre>
+        </div>
+      </section>
+
+      <section id="versions">
+        <h2>Protocol Version Timeline</h2>
+        <table>
+          <thead>
+            <tr><th>Version</th><th>Phase</th><th>What's new</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>yakr-v0.1</code></td><td>1</td><td>Single-hop offline delivery, classical crypto</td></tr>
+            <tr><td><code>yakr-v0.2</code></td><td>2</td><td>Two-hop onion routing, delivery receipts</td></tr>
+            <tr><td><code>yakr-v0.3</code></td><td>3</td><td>Per-message path rotation</td></tr>
+            <tr><td><code>yakr-v0.4</code></td><td>4</td><td>Invite URLs, relay tickets, ratchet</td></tr>
+            <tr><td><code>yakr-v0.5</code></td><td>5</td><td>Signed delivery profiles, direct P2P hints</td></tr>
+            <tr><td><code>yakr-v0.6</code></td><td>6</td><td>Hybrid ML-KEM-768 pairing</td></tr>
+            <tr><td><code>yakr-v0.7</code></td><td>7</td><td>Padding, decoy tags, relay delay</td></tr>
+            <tr><td><code>yakr-v1.0</code></td><td>9</td><td>Frozen interop baseline</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <footer class="footer">
+        <a href="lifecycle.html">Next: End-to-End Lifecycle →</a>
+      </footer>
+    </main>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+  <script src="assets/app.js"></script>
+</body>
+</html>

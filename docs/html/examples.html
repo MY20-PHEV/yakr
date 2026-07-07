@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wire Examples — Yakr Protocol</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-icon">Y</div>
+        <div>
+          <h1>Yakr Protocol</h1>
+          <p>v1.0 visual guide</p>
+        </div>
+      </div>
+      <nav>
+        <div class="nav-section">
+          <h2>Guide</h2>
+          <a href="index.html">Home</a>
+          <a href="overview.html">Overview &amp; Actors</a>
+          <a href="lifecycle.html">End-to-End Lifecycle</a>
+          <a href="delivery.html">Delivery &amp; Relays</a>
+          <a href="crypto.html">Cryptography</a>
+          <a href="examples.html" class="active">Wire Examples</a>
+        </div>
+      </nav>
+    </aside>
+
+    <main>
+      <div class="hero">
+        <h1>Wire Examples</h1>
+        <p>Concrete payloads from the v1.0 test vectors and reference CLI — copy-paste ready for implementers.</p>
+      </div>
+
+      <section id="e2e">
+        <h2>Complete Message Example</h2>
+        <p>Alice sends <strong>"hello vector"</strong> to Bob (seq=1). This is the full stack from plaintext to relay store.</p>
+        <div class="diagram">
+          <pre class="mermaid">
+flowchart TB
+  A1["① Inner JSON<br/>body: hello vector"] --> A2["② Encrypt<br/>message_key(1)"]
+  A2 --> A3["③ Outer blob<br/>tag + expiry + ciphertext"]
+  A3 --> A4["④ POST /v1/blobs"]
+          </pre>
+        </div>
+      </section>
+
+      <section id="inner">
+        <h2>① Inner Message (plaintext JSON)</h2>
+        <p>Source: <code>test-vectors-v1/inner_message.json</code></p>
+        <div class="example">
+          <div class="example-header"><span class="label">inner-text-v1</span><span>before encryption</span></div>
+          <pre>{
+  "body": "hello vector",
+  "conversation_id": "pairwise_alice_bob",
+  "created_at": 1700000000000,
+  "message_id": null,
+  "sender_device_id": "abc123",
+  "seq": 1,
+  "type": "text",
+  "version": 1
+}</pre>
+        </div>
+        <p>Keys are sorted lexicographically on the wire. After encryption the result becomes the outer blob's <code>ciphertext</code> field.</p>
+      </section>
+
+      <section id="outer">
+        <h2>③ Outer Blob → Relay Request</h2>
+        <div class="example">
+          <div class="example-header"><span class="label">POST /v1/blobs</span><span>mailbox relay</span></div>
+          <pre>POST /v1/blobs HTTP/1.1
+Host: dave-relay.example:8080
+Content-Type: application/json
+
+{
+  "mailbox_tag": "f0CcezS9bIITH4-7EIKkM5TwRbeMAEwyC7bzR_Uazwg",
+  "expires_at": 1719835200000,
+  "ciphertext": "xK8m2vP4nQ...(base64url XChaCha ciphertext)...",
+  "ticket": null
+}</pre>
+        </div>
+        <div class="example">
+          <div class="example-header"><span class="label">Response</span><span>201 Created</span></div>
+          <pre>{ "status": "stored" }</pre>
+        </div>
+        <p>The <code>mailbox_tag</code> above is base64url of the 32-byte HMAC from the mailbox tag vector:</p>
+        <div class="example">
+          <div class="example-header"><span class="label">tag hex</span><span>mailbox_tag.json</span></div>
+          <pre>7f409c7b34bd6c82131f8fbb1082a43394f045b78c004c320bb6f347f51acf08</pre>
+        </div>
+      </section>
+
+      <section id="fetch">
+        <h2>⑤ Fetch Response</h2>
+        <div class="example">
+          <div class="example-header"><span class="label">GET /v1/blobs/{tag}</span></div>
+          <pre>GET /v1/blobs/f0CcezS9bIITH4-7EIKkM5TwRbeMAEwyC7bzR_Uazwg HTTP/1.1
+Host: dave-relay.example:8080</pre>
+        </div>
+        <div class="example">
+          <div class="example-header"><span class="label">Response</span><span>200 OK</span></div>
+          <pre>[
+  {
+    "mailbox_tag": "f0CcezS9bIITH4-7EIKkM5TwRbeMAEwyC7bzR_Uazwg",
+    "expires_at": 1719835200000,
+    "ciphertext": "xK8m2vP4nQ...",
+    "stored_at": 1719831600000
+  }
+]</pre>
+        </div>
+      </section>
+
+      <section id="invite">
+        <h2>Invite Bundle</h2>
+        <p>Source: <code>test-vectors-v1/invite.json</code></p>
+        <div class="example">
+          <div class="example-header"><span class="label">Invite URL</span><span>yakr-v0.4</span></div>
+          <pre>yakr://invite/qWhwcm90b2NvbGl5YWtyLXYwLjRsaW52aXRlcl9uYW1lbHZlY3Rvci1hbGljZW5zaWduaW5nX3B1YmxpY1ggA6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbhwYWdyZWVtZW50X3B1YmxpY1ggNYBy1jZYgNGu6jKa35EhODhR7SGijjt16WXQ0s0WYlRtaW52aXRlX3NlY3JldFggfIDynxArEkRHgHp1MAvwioITn3l5zKdyQiUZZI2qLmJvcmVuZGV6dm91c19oaW50eBpodHRwczovL3JlbmRlenZvdXMudGVzdC92MWpleHBpcmVzX2F0GwAAAZ9CA8rUbGNhcGFiaWxpdGllc4NqZGlyZWN0X3AycGxmcmllbmRfcmVsYXltc3RvcmVfZm9yd2FyZGlzaWduYXR1cmVYQIBTEMUgIae9YWJaC2nPNrPaZRaEyBzQMuiEpA_Ee1y7yNGkVkbFqxfcnOvWv9ISyTOybQzGrzK3OnKd3qmmLw4</pre>
+        </div>
+        <div class="example">
+          <div class="example-header"><span class="label">Decoded CBOR fields</span></div>
+          <pre>{
+  "protocol":         "yakr-v0.4",
+  "inviter_name":     "vector-alice",
+  "signing_public":   &lt;32 bytes&gt;,
+  "agreement_public": &lt;32 bytes&gt;,
+  "invite_secret":    &lt;32 bytes&gt;,
+  "rendezvous_hint":  "https://rendezvous.test/v1",
+  "expires_at":       &lt;unix ms&gt;,
+  "capabilities":     ["direct_p2p", "friend_relay", "store_forward"],
+  "signature":        &lt;64 bytes Ed25519&gt;
+}</pre>
+        </div>
+        <div class="example">
+          <div class="example-header"><span class="label">Safety code (both parties)</span></div>
+          <pre>4510 2126 16</pre>
+        </div>
+      </section>
+
+      <section id="profile">
+        <h2>Delivery Profile</h2>
+        <p>Source: <code>test-vectors-v1/delivery_profile.json</code></p>
+        <div class="example">
+          <div class="example-header"><span class="label">profile_b64 (truncated)</span><span>yakr-v0.5</span></div>
+          <pre>qmhwcm90b2NvbGl5YWtyLXYwLjVndmVyc2lvbgF...signature...</pre>
+        </div>
+        <div class="example">
+          <div class="example-header"><span class="label">Decoded structure</span></div>
+          <pre>{
+  "protocol": "yakr-v0.5",
+  "version": 1,
+  "valid_from": &lt;unix ms&gt;,
+  "valid_until": &lt;unix ms&gt;,
+  "direct_hints": ["https://direct.test"],
+  "relay_descriptors": [{
+    "name": "relay",
+    "role": "both",
+    "url": "https://relay.test",
+    "wrap_secret": &lt;32 bytes&gt;
+  }],
+  "mailbox_params": {
+    "epoch_secs": 3600,
+    "direction_salt": &lt;16 bytes&gt;
+  },
+  "blob_classes": [4096],
+  "receipt_policy": "minimal",
+  "signature": &lt;64 bytes Ed25519&gt;
+}</pre>
+        </div>
+      </section>
+
+      <section id="hybrid">
+        <h2>Hybrid KEX Test Vector</h2>
+        <div class="example">
+          <div class="example-header"><span class="label">hybrid_kex.json — vector-1</span></div>
+          <pre>{
+  "identity_shared_hex":  "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20",
+  "ephemeral_shared_hex": "2122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f40",
+  "pq_secret_hex":        "6162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f80",
+  "transcript_hash_hex":  "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+  "expected_master_hex":  "f0d499a74a2c5dfcddb6a1e7290a70f3c1641e67b1f7de126e80b51068a0479e"
+}</pre>
+        </div>
+      </section>
+
+      <section id="receipt">
+        <h2>Delivery Receipt Inner Message</h2>
+        <div class="example">
+          <div class="example-header"><span class="label">type=receipt</span><span>Phase 2</span></div>
+          <pre>{
+  "body": "{\"delivered_seq\":1,\"status\":\"ok\"}",
+  "conversation_id": "pairwise_alice_bob",
+  "created_at": 1700000001000,
+  "message_id": null,
+  "sender_device_id": "bob-device",
+  "seq": 42,
+  "type": "receipt",
+  "version": 1
+}</pre>
+        </div>
+      </section>
+
+      <section id="cli">
+        <h2>CLI Demo Commands</h2>
+        <div class="example">
+          <div class="example-header"><span class="label">Docker — full offline demo</span></div>
+          <pre>./scripts/demo_offline_delivery.sh      # Phase 1 single-hop
+./scripts/demo_two_hop_delivery.sh      # Phase 2 onion + receipts
+./scripts/demo_invite_pairing.sh        # Phase 4 invites
+./scripts/demo_profile_delivery.sh      # Phase 5 profiles
+./scripts/demo_hybrid_pairing.sh        # Phase 6 hybrid PQ</pre>
+        </div>
+        <div class="example">
+          <div class="example-header"><span class="label">Local dev</span></div>
+          <pre># Terminal 1
+uv run yakr-relay serve --port 8080 --data-dir ./data/relay
+
+# Terminal 2 — Alice
+uv run yakr --name alice send bob "hello world"
+
+# Terminal 3 — Bob (can be offline during send)
+uv run yakr --name bob fetch alice</pre>
+        </div>
+      </section>
+
+      <section id="verify">
+        <h2>Verify Your Implementation</h2>
+        <div class="example">
+          <div class="example-header"><span class="label">Interop tests</span></div>
+          <pre>uv sync --all-packages
+uv run pytest packages/yakr-testkit/tests/test_phase9_interop.py -q
+uv run pytest packages/yakr-testkit/tests/test_phase9_relay_abuse.py -q</pre>
+        </div>
+        <div class="callout">
+          Independent implementations should pass the interop verifier using only
+          <code>docs/spec/yakr-protocol-v1.md</code> and <code>docs/spec/test-vectors-v1/</code>
+          — no <code>yakr_core</code> imports required.
+        </div>
+      </section>
+
+      <footer class="footer">
+        <a href="crypto.html">← Cryptography</a> · <a href="index.html">Back to Home</a>
+      </footer>
+    </main>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+  <script src="assets/app.js"></script>
+</body>
+</html>

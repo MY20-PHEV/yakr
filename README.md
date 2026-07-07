@@ -9,6 +9,7 @@ A decentralised, social-relay, post-quantum messaging protocol.
 | [whitepaper.md](whitepaper.md) | Conceptual protocol whitepaper (Draft v0.1) |
 | [docs/REFERENCE_DESIGN.md](docs/REFERENCE_DESIGN.md) | Phased reference implementation plan |
 | [docs/spec/yakr-protocol-v1.md](docs/spec/yakr-protocol-v1.md) | Normative v1.0 protocol spec |
+| [docs/html/index.html](docs/html/index.html) | Visual protocol guide (HTML + flowcharts) |
 
 ## Status
 
@@ -20,6 +21,7 @@ A decentralised, social-relay, post-quantum messaging protocol.
 | [docs/spec/test-vectors-v1/](docs/spec/test-vectors-v1/) | Interop test vectors |
 | [docs/security/analysis-v1.md](docs/security/analysis-v1.md) | Threat model and mitigations |
 | [interop/README.md](interop/README.md) | Third-party client checklist |
+| [docs/html/index.html](docs/html/index.html) | Visual protocol guide (HTML + flowcharts) |
 
 ## Quick Summary
 
