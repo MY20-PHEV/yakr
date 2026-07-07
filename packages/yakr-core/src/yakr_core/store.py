@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Protocol
 
 from yakr_core.delivery_profile import DeliveryProfile
+from yakr_core.privacy import PrivacyMetrics
 from yakr_core.identity import Contact, Identity, export_public_bundle
 from yakr_core.routing import RouteState
 
@@ -184,3 +185,17 @@ class FileLocalStore:
     def save_local_profile(self, profile: DeliveryProfile) -> None:
         self.local_profile_path.parent.mkdir(parents=True, exist_ok=True)
         self.local_profile_path.write_text(profile.to_b64(), encoding="utf-8")
+
+    @property
+    def privacy_metrics_path(self) -> Path:
+        return self.root / "privacy_metrics.json"
+
+    def load_privacy_metrics(self) -> PrivacyMetrics:
+        if not self.privacy_metrics_path.exists():
+            return PrivacyMetrics()
+        payload = json.loads(self.privacy_metrics_path.read_text(encoding="utf-8"))
+        return PrivacyMetrics.from_dict(payload)
+
+    def save_privacy_metrics(self, metrics: PrivacyMetrics) -> None:
+        self.privacy_metrics_path.parent.mkdir(parents=True, exist_ok=True)
+        self.privacy_metrics_path.write_text(json.dumps(metrics.to_dict(), indent=2), encoding="utf-8")

@@ -10,6 +10,7 @@ from yakr_core.errors import DecryptError, DuplicateSeqError, RekeyRequiredError
 from yakr_core.identity import Contact, Identity
 from yakr_core.mailbox import MailboxTag, MailboxTagDeriver
 from yakr_core.message import InnerMessage, OuterBlob, message_id
+from yakr_core.privacy import PrivacyMetrics, decode_padded_plaintext, pad_plaintext
 
 
 DEFAULT_BLOB_TTL_MS = 7 * 24 * 60 * 60 * 1000
@@ -21,6 +22,7 @@ class EncryptedMessage:
     inner_message: InnerMessage
     msg_id: str
     mailbox_tag: MailboxTag
+    padding_bytes: int = 0
 
 
 class Session:
@@ -44,11 +46,13 @@ class Session:
             epoch_secs = self.contact.delivery_profile.mailbox_epoch_secs
         return MailboxTagDeriver(secret, epoch_secs=epoch_secs)
 
-    def _encrypt_inner(self, inner: InnerMessage) -> bytes:
+    def _encrypt_inner(self, inner: InnerMessage) -> tuple[bytes, int]:
+        raw = inner.to_bytes()
+        padded, padding_bytes = pad_plaintext(raw, self.contact.privacy_mode)
         if self.contact.ratchet is not None:
-            return self.contact.ratchet.encrypt(inner.to_bytes())
+            return self.contact.ratchet.encrypt(padded), padding_bytes
         key = derive_message_key(self.contact.master_secret, inner.seq)
-        return xchacha_encrypt(key, inner.to_bytes())
+        return xchacha_encrypt(key, padded), padding_bytes
 
     def encrypt_text(self, body: str) -> EncryptedMessage:
         self._require_fresh_session()
@@ -59,7 +63,7 @@ class Session:
             seq=seq,
             body=body,
         )
-        ciphertext = self._encrypt_inner(inner)
+        ciphertext, padding_bytes = self._encrypt_inner(inner)
         tag = self.mailbox_deriver(outbound=True).derive(self.send_direction)
         outer = OuterBlob(
             version=1,
@@ -73,6 +77,7 @@ class Session:
             inner_message=inner,
             msg_id=message_id(ciphertext),
             mailbox_tag=tag,
+            padding_bytes=padding_bytes,
         )
 
     def encrypt_receipt(self, delivered_message_id: str) -> EncryptedMessage:
@@ -84,7 +89,7 @@ class Session:
             seq=seq,
             message_id=delivered_message_id,
         )
-        ciphertext = self._encrypt_inner(inner)
+        ciphertext, padding_bytes = self._encrypt_inner(inner)
         tag = self.mailbox_deriver(outbound=True).derive(self.send_direction)
         outer = OuterBlob(
             version=1,
@@ -98,6 +103,7 @@ class Session:
             inner_message=inner,
             msg_id=message_id(ciphertext),
             mailbox_tag=tag,
+            padding_bytes=padding_bytes,
         )
 
     def encrypt_profile(self, profile: DeliveryProfile) -> EncryptedMessage:
@@ -109,7 +115,7 @@ class Session:
             seq=seq,
             profile_b64=profile.to_b64(),
         )
-        ciphertext = self._encrypt_inner(inner)
+        ciphertext, padding_bytes = self._encrypt_inner(inner)
         tag = self.mailbox_deriver(outbound=True).derive(self.send_direction)
         outer = OuterBlob(
             version=1,
@@ -123,15 +129,21 @@ class Session:
             inner_message=inner,
             msg_id=message_id(ciphertext),
             mailbox_tag=tag,
+            padding_bytes=padding_bytes,
         )
 
     def decrypt_outer(self, outer: OuterBlob) -> InnerMessage:
+        mode = self.contact.privacy_mode
         if self.contact.ratchet is not None:
             for offset in range(10):
                 seq_hint = self.contact.ratchet.recv_n + offset
                 try:
-                    plaintext = self.contact.ratchet.decrypt_at(outer.ciphertext, seq_hint=seq_hint)
+                    padded = self.contact.ratchet.decrypt_at(outer.ciphertext, seq_hint=seq_hint)
                 except Exception:
+                    continue
+                try:
+                    plaintext = decode_padded_plaintext(padded, mode)
+                except ValueError:
                     continue
                 inner = InnerMessage.from_bytes(plaintext)
                 if inner.conversation_id != self.contact.conversation_id:
@@ -146,8 +158,12 @@ class Session:
         for seq in range(max(1, self.contact.last_recv_seq), self.contact.next_send_seq + 5):
             key = derive_message_key(self.contact.master_secret, seq)
             try:
-                plaintext = xchacha_decrypt(key, outer.ciphertext)
+                padded = xchacha_decrypt(key, outer.ciphertext)
             except Exception:
+                continue
+            try:
+                plaintext = decode_padded_plaintext(padded, mode)
+            except ValueError:
                 continue
             inner = InnerMessage.from_bytes(plaintext)
             if inner.conversation_id != self.contact.conversation_id:

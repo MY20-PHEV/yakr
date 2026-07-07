@@ -9,11 +9,12 @@ from typing import TYPE_CHECKING
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ed25519, x25519
 
-from yakr_core.crypto import derive_master_secret, x25519_shared_secret
+from yakr_core.crypto import derive_master_secret, derive_mailbox_secret, x25519_shared_secret
 from yakr_core.hybrid_pq import kem_generate_keypair
 
 if TYPE_CHECKING:
     from yakr_core.delivery_profile import DeliveryProfile
+    from yakr_core.privacy import PrivacyMode
     from yakr_core.ratchet import RatchetState
 
 
@@ -129,6 +130,7 @@ class Contact:
     delivery_profile: DeliveryProfile | None = None
     hybrid_pq: bool = False
     session_started_at: int = 0
+    privacy_mode: PrivacyMode = "fast"
 
     @classmethod
     def establish(cls, local: Identity, remote_name: str, remote_bundle: dict[str, str]) -> Contact:
@@ -174,6 +176,8 @@ class Contact:
             payload["hybrid_pq"] = 1
         if self.session_started_at:
             payload["session_started_at"] = self.session_started_at
+        if self.privacy_mode != "fast":
+            payload["privacy_mode"] = self.privacy_mode
         return payload
 
     @classmethod
@@ -205,6 +209,7 @@ class Contact:
             delivery_profile=delivery_profile,
             hybrid_pq=bool(int(payload.get("hybrid_pq", 0))),
             session_started_at=int(payload.get("session_started_at", 0)),
+            privacy_mode=str(payload.get("privacy_mode", "fast")),  # type: ignore[arg-type]
         )
 
 
