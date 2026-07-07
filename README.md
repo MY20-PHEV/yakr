@@ -41,6 +41,7 @@ Spin up isolated client identities with persistent volumes — easiest way to te
 ./scripts/demo_two_hop_delivery.sh      # Phase 2 two-hop + receipts
 ./scripts/demo_invite_pairing.sh        # Phase 4 invite pairing + tickets
 ./scripts/demo_profile_delivery.sh      # Phase 5 delivery profiles + direct P2P
+./scripts/demo_hybrid_pairing.sh          # Phase 6 hybrid PQ pairing
 ```
 
 Manual steps:

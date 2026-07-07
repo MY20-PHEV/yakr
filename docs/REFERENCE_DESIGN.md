@@ -588,7 +588,8 @@ delivery_profile {
 
 **Depends on:** Phase 5  
 **Protocol:** `yakr-v0.6`  
-**Crypto suite:** Hybrid PQ v1
+**Crypto suite:** Hybrid PQ v1  
+**Status:** Complete
 
 ### Goal
 
@@ -625,10 +626,10 @@ master    = HKDF-SHA256(
 
 ### Exit Criteria
 
-- [ ] Hybrid-capable clients establish session with PQ component
-- [ ] Classical-only peer negotiates fallback when `hybrid_pq` absent
-- [ ] Test vectors pass in CI across two independent implementations (core + testkit verifier)
-- [ ] ADR documents PQ library choice and audit status
+- [x] Hybrid-capable clients establish session with PQ component
+- [x] Classical-only peer negotiates fallback when `hybrid_pq` absent
+- [x] Test vectors pass in CI across two independent implementations (core + testkit verifier)
+- [x] ADR documents PQ library choice and audit status
 
 ---
 

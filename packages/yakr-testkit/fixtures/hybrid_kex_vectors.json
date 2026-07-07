@@ -1,0 +1,11 @@
+[
+  {
+    "name": "vector-1",
+    "description": "Deterministic hybrid master derivation",
+    "identity_shared_hex": "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20",
+    "ephemeral_shared_hex": "2122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f40",
+    "pq_secret_hex": "6162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f80",
+    "transcript_hash_hex": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+    "expected_master_hex": "f0d499a74a2c5dfcddb6a1e7290a70f3c1641e67b1f7de126e80b51068a0479e"
+  }
+]
