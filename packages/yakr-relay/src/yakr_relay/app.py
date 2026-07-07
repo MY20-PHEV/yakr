@@ -1,11 +1,15 @@
 from __future__ import annotations
 
-import threading
-import time
+import base64
+from dataclasses import dataclass
+from typing import Literal
 
+import httpx
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
+from yakr_core.onion import decode_entry_packet, decode_mailbox_packet
+from yakr_core.relay import RelayRole
 from yakr_relay.store import BlobStore, _b64decode, _b64encode
 
 
@@ -22,31 +26,33 @@ class BlobResponse(BaseModel):
     stored_at: int
 
 
-def create_app(store: BlobStore) -> FastAPI:
-    app = FastAPI(title="Yakr Relay", version="0.1.0")
-    stop_event = threading.Event()
+class RelayPacketRequest(BaseModel):
+    packet: str
 
-    @app.on_event("startup")
-    def _start_sweeper() -> None:
-        def sweeper() -> None:
-            while not stop_event.is_set():
-                store.sweep_expired()
-                stop_event.wait(60)
 
-        thread = threading.Thread(target=sweeper, daemon=True)
-        thread.start()
-        app.state.sweeper_stop = stop_event
+class IngestRequest(BaseModel):
+    inner: str
 
-    @app.on_event("shutdown")
-    def _stop_sweeper() -> None:
-        stop_event.set()
+
+@dataclass
+class RelayRuntime:
+    role: RelayRole
+    wrap_secret: bytes | None
+    name: str
+
+
+def create_app(store: BlobStore, runtime: RelayRuntime | None = None) -> FastAPI:
+    runtime = runtime or RelayRuntime(role="mailbox", wrap_secret=None, name="relay")
+    app = FastAPI(title="Yakr Relay", version="0.2.0")
 
     @app.get("/healthz")
     def healthz() -> dict[str, str]:
-        return {"status": "ok"}
+        return {"status": "ok", "role": runtime.role, "name": runtime.name}
 
     @app.post("/v1/blobs", status_code=201)
     def store_blob(request: BlobStoreRequest) -> dict[str, str]:
+        if runtime.role == "entry":
+            raise HTTPException(status_code=405, detail="entry relay does not store blobs directly")
         try:
             store.store(
                 _b64decode(request.mailbox_tag),
@@ -74,5 +80,43 @@ def create_app(store: BlobStore) -> FastAPI:
             )
             for blob in blobs
         ]
+
+    @app.post("/v1/relay", status_code=202)
+    def relay_packet(request: RelayPacketRequest) -> dict[str, str]:
+        if runtime.role not in ("entry", "both"):
+            raise HTTPException(status_code=405, detail="not an entry relay")
+        if runtime.wrap_secret is None:
+            raise HTTPException(status_code=500, detail="entry relay missing wrap secret")
+
+        try:
+            packet = base64.urlsafe_b64decode(request.packet + "=" * (-len(request.packet) % 4))
+            next_url, inner_cipher = decode_entry_packet(packet, runtime.wrap_secret)
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail="invalid relay packet") from exc
+
+        response = httpx.post(
+            next_url,
+            json={"inner": _b64encode(inner_cipher)},
+            timeout=10.0,
+        )
+        if response.status_code not in (201, 202):
+            raise HTTPException(status_code=502, detail=f"forward failed: {response.text}")
+
+        return {"status": "forwarded", "next_relay": next_url}
+
+    @app.post("/v1/ingest", status_code=201)
+    def ingest_packet(request: IngestRequest) -> dict[str, str]:
+        if runtime.role not in ("mailbox", "both"):
+            raise HTTPException(status_code=405, detail="not a mailbox relay")
+        if runtime.wrap_secret is None:
+            raise HTTPException(status_code=500, detail="mailbox relay missing wrap secret")
+
+        try:
+            outer = decode_mailbox_packet(_b64decode(request.inner), runtime.wrap_secret)
+            store.store(outer.mailbox_tag, outer.expires_at, outer.ciphertext)
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail="invalid ingest packet") from exc
+
+        return {"status": "stored"}
 
     return app
