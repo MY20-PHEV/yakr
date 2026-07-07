@@ -6,9 +6,11 @@ from pathlib import Path
 
 import httpx
 
+from yakr_core.identity import Contact, Identity
 from yakr_core.message import OuterBlob
 from yakr_core.onion import build_onion_packet
 from yakr_core.relay import RelayNode, load_relay_network
+from yakr_core.relay_ticket import issue_relay_ticket
 from yakr_core.session import EncryptedMessage
 
 
@@ -22,15 +24,15 @@ def relays_path() -> Path:
     return Path.cwd() / "relays.json"
 
 
+def tickets_required() -> bool:
+    return os.environ.get("YAKR_REQUIRE_TICKETS", "").lower() in {"1", "true", "yes"}
+
+
 def parse_route(route: str) -> tuple[str, str]:
     parts = [part.strip() for part in route.split(",") if part.strip()]
     if len(parts) != 2:
         raise ValueError("route must be entry,mailbox")
     return parts[0], parts[1]
-
-
-def reverse_route(entry_name: str, mailbox_name: str) -> tuple[str, str]:
-    return mailbox_name, entry_name
 
 
 def load_route_nodes(route: str) -> tuple[RelayNode, RelayNode]:
@@ -49,18 +51,35 @@ def mailbox_url(route: str | None) -> str:
     return mailbox.url
 
 
+def _ticket(
+    identity: Identity | None,
+    contact: Contact | None,
+    relay_name: str,
+    permission: str,
+) -> str | None:
+    if not tickets_required() or identity is None or contact is None or contact.contact_id is None:
+        return None
+    return issue_relay_ticket(
+        identity,
+        relay_name=relay_name,
+        permissions=(permission,),
+        contact_id=contact.contact_id,
+    ).to_b64()
+
+
 def send_encrypted(
     encrypted: EncryptedMessage,
     *,
     relay_url: str,
     route: str | None = None,
+    identity: Identity | None = None,
+    contact: Contact | None = None,
 ) -> None:
     if route is None:
-        response = httpx.post(
-            f"{relay_url}/v1/blobs",
-            json=encrypted.outer_blob.to_relay_json(),
-            timeout=10.0,
-        )
+        relay_name = os.environ.get("YAKR_RELAY_NAME", "relay")
+        payload = encrypted.outer_blob.to_relay_json()
+        payload["ticket"] = _ticket(identity, contact, relay_name, "store")
+        response = httpx.post(f"{relay_url}/v1/blobs", json=payload, timeout=10.0)
         if response.status_code != 201:
             raise RuntimeError(f"relay store failed: {response.status_code} {response.text}")
         return
@@ -74,9 +93,13 @@ def send_encrypted(
         outer=encrypted.outer_blob,
     )
     packet_b64 = base64.urlsafe_b64encode(packet).decode("ascii").rstrip("=")
+    store_ticket = _ticket(identity, contact, mailbox.name, "store")
     response = httpx.post(
         f"{entry.url}/v1/relay",
-        json={"packet": packet_b64},
+        json={
+            "packet": packet_b64,
+            "ticket": _ticket(identity, contact, entry.name, "forward") or store_ticket,
+        },
         timeout=10.0,
     )
     if response.status_code != 202:

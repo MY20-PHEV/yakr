@@ -14,10 +14,12 @@ from yakr_core.identity import Contact, Identity, export_public_bundle
 from yakr_core.message import OuterBlob, message_id
 from yakr_core.session import Session
 from yakr_core.store import FileLocalStore
+from yakr_cli.invite_cmds import invite_app
 from yakr_cli.network import load_relay_network, mailbox_url, relays_path, send_encrypted
 from yakr_core.routing import select_route
 
 app = typer.Typer(no_args_is_help=True, help="Yakr reference client")
+app.add_typer(invite_app, name="invite")
 console = Console()
 
 
@@ -144,7 +146,13 @@ def send_cmd(
     store.save_contact(contact)
     store.save_outbound_pending(contact_name, encrypted.msg_id, encrypted.inner_message.seq, message)
 
-    send_encrypted(encrypted, relay_url=_relay_url(), route=resolved_route)
+    send_encrypted(
+        encrypted,
+        relay_url=_relay_url(),
+        route=resolved_route,
+        identity=identity,
+        contact=contact,
+    )
     mode = f"two-hop via {resolved_route}" if resolved_route else "single-hop"
     console.print(f"[green]Sent to {contact_name}[/green] ({mode}, seq={encrypted.inner_message.seq})")
 
@@ -195,7 +203,13 @@ def fetch_cmd(
                 store.save_contact(contact)
                 entry_name, mailbox_name = route.split(",")
                 reverse = f"{mailbox_name.strip()},{entry_name.strip()}"
-                send_encrypted(receipt, relay_url=_relay_url(), route=reverse)
+                send_encrypted(
+                    receipt,
+                    relay_url=_relay_url(),
+                    route=reverse,
+                    identity=identity,
+                    contact=contact,
+                )
 
     if fetched == 0:
         console.print(f"[yellow]No new messages from {contact_name}[/yellow]")
