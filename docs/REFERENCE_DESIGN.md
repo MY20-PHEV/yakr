@@ -536,7 +536,8 @@ Relay verifies ticket signature against a known contact issuer key before accept
 ## Phase 5 — Delivery Profiles
 
 **Depends on:** Phase 4  
-**Protocol:** `yakr-v0.5`
+**Protocol:** `yakr-v0.5`  
+**Status:** Complete
 
 ### Goal
 
@@ -577,9 +578,9 @@ delivery_profile {
 
 ### Exit Criteria
 
-- [ ] Bob updates profile; Alice uses new mailbox relay without manual config edit
-- [ ] Stale profile attempt logs warning and retries after refresh
-- [ ] Direct P2P success bypasses relay when both CLIs online on LAN
+- [x] Bob updates profile; Alice uses new mailbox relay without manual config edit
+- [x] Stale profile attempt logs warning and retries after refresh
+- [x] Direct P2P success bypasses relay when both CLIs online on LAN
 
 ---
 

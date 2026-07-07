@@ -12,6 +12,7 @@ build/
 # Local client data
 .yakr/
 .tmp-invite/
+.tmp-profile-demo/
 data/
 
 # IDE
