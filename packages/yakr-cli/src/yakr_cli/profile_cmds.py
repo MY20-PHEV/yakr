@@ -1,0 +1,175 @@
+from __future__ import annotations
+
+import logging
+import os
+import secrets
+from pathlib import Path
+
+import httpx
+import typer
+from rich.console import Console
+
+from yakr_core.delivery_profile import (
+    DeliveryProfile,
+    RelayDescriptor,
+    create_delivery_profile,
+    profile_is_stale,
+    verify_delivery_profile,
+)
+from yakr_core.relay import RelayNode, load_relay_network
+from yakr_core.session import Session
+from yakr_core.store import FileLocalStore
+from yakr_cli.network import deliver_encrypted, relays_path
+
+console = Console()
+logger = logging.getLogger(__name__)
+profile_app = typer.Typer(help="Delivery profile management")
+
+
+def _store() -> FileLocalStore:
+    from yakr_cli.main import _store
+
+    return _store()
+
+
+def _require_identity(store: FileLocalStore):
+    from yakr_cli.main import _require_identity
+
+    return _require_identity(store)
+
+
+def _relay_url() -> str:
+    return os.environ.get("YAKR_RELAY_URL", "http://127.0.0.1:8080").rstrip("/")
+
+
+def _default_descriptors(
+    *,
+    relay_url: str | None = None,
+    relays_file: Path | None = None,
+) -> list[RelayDescriptor]:
+    relay_url = (relay_url or _relay_url()).rstrip("/")
+    relay_name = os.environ.get("YAKR_RELAY_NAME", "relay")
+    descriptors: list[RelayDescriptor] = []
+
+    relays_file = relays_file or relays_path()
+    if relays_file.exists():
+        network = load_relay_network(relays_file)
+        for node in network.values():
+            descriptors.append(
+                RelayDescriptor(
+                    name=node.name,
+                    role=node.role,
+                    url=node.url,
+                    wrap_secret=node.wrap_secret,
+                )
+            )
+    if not descriptors:
+        descriptors.append(
+            RelayDescriptor(
+                name=relay_name,
+                role="both",
+                url=relay_url,
+                wrap_secret=secrets.token_bytes(32),
+            )
+        )
+    return descriptors
+
+
+def build_local_profile(
+    identity,
+    *,
+    direct_hint: str | None = None,
+    version: int | None = None,
+) -> DeliveryProfile:
+    descriptors = _default_descriptors()
+    return create_delivery_profile(
+        identity,
+        relay_descriptors=descriptors,
+        direct_hints=[direct_hint] if direct_hint else [],
+        version=version,
+    )
+
+
+@profile_app.command("publish")
+def profile_publish(
+    direct_port: int | None = typer.Option(None, "--direct-port", help="Publish direct P2P hint"),
+    bump_version: bool = typer.Option(True, "--bump-version/--no-bump-version"),
+) -> None:
+    """Create or refresh the local delivery profile."""
+    store = _store()
+    identity = _require_identity(store)
+    current = store.load_local_profile()
+    version = 1
+    if current is not None and bump_version:
+        version = current.version + 1
+    elif current is not None:
+        version = current.version
+
+    direct_hint = None
+    if direct_port is not None:
+        direct_hint = f"http://127.0.0.1:{direct_port}"
+
+    profile = build_local_profile(identity, direct_hint=direct_hint, version=version)
+    store.save_local_profile(profile)
+    console.print(f"[green]Published delivery profile v{profile.version}[/green]")
+    if direct_hint:
+        console.print(f"[cyan]Direct hint:[/cyan] {direct_hint}")
+
+
+@profile_app.command("show")
+def profile_show(
+    contact_name: str | None = typer.Argument(None, help="Contact name or local profile"),
+) -> None:
+    """Show the local profile or a contact's stored profile."""
+    store = _store()
+    if contact_name is None:
+        profile = store.load_local_profile()
+        if profile is None:
+            console.print("[yellow]No local delivery profile published[/yellow]")
+            raise typer.Exit(code=1)
+        console.print(f"local v{profile.version} valid_until={profile.valid_until}")
+        for hint in profile.direct_hints:
+            console.print(f"  direct: {hint}")
+        for relay in profile.relay_descriptors:
+            console.print(f"  relay: {relay.name} ({relay.role}) {relay.url}")
+        return
+
+    contact = store.get_contact(contact_name)
+    if contact is None or contact.delivery_profile is None:
+        console.print(f"[yellow]No delivery profile stored for {contact_name}[/yellow]")
+        raise typer.Exit(code=1)
+    profile = contact.delivery_profile
+    stale = profile_is_stale(profile)
+    status = "stale" if stale else "fresh"
+    console.print(f"{contact_name} v{profile.version} ({status})")
+    for relay in profile.relay_descriptors:
+        console.print(f"  relay: {relay.name} ({relay.role}) {relay.url}")
+
+
+@profile_app.command("push")
+def profile_push(
+    contact_name: str = typer.Argument(..., help="Contact to update"),
+) -> None:
+    """Push the local delivery profile to a contact via encrypted message."""
+    store = _store()
+    identity = _require_identity(store)
+    contact = store.get_contact(contact_name)
+    if contact is None:
+        console.print(f"[red]Unknown contact: {contact_name}[/red]")
+        raise typer.Exit(code=1)
+
+    profile = store.load_local_profile()
+    if profile is None:
+        profile = build_local_profile(identity)
+        store.save_local_profile(profile)
+
+    session = Session(identity, contact)
+    encrypted = session.encrypt_profile(profile)
+    store.save_contact(contact)
+    deliver_encrypted(
+        encrypted,
+        contact=contact,
+        identity=identity,
+        route=None,
+    )
+    console.print(f"[green]Pushed delivery profile v{profile.version} to {contact_name}[/green]")

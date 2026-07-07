@@ -9,17 +9,24 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from yakr_core.delivery_profile import DeliveryProfile, verify_delivery_profile
 from yakr_core.errors import ContactNotFoundError, YakrError
 from yakr_core.identity import Contact, Identity, export_public_bundle
 from yakr_core.message import OuterBlob, message_id
 from yakr_core.session import Session
 from yakr_core.store import FileLocalStore
 from yakr_cli.invite_cmds import invite_app
-from yakr_cli.network import load_relay_network, mailbox_url, relays_path, send_encrypted
-from yakr_core.routing import select_route
+from yakr_cli.network import (
+    deliver_encrypted,
+    fetch_direct_blobs,
+    mailbox_urls,
+    resolve_contact_route,
+)
+from yakr_cli.profile_cmds import profile_app
 
 app = typer.Typer(no_args_is_help=True, help="Yakr reference client")
 app.add_typer(invite_app, name="invite")
+app.add_typer(profile_app, name="profile")
 console = Console()
 
 
@@ -45,20 +52,10 @@ def _resolve_route(
     message_id: str,
 ) -> str | None:
     if route is None:
-        return None
-    if route != "auto":
-        return route
-
-    network = load_relay_network(relays_path())
-    state = store.load_route_state(contact.name)
-    entry, mailbox, new_state = select_route(
-        network=network,
-        conversation_secret=contact.master_secret,
-        message_id=message_id,
-        state=state,
-    )
-    store.save_route_state(contact.name, new_state)
-    return f"{entry},{mailbox}"
+        return resolve_contact_route(store, contact, None, message_id)
+    if route == "auto":
+        return resolve_contact_route(store, contact, "auto", message_id)
+    return route
 
 
 def _require_identity(store: FileLocalStore) -> Identity:
@@ -142,18 +139,16 @@ def send_cmd(
 
     session = Session(identity, contact)
     encrypted = session.encrypt_text(message)
-    resolved_route = _resolve_route(store, contact, route, encrypted.msg_id)
     store.save_contact(contact)
     store.save_outbound_pending(contact_name, encrypted.msg_id, encrypted.inner_message.seq, message)
 
-    send_encrypted(
+    mode = deliver_encrypted(
         encrypted,
-        relay_url=_relay_url(),
-        route=resolved_route,
-        identity=identity,
         contact=contact,
+        identity=identity,
+        route=route,
+        store=store,
     )
-    mode = f"two-hop via {resolved_route}" if resolved_route else "single-hop"
     console.print(f"[green]Sent to {contact_name}[/green] ({mode}, seq={encrypted.inner_message.seq})")
 
 
@@ -172,19 +167,42 @@ def fetch_cmd(
     session = Session(identity, contact)
     deriver = session.mailbox_deriver(outbound=False)
     tags = deriver.candidate_epochs(session.recv_direction)
-    fetch_base = mailbox_url(route)
+    resolved_route = _resolve_route(store, contact, route, "fetch") if route else None
+    fetch_bases = mailbox_urls(contact, resolved_route)
+    direct_hints = list(contact.delivery_profile.direct_hints) if contact.delivery_profile else []
 
     fetched = 0
     for tag in tags:
-        response = httpx.get(f"{fetch_base}/v1/blobs/{tag.tag_b64}", timeout=10.0)
-        if response.status_code != 200:
-            raise YakrError(f"relay fetch failed: {response.status_code} {response.text}")
+        items: list[dict[str, str | int]] = []
+        if direct_hints:
+            items.extend(fetch_direct_blobs(tag.tag_b64, direct_hints))
+        for fetch_base in fetch_bases:
+            response = httpx.get(f"{fetch_base}/v1/blobs/{tag.tag_b64}", timeout=10.0)
+            if response.status_code != 200:
+                raise YakrError(f"relay fetch failed: {response.status_code} {response.text}")
+            items.extend(response.json())
 
-        for item in response.json():
+        seen: set[str] = set()
+        for item in items:
+            ciphertext = str(item.get("ciphertext", ""))
+            if ciphertext in seen:
+                continue
+            seen.add(ciphertext)
             outer = OuterBlob.from_relay_json(item)
             try:
                 inner = session.decrypt_outer(outer)
             except YakrError:
+                continue
+
+            if inner.type == "profile" and inner.body:
+                profile = DeliveryProfile.from_b64(inner.body)
+                verify_delivery_profile(profile, contact.signing_public)
+                contact.delivery_profile = profile
+                store.save_contact(contact)
+                console.print(
+                    f"[green]Updated delivery profile for {contact_name} "
+                    f"(v{profile.version})[/green]"
+                )
                 continue
 
             if inner.type == "receipt" and inner.message_id:
@@ -192,23 +210,27 @@ def fetch_cmd(
                     console.print(f"[green]Delivery receipt for {inner.message_id[:12]}…[/green]")
                 continue
 
+            if inner.type != "text":
+                continue
+
             store.save_inbound_message(contact_name, inner.seq, inner.body)
             store.save_contact(contact)
             console.print(f"[cyan]{contact_name}[/cyan]: {inner.body}")
             fetched += 1
 
-            if route and inner.type == "text":
+            if resolved_route:
                 delivered_id = message_id(outer.ciphertext)
                 receipt = session.encrypt_receipt(delivered_id)
                 store.save_contact(contact)
-                entry_name, mailbox_name = route.split(",")
+                entry_name, mailbox_name = resolved_route.split(",")
                 reverse = f"{mailbox_name.strip()},{entry_name.strip()}"
-                send_encrypted(
+                deliver_encrypted(
                     receipt,
-                    relay_url=_relay_url(),
-                    route=reverse,
-                    identity=identity,
                     contact=contact,
+                    identity=identity,
+                    route=reverse,
+                    store=store,
+                    allow_direct=False,
                 )
 
     if fetched == 0:

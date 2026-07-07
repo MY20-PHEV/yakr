@@ -21,6 +21,7 @@ class PairRequestBody(BaseModel):
 class RendezvousState:
     invite: InviteBundle
     identity: Identity
+    inviter_profile: bytes = b""
     consumed: bool = False
     lock: threading.Lock = field(default_factory=threading.Lock)
     pending_ephemeral_private: x25519.X25519PrivateKey | None = None
@@ -62,6 +63,7 @@ def create_rendezvous_app(state: RendezvousState) -> FastAPI:
                 state.invite,
                 request,
                 state.pending_ephemeral_private,
+                inviter_profile=state.inviter_profile,
             )
             state.consumed = True
             state.paired_contact = contact

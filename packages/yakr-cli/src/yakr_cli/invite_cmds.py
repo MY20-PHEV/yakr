@@ -24,7 +24,7 @@ from yakr_core.pairing import (
     joiner_complete_pairing,
 )
 from yakr_core.store import FileLocalStore
-from yakr_cli.rendezvous import RendezvousState, create_rendezvous_app
+from yakr_cli.profile_cmds import build_local_profile
 
 console = Console()
 invite_app = typer.Typer(help="Invite-based contact pairing")
@@ -46,6 +46,12 @@ def invite_create(
     url = invite_to_url(bundle)
     code = safety_code(bundle)
 
+    local_profile = store.load_local_profile()
+    if local_profile is None:
+        local_profile = build_local_profile(identity, direct_hint=rendezvous_hint)
+        store.save_local_profile(local_profile)
+    inviter_profile = local_profile.to_bytes()
+
     invite_path = store.root / "invites" / "latest.url"
     invite_path.parent.mkdir(parents=True, exist_ok=True)
     invite_path.write_text(url, encoding="utf-8")
@@ -56,7 +62,7 @@ def invite_create(
     if not wait:
         return
 
-    state = RendezvousState(invite=bundle, identity=identity)
+    state = RendezvousState(invite=bundle, identity=identity, inviter_profile=inviter_profile)
     app = create_rendezvous_app(state)
     config = uvicorn.Config(app, host=listen_host, port=listen_port, log_level="warning")
     server = uvicorn.Server(config)
@@ -105,6 +111,7 @@ def invite_accept(
         identity,
         bundle,
         joiner_name=identity.name,
+        joiner_profile=_joiner_profile_bytes(store, identity),
     )
     encoded_request = base64.urlsafe_b64encode(request.to_bytes()).decode("ascii").rstrip("=")
     response = httpx.post(
@@ -122,3 +129,11 @@ def invite_accept(
     contact.name = name or bundle.inviter_name
     store.save_contact(contact)
     console.print(f"[green]Paired with {contact.name}[/green]")
+
+
+def _joiner_profile_bytes(store: FileLocalStore, identity: Identity) -> bytes:
+    profile = store.load_local_profile()
+    if profile is None:
+        profile = build_local_profile(identity)
+        store.save_local_profile(profile)
+    return profile.to_bytes()
