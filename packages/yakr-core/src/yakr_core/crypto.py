@@ -10,8 +10,6 @@ from nacl import bindings as nacl_bindings
 MASTER_INFO = b"yakr/v0.1/master"
 MESSAGE_KEY_INFO = b"yakr/v0.1/message-key"
 MAILBOX_TAG_INFO = b"yakr/v0.1/mailbox-tag"
-
-
 def hkdf_derive(
     ikm: bytes,
     info: bytes,

@@ -46,12 +46,6 @@ class FetchResult:
     fetched_count: int
 
 
-def _post_blob(relay_url: str, encrypted) -> None:
-    response = httpx.post(f"{relay_url.rstrip('/')}/v1/blobs", json=encrypted.outer_blob.to_relay_json(), timeout=10.0)
-    if response.status_code != 201:
-        raise YakrError(f"relay store failed: {response.status_code}")
-
-
 class YakrMobileClient:
     def __init__(self, store: MobileStore, *, relay_url: str) -> None:
         self.store = store
@@ -186,11 +180,19 @@ class YakrMobileClient:
         return SendResult(mode=mode, seq=encrypted.inner_message.seq)
 
     def fetch_contact(self, contact_name: str) -> FetchResult:
-        from yakr_cli.network import fetch_direct_blobs, fetch_mailbox_urls, resolve_contact_route
+        from yakr_cli.network import (
+            deliver_encrypted,
+            fetch_direct_blobs,
+            fetch_mailbox_urls,
+            resolve_contact_route,
+        )
+        from yakr_core.message import message_id
 
         identity = self._require_identity()
         contact = self._require_contact(contact_name)
         session = Session(identity, contact)
+        self.store.sweep_expired_messages()
+        self.store.sweep_expired_outbound()
         deriver = session.mailbox_deriver(outbound=False)
         mailbox_secret = derive_mailbox_secret(contact.master_secret, session.recv_direction)
         tags = fetch_tags_for_mode(
@@ -216,18 +218,20 @@ class YakrMobileClient:
         metrics = self.store.load_privacy_metrics()
         for tag in tags:
             is_decoy = tag.tag_b64 not in real_tags
-            items: list[dict] = []
+            items: list[tuple[str | None, dict]] = []
             if direct_hints:
-                items.extend(fetch_direct_blobs(tag.tag_b64, direct_hints))
+                for item in fetch_direct_blobs(tag.tag_b64, direct_hints):
+                    items.append((None, item))
             for fetch_base in fetch_bases:
                 response = httpx.get(f"{fetch_base}/v1/blobs/{tag.tag_b64}", timeout=10.0)
                 if response.status_code != 200:
                     raise YakrError(f"relay fetch failed: {response.status_code}")
-                items.extend(response.json())
+                for item in response.json():
+                    items.append((fetch_base, item))
                 metrics.record_fetch(len(response.content), decoy=is_decoy)
 
             seen: set[str] = set()
-            for item in items:
+            for fetch_base, item in items:
                 ciphertext = str(item.get("ciphertext", ""))
                 if ciphertext in seen:
                     continue
@@ -249,9 +253,26 @@ class YakrMobileClient:
                     continue
                 if inner.type != "text":
                     continue
-                self.store.save_inbound_message(contact_name, inner.seq, inner.body)
+                self.store.save_inbound_message(contact_name, inner, identity=identity)
                 self.store.save_contact(contact)
                 messages.append(inner.body)
+                receipt = session.encrypt_receipt(message_id(outer.ciphertext))
+                self.store.save_contact(contact)
+                previous = os.environ.get("YAKR_RELAY_URL")
+                os.environ["YAKR_RELAY_URL"] = self.relay_url
+                try:
+                    deliver_encrypted(
+                        receipt,
+                        contact=contact,
+                        identity=identity,
+                        store=self.store.file_store,
+                        allow_direct=False,
+                    )
+                finally:
+                    if previous is None:
+                        os.environ.pop("YAKR_RELAY_URL", None)
+                    else:
+                        os.environ["YAKR_RELAY_URL"] = previous
 
         self.store.save_privacy_metrics(metrics)
         self.store.save_worker_state("last_fetch_at", str(int(time.time())))

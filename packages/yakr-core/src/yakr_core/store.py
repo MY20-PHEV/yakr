@@ -2,14 +2,19 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 from yakr_core.delivery_profile import DeliveryProfile
+from yakr_core.ephemeral import MESSAGE_TTL_MS
 from yakr_core.privacy import PrivacyMetrics
 from yakr_core.identity import Contact, Identity, export_public_bundle
 from yakr_core.routing import RouteState
+
+if TYPE_CHECKING:
+    pass
 
 
 class LocalStore(Protocol):
@@ -18,8 +23,17 @@ class LocalStore(Protocol):
     def get_contact(self, name: str) -> Contact | None: ...
     def save_contact(self, contact: Contact) -> None: ...
     def list_contacts(self) -> list[str]: ...
-    def save_inbound_message(self, contact_name: str, seq: int, body: str) -> None: ...
-    def list_inbound_messages(self, contact_name: str) -> list[tuple[int, str]]: ...
+    def save_inbound_message(
+        self,
+        contact_name: str,
+        inner: "InnerMessage",
+        *,
+        identity: Identity,
+    ) -> None: ...
+
+    def list_inbound_messages(self, contact_name: str, identity: Identity) -> list[tuple[int, str]]: ...
+
+    def sweep_expired_messages(self) -> int: ...
 
     def save_outbound_pending(
         self, contact_name: str, msg_id: str, seq: int, body: str
@@ -28,6 +42,8 @@ class LocalStore(Protocol):
     def mark_outbound_delivered(self, contact_name: str, msg_id: str) -> bool: ...
 
     def list_outbound_pending(self, contact_name: str) -> list[tuple[str, int, str]]: ...
+
+    def sweep_expired_outbound(self) -> int: ...
 
     def load_route_state(self, contact_name: str) -> RouteState: ...
 
@@ -88,52 +104,129 @@ class FileLocalStore:
     def _connect(self) -> sqlite3.Connection:
         self.root.mkdir(parents=True, exist_ok=True)
         conn = sqlite3.connect(self.db_path)
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS inbound_messages (
-                contact_name TEXT NOT NULL,
-                seq INTEGER NOT NULL,
-                body TEXT NOT NULL,
-                PRIMARY KEY (contact_name, seq)
-            )
-            """
-        )
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS outbound_pending (
-                contact_name TEXT NOT NULL,
-                msg_id TEXT NOT NULL,
-                seq INTEGER NOT NULL,
-                body TEXT NOT NULL,
-                PRIMARY KEY (contact_name, msg_id)
-            )
-            """
-        )
+        self._ensure_message_schema(conn)
         return conn
 
-    def save_inbound_message(self, contact_name: str, seq: int, body: str) -> None:
+    def _ensure_message_schema(self, conn: sqlite3.Connection) -> None:
+        inbound_columns = {
+            row[1] for row in conn.execute("PRAGMA table_info(inbound_messages)").fetchall()
+        }
+        if inbound_columns and "local_ciphertext" not in inbound_columns:
+            conn.execute("DROP TABLE inbound_messages")
+            inbound_columns = set()
+
+        if not inbound_columns:
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS inbound_messages (
+                    contact_name TEXT NOT NULL,
+                    seq INTEGER NOT NULL,
+                    valid_until INTEGER NOT NULL,
+                    received_at INTEGER NOT NULL,
+                    local_ciphertext BLOB NOT NULL,
+                    PRIMARY KEY (contact_name, seq)
+                )
+                """
+            )
+
+        outbound_columns = {
+            row[1] for row in conn.execute("PRAGMA table_info(outbound_pending)").fetchall()
+        }
+        if outbound_columns and "created_at" not in outbound_columns:
+            conn.execute("DROP TABLE outbound_pending")
+            outbound_columns = set()
+
+        if not outbound_columns:
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS outbound_pending (
+                    contact_name TEXT NOT NULL,
+                    msg_id TEXT NOT NULL,
+                    seq INTEGER NOT NULL,
+                    body TEXT NOT NULL,
+                    created_at INTEGER NOT NULL,
+                    valid_until INTEGER NOT NULL,
+                    PRIMARY KEY (contact_name, msg_id)
+                )
+                """
+            )
+        conn.commit()
+
+    def save_inbound_message(
+        self,
+        contact_name: str,
+        inner: "InnerMessage",
+        *,
+        identity: Identity,
+    ) -> None:
+        from yakr_core.message import InnerMessage
+        from yakr_core.session import wrap_local_ciphertext
+
+        now = int(time.time() * 1000)
+        wrapped = wrap_local_ciphertext(identity, inner.to_bytes())
         with self._connect() as conn:
             conn.execute(
-                "INSERT OR IGNORE INTO inbound_messages (contact_name, seq, body) VALUES (?, ?, ?)",
-                (contact_name, seq, body),
+                """
+                INSERT OR IGNORE INTO inbound_messages
+                (contact_name, seq, valid_until, received_at, local_ciphertext)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (contact_name, inner.seq, inner.valid_until, now, wrapped),
             )
             conn.commit()
 
-    def list_inbound_messages(self, contact_name: str) -> list[tuple[int, str]]:
+    def list_inbound_messages(self, contact_name: str, identity: Identity) -> list[tuple[int, str]]:
+        from yakr_core.ephemeral import enforce_message_ttl
+        from yakr_core.message import InnerMessage
+        from yakr_core.session import unwrap_local_ciphertext
+
+        now = int(time.time() * 1000)
+        results: list[tuple[int, str]] = []
         with self._connect() as conn:
             rows = conn.execute(
-                "SELECT seq, body FROM inbound_messages WHERE contact_name = ? ORDER BY seq",
-                (contact_name,),
+                """
+                SELECT seq, valid_until, local_ciphertext
+                FROM inbound_messages
+                WHERE contact_name = ? AND valid_until > ?
+                ORDER BY seq
+                """,
+                (contact_name, now),
             ).fetchall()
-        return [(int(seq), str(body)) for seq, body in rows]
+        for _seq, valid_until, wrapped in rows:
+            try:
+                inner = InnerMessage.from_bytes(unwrap_local_ciphertext(identity, wrapped))
+                enforce_message_ttl(inner.valid_until, now_ms=now)
+            except Exception:
+                continue
+            if inner.type == "text":
+                results.append((inner.seq, inner.body))
+        return results
+
+    def sweep_expired_messages(self) -> int:
+        now = int(time.time() * 1000)
+        with self._connect() as conn:
+            cursor = conn.execute(
+                "DELETE FROM inbound_messages WHERE valid_until <= ? OR received_at <= ?",
+                (now, now - MESSAGE_TTL_MS),
+            )
+            conn.commit()
+            return cursor.rowcount
 
     def save_outbound_pending(
         self, contact_name: str, msg_id: str, seq: int, body: str
     ) -> None:
+        from yakr_core.ephemeral import message_valid_until
+
+        now = int(time.time() * 1000)
+        valid_until = message_valid_until(created_at_ms=now)
         with self._connect() as conn:
             conn.execute(
-                "INSERT OR REPLACE INTO outbound_pending (contact_name, msg_id, seq, body) VALUES (?, ?, ?, ?)",
-                (contact_name, msg_id, seq, body),
+                """
+                INSERT OR REPLACE INTO outbound_pending
+                (contact_name, msg_id, seq, body, created_at, valid_until)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (contact_name, msg_id, seq, body, now, valid_until),
             )
             conn.commit()
 
@@ -147,12 +240,27 @@ class FileLocalStore:
             return cursor.rowcount > 0
 
     def list_outbound_pending(self, contact_name: str) -> list[tuple[str, int, str]]:
+        now = int(time.time() * 1000)
         with self._connect() as conn:
             rows = conn.execute(
-                "SELECT msg_id, seq, body FROM outbound_pending WHERE contact_name = ? ORDER BY seq",
-                (contact_name,),
+                """
+                SELECT msg_id, seq, body FROM outbound_pending
+                WHERE contact_name = ? AND valid_until > ?
+                ORDER BY seq
+                """,
+                (contact_name, now),
             ).fetchall()
         return [(str(msg_id), int(seq), str(body)) for msg_id, seq, body in rows]
+
+    def sweep_expired_outbound(self) -> int:
+        now = int(time.time() * 1000)
+        with self._connect() as conn:
+            cursor = conn.execute(
+                "DELETE FROM outbound_pending WHERE valid_until <= ? OR created_at <= ?",
+                (now, now - MESSAGE_TTL_MS),
+            )
+            conn.commit()
+            return cursor.rowcount
 
     @property
     def route_state_path(self) -> Path:

@@ -10,6 +10,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from yakr_core.ephemeral import DEFAULT_BLOB_TTL_MS
 from yakr_core.crypto import derive_mailbox_secret
 from yakr_core.delivery_profile import DeliveryProfile, verify_delivery_profile
 from yakr_core.errors import ContactNotFoundError, YakrError
@@ -181,6 +182,8 @@ def fetch_cmd(
         raise ContactNotFoundError(f"unknown contact: {contact_name}")
 
     session = Session(identity, contact)
+    store.sweep_expired_messages()
+    store.sweep_expired_outbound()
     deriver = session.mailbox_deriver(outbound=False)
     mailbox_secret = derive_mailbox_secret(contact.master_secret, session.recv_direction)
     tags = fetch_tags_for_mode(
@@ -198,18 +201,20 @@ def fetch_cmd(
     metrics = store.load_privacy_metrics()
     for tag in tags:
         is_decoy = tag.tag_b64 not in real_tag_set
-        items: list[dict[str, str | int]] = []
+        items: list[tuple[str | None, dict[str, str | int]]] = []
         if direct_hints:
-            items.extend(fetch_direct_blobs(tag.tag_b64, direct_hints))
+            for item in fetch_direct_blobs(tag.tag_b64, direct_hints):
+                items.append((None, item))
         for fetch_base in fetch_bases:
             response = httpx.get(f"{fetch_base}/v1/blobs/{tag.tag_b64}", timeout=10.0)
             if response.status_code != 200:
                 raise YakrError(f"relay fetch failed: {response.status_code} {response.text}")
-            items.extend(response.json())
+            for item in response.json():
+                items.append((fetch_base, item))
             metrics.record_fetch(len(response.content), decoy=is_decoy)
 
         seen: set[str] = set()
-        for item in items:
+        for fetch_base, item in items:
             ciphertext = str(item.get("ciphertext", ""))
             if ciphertext in seen:
                 continue
@@ -239,25 +244,26 @@ def fetch_cmd(
             if inner.type != "text":
                 continue
 
-            store.save_inbound_message(contact_name, inner.seq, inner.body)
+            store.save_inbound_message(contact_name, inner, identity=identity)
             store.save_contact(contact)
             console.print(f"[cyan]{contact_name}[/cyan]: {inner.body}")
             fetched += 1
 
+            delivered_id = message_id(outer.ciphertext)
+            receipt = session.encrypt_receipt(delivered_id)
+            store.save_contact(contact)
+            reverse_route = None
             if resolved_route:
-                delivered_id = message_id(outer.ciphertext)
-                receipt = session.encrypt_receipt(delivered_id)
-                store.save_contact(contact)
                 entry_name, mailbox_name = resolved_route.split(",")
-                reverse = f"{mailbox_name.strip()},{entry_name.strip()}"
-                deliver_encrypted(
-                    receipt,
-                    contact=contact,
-                    identity=identity,
-                    route=reverse,
-                    store=store,
-                    allow_direct=False,
-                )
+                reverse_route = f"{mailbox_name.strip()},{entry_name.strip()}"
+            deliver_encrypted(
+                receipt,
+                contact=contact,
+                identity=identity,
+                route=reverse_route,
+                store=store,
+                allow_direct=False,
+            )
 
     store.save_privacy_metrics(metrics)
     if fetched == 0:
@@ -311,7 +317,7 @@ def _send_dummy_blob(
     outer = OuterBlob(
         version=1,
         mailbox_tag=decoy.tag,
-        expires_at=int(time.time() * 1000) + 7 * 24 * 60 * 60 * 1000,
+        expires_at=int(time.time() * 1000) + DEFAULT_BLOB_TTL_MS,
         ciphertext=dummy,
     )
     relay_url = delivery_mailbox_urls(contact, route, store=store)[0]

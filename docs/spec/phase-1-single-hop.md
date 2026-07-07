@@ -49,6 +49,8 @@ Validation:
 
 Return all non-expired blobs for the tag.
 
+Relay blobs MUST expire within **24 hours** — see [ephemeral-messages.md](./ephemeral-messages.md).
+
 ## Exit Criteria
 
 - [x] Four CLI identities run in one test script without manual steps
@@ -57,3 +59,5 @@ Return all non-expired blobs for the tag.
 - [x] Expired blobs rejected on store and removed by sweeper
 - [x] Duplicate `seq` detected client-side
 - [x] README documents Docker demo in under 5 commands
+
+See also [mesh-testing-and-resilience.md](./mesh-testing-and-resilience.md) for Charlie 3-peer stress tests and relay outage findings.

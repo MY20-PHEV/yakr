@@ -18,8 +18,9 @@ from yakr_core.identity import Contact, Identity
 from yakr_core.onion import build_onion_packet
 from yakr_core.relay import RelayNode, load_relay_network
 from yakr_core.relay_ticket import issue_relay_ticket
+from yakr_core.message import OuterBlob
 from yakr_core.routing import RouteState, select_route
-from yakr_core.session import EncryptedMessage
+from yakr_core.session import EncryptedMessage, Session
 from yakr_core.store import FileLocalStore
 
 logger = logging.getLogger(__name__)
