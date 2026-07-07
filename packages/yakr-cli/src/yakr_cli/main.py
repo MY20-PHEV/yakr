@@ -11,9 +11,10 @@ from rich.table import Table
 
 from yakr_core.errors import ContactNotFoundError, YakrError
 from yakr_core.identity import Contact, Identity, export_public_bundle
-from yakr_core.message import OuterBlob
+from yakr_core.message import OuterBlob, message_id
 from yakr_core.session import Session
 from yakr_core.store import FileLocalStore
+from yakr_cli.network import mailbox_url, reverse_route, send_encrypted
 
 app = typer.Typer(no_args_is_help=True, help="Yakr reference client")
 console = Console()
@@ -104,8 +105,9 @@ def contact_add_cmd(
 def send_cmd(
     contact_name: str = typer.Argument(..., help="Recipient contact name"),
     message: str = typer.Argument(..., help="Message body"),
+    route: str | None = typer.Option(None, "--route", help="Two-hop route entry,mailbox"),
 ) -> None:
-    """Encrypt and store a message for a contact via the relay."""
+    """Encrypt and deliver a message for a contact via the relay."""
     store = _store()
     identity = _require_identity(store)
     contact = store.get_contact(contact_name)
@@ -115,18 +117,17 @@ def send_cmd(
     session = Session(identity, contact)
     encrypted = session.encrypt_text(message)
     store.save_contact(contact)
+    store.save_outbound_pending(contact_name, encrypted.msg_id, encrypted.inner_message.seq, message)
 
-    payload = encrypted.outer_blob.to_relay_json()
-    response = httpx.post(f"{_relay_url()}/v1/blobs", json=payload, timeout=10.0)
-    if response.status_code != 201:
-        raise YakrError(f"relay store failed: {response.status_code} {response.text}")
-
-    console.print(f"[green]Sent to {contact_name}[/green] (seq={encrypted.inner_message.seq})")
+    send_encrypted(encrypted, relay_url=_relay_url(), route=route)
+    mode = f"two-hop via {route}" if route else "single-hop"
+    console.print(f"[green]Sent to {contact_name}[/green] ({mode}, seq={encrypted.inner_message.seq})")
 
 
 @app.command("fetch")
 def fetch_cmd(
     contact_name: str = typer.Argument(..., help="Contact to fetch messages from"),
+    route: str | None = typer.Option(None, "--route", help="Two-hop route for delivery receipts"),
 ) -> None:
     """Fetch and decrypt messages from the relay."""
     store = _store()
@@ -138,10 +139,11 @@ def fetch_cmd(
     session = Session(identity, contact)
     deriver = session.mailbox_deriver(outbound=False)
     tags = deriver.candidate_epochs(session.recv_direction)
+    fetch_base = mailbox_url(route)
 
     fetched = 0
     for tag in tags:
-        response = httpx.get(f"{_relay_url()}/v1/blobs/{tag.tag_b64}", timeout=10.0)
+        response = httpx.get(f"{fetch_base}/v1/blobs/{tag.tag_b64}", timeout=10.0)
         if response.status_code != 200:
             raise YakrError(f"relay fetch failed: {response.status_code} {response.text}")
 
@@ -151,15 +153,43 @@ def fetch_cmd(
                 inner = session.decrypt_outer(outer)
             except YakrError:
                 continue
+
+            if inner.type == "receipt" and inner.message_id:
+                if store.mark_outbound_delivered(contact_name, inner.message_id):
+                    console.print(f"[green]Delivery receipt for {inner.message_id[:12]}…[/green]")
+                continue
+
             store.save_inbound_message(contact_name, inner.seq, inner.body)
             store.save_contact(contact)
             console.print(f"[cyan]{contact_name}[/cyan]: {inner.body}")
             fetched += 1
 
+            if route and inner.type == "text":
+                delivered_id = message_id(outer.ciphertext)
+                receipt = session.encrypt_receipt(delivered_id)
+                store.save_contact(contact)
+                entry_name, mailbox_name = route.split(",")
+                reverse = f"{mailbox_name.strip()},{entry_name.strip()}"
+                send_encrypted(receipt, relay_url=_relay_url(), route=reverse)
+
     if fetched == 0:
         console.print(f"[yellow]No new messages from {contact_name}[/yellow]")
     else:
         console.print(f"[green]Fetched {fetched} message(s)[/green]")
+
+
+@app.command("pending")
+def pending_cmd(
+    contact_name: str = typer.Argument(..., help="Contact to inspect"),
+) -> None:
+    """List outbound messages still awaiting delivery receipts."""
+    store = _store()
+    pending = store.list_outbound_pending(contact_name)
+    if not pending:
+        console.print(f"[green]No pending messages for {contact_name}[/green]")
+        return
+    for msg_id, seq, body in pending:
+        console.print(f"seq={seq} id={msg_id[:12]}… body={body!r}")
 
 
 @app.command("export-public")
