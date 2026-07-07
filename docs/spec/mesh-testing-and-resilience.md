@@ -17,9 +17,10 @@ Yakr now has:
 | Relay outage / flap resilience tests | Implemented | this doc |
 | Automatic send retry after relay outage | **`yakr resend`** (implemented) | [relay-failover.md](./relay-failover.md) |
 | Send failover across ordered relays | Implemented | [relay-failover.md](./relay-failover.md) |
+| Ephemeral relay presence (location hints) | Implemented | [presence-minimal.md](./presence-minimal.md) |
 | Production receipt retry on relay down | **Partial** (testkit only) | — |
 
-**Testkit:** 81 pytest tests passing (`packages/yakr-testkit/tests/`).
+**Testkit:** 92 pytest tests passing (`packages/yakr-testkit/tests/`, excluding mobile CLI integration).
 
 **Homelab Charlie:** `http://100.125.109.114:8090` — redeployed with current image; demo works after wiping old v0.4 volumes (`docker compose -f docker-compose.vps-charlie.yml down -v`).
 
@@ -111,6 +112,10 @@ Production CLI `fetch` / receipt send paths raise on connection failure. Testkit
 
 Contacts created before this work have `ratchet.version != 2`. Old volumes need re-pairing or `Contact.establish` refresh.
 
+### 5. Stale profile URLs until presence refresh
+
+Signed `relay_descriptors[].url` can lag behind the operator's current host. Peers learn new locations via encrypted **presence** messages on fetch (`yakr presence push` or auto fan-out on `profile publish` when URLs change). Without fresh presence, routing falls back to profile URLs.
+
 ## Recovery recipe after Charlie outage
 
 For operators and future send-retry worker design:
@@ -119,7 +124,8 @@ For operators and future send-retry worker design:
 1. Charlie relay back up (same URL, persisted blob store)
 2. Each client: fetch all contacts (send receipts)
 3. Each client: drain inbound receipts (clears peer pending for delivered messages)
-4. Each client: resend any remaining outbound_pending (manual today)
+4. Each client: resend any remaining outbound_pending (`yakr resend`)
+5. Relay operator: `yakr presence push` after IP change so peers update location cache
 ```
 
 ## Next work (not in this commit)
@@ -127,6 +133,7 @@ For operators and future send-retry worker design:
 - [x] `yakr resend` / replay `outbound_pending` when relay healthy
 - [x] Send failover across ordered `relay_descriptors` (Charlie → Dennis)
 - [x] Mesh stress harness includes Charlie + Dennis dual relay
+- [x] Minimal presence v1 (`type=presence`, `yakr presence push`, routing prefers cache)
 - [ ] CLI receipt flush resilience (match testkit `_unreceipted` retry)
 - [ ] Live homelab stress (`stress_charlie_mesh.py --live` wired to `CHARLIE_URL`)
 - [ ] Drop Bob↔Charlie test shortcut if stress should match VPS trust model exactly

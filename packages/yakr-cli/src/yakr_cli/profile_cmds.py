@@ -24,6 +24,7 @@ from yakr_core.relay_authorization import (
 from yakr_core.session import Session
 from yakr_core.store import FileLocalStore
 from yakr_cli.network import deliver_encrypted
+from yakr_cli.presence_cmds import publish_own_presence, relay_locations_changed
 
 console = Console()
 logger = logging.getLogger(__name__)
@@ -116,6 +117,11 @@ def profile_publish(
         console.print("[yellow]No relay advertised (pair with a relay operator to add one)[/yellow]")
     if direct_hint:
         console.print(f"[cyan]Direct hint:[/cyan] {direct_hint}")
+
+    if relay_locations_changed(current, profile):
+        pushed = publish_own_presence(store, identity, quiet=True)
+        if pushed:
+            console.print(f"[green]Fan-out presence to {pushed} contact(s) (relay URL changed)[/green]")
 
 
 @profile_app.command("show")

@@ -4,6 +4,8 @@ import time
 
 # Non-negotiable message lifetime for text and receipts (24 hours).
 MESSAGE_TTL_MS = 24 * 60 * 60 * 1000
+# Ephemeral relay reachability hints (presence).
+PRESENCE_TTL_MS = 30 * 60 * 1000
 DEFAULT_BLOB_TTL_MS = MESSAGE_TTL_MS
 MAX_RELAY_BLOB_TTL_MS = MESSAGE_TTL_MS
 

@@ -179,6 +179,13 @@ class MeshParticipant:
                     self.store.save_contact(contact)
                     continue
 
+                from yakr_core.presence import apply_presence_message
+
+                presence = apply_presence_message(self.store, contact, inner)
+                if presence is not None:
+                    self.store.save_contact(contact)
+                    continue
+
                 if inner.type == "receipt" and inner.message_id:
                     self.store.mark_outbound_delivered(peer, inner.message_id)
                     continue

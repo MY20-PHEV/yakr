@@ -16,6 +16,7 @@ from yakr_core.delivery_profile import DeliveryProfile, verify_delivery_profile
 from yakr_core.errors import ContactNotFoundError, YakrError
 from yakr_core.identity import Contact, Identity, export_public_bundle
 from yakr_core.message import OuterBlob, message_id
+from yakr_core.presence import apply_presence_message
 from yakr_core.session import Session
 from yakr_core.store import FileLocalStore
 from yakr_cli.invite_cmds import invite_app
@@ -32,10 +33,12 @@ from yakr_core.privacy import SIZE_4K, fetch_tags_for_mode, generate_dummy_ciphe
 from yakr_cli.privacy_cmds import privacy_app
 
 from yakr_cli.profile_cmds import profile_app
+from yakr_cli.presence_cmds import presence_app
 
 app = typer.Typer(no_args_is_help=True, help="Yakr reference client")
 app.add_typer(invite_app, name="invite")
 app.add_typer(profile_app, name="profile")
+app.add_typer(presence_app, name="presence")
 app.add_typer(privacy_app, name="privacy")
 console = Console()
 
@@ -231,6 +234,19 @@ def fetch_cmd(
                 console.print(
                     f"[green]Updated delivery profile for {contact_name} "
                     f"(v{profile.version})[/green]"
+                )
+                continue
+
+            presence = None
+            try:
+                presence = apply_presence_message(store, contact, inner)
+            except YakrError:
+                pass
+            if presence is not None:
+                store.save_contact(contact)
+                console.print(
+                    f"[green]Updated presence for {presence.operator_name} "
+                    f"→ {presence.reachable_url}[/green]"
                 )
                 continue
 

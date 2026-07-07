@@ -16,6 +16,7 @@ from yakr_core.delivery_profile import (
 )
 from yakr_core.identity import Contact, Identity
 from yakr_core.onion import build_onion_packet
+from yakr_core.presence import resolve_operator_url
 from yakr_core.relay import RelayNode, load_relay_network
 from yakr_core.relay_ticket import issue_relay_ticket
 from yakr_core.message import OuterBlob
@@ -75,7 +76,30 @@ def delivery_relay_network(
         if local_profile is not None:
             for name, node in relay_network_from_profile(local_profile).items():
                 network.setdefault(name, node)
-    return network or None
+    if not network:
+        return None
+    return _overlay_presence_urls(network, store)
+
+
+def _overlay_presence_urls(
+    network: dict[str, RelayNode],
+    store: FileLocalStore | None,
+) -> dict[str, RelayNode]:
+    if store is None:
+        return network
+    updated: dict[str, RelayNode] = {}
+    for name, node in network.items():
+        url = resolve_operator_url(store, name, node.url)
+        if url == node.url:
+            updated[name] = node
+        else:
+            updated[name] = RelayNode(
+                name=node.name,
+                role=node.role,
+                url=url,
+                wrap_secret=node.wrap_secret,
+            )
+    return updated
 
 
 def should_use_auto_two_hop(network: dict[str, RelayNode]) -> bool:
@@ -89,14 +113,21 @@ def should_use_auto_two_hop(network: dict[str, RelayNode]) -> bool:
     return has_entry and has_mailbox
 
 
-def _profile_mailbox_urls(profile: DeliveryProfile | None) -> list[str]:
+def _profile_mailbox_urls(
+    profile: DeliveryProfile | None,
+    *,
+    store: FileLocalStore | None = None,
+) -> list[str]:
     if profile is None:
         return []
-    return [item.url for item in mailbox_descriptors(profile)]
+    return [
+        resolve_operator_url(store, descriptor.name, descriptor.url)
+        for descriptor in mailbox_descriptors(profile)
+    ]
 
 
 def local_mailbox_urls(store: FileLocalStore) -> list[str]:
-    return _profile_mailbox_urls(store.load_local_profile())
+    return _profile_mailbox_urls(store.load_local_profile(), store=store)
 
 
 def _env_relay_url() -> str | None:
@@ -120,7 +151,7 @@ def delivery_mailbox_urls(
 
     seen: set[str] = set()
     urls: list[str] = []
-    for url in _profile_mailbox_urls(contact.delivery_profile):
+    for url in _profile_mailbox_urls(contact.delivery_profile, store=store):
         normalized = url.rstrip("/")
         if normalized not in seen:
             urls.append(normalized)
@@ -161,7 +192,7 @@ def fetch_mailbox_urls(
             if url not in seen:
                 urls.append(url)
                 seen.add(url)
-    for url in _profile_mailbox_urls(contact.delivery_profile):
+    for url in _profile_mailbox_urls(contact.delivery_profile, store=store):
         if url not in seen:
             urls.append(url)
             seen.add(url)
