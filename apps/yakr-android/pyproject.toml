@@ -1,0 +1,52 @@
+[tool.briefcase]
+project_name = "Yakr"
+bundle = "sh.yakr"
+version = "0.1.0"
+url = "https://github.com/yakr/yakr"
+license.file = "LICENSE"
+author = "Yakr Contributors"
+author_email = "dev@yakr.sh"
+
+[tool.briefcase.app.yakr]
+formal_name = "Yakr"
+description = "Yakr secure messaging reference client for Android"
+long_description = """Offline-first secure messaging with invite pairing and optional relay mode."""
+sources = [
+    "../../packages/yakr-mobile/src/yakr_mobile",
+    "../../packages/yakr-core/src/yakr_core",
+]
+requires = [
+    "yakr-core",
+    "httpx>=0.27",
+    "qrcode>=8.0",
+    "pillow>=11.0",
+    "toga>=0.5.0",
+]
+test_requires = []
+
+[tool.briefcase.app.yakr.android]
+requires = [
+    "toga-android>=0.5.0",
+]
+supported = true
+package_name = "sh.yakr.mobile"
+permissions = [
+    "android.permission.INTERNET",
+    "android.permission.ACCESS_NETWORK_STATE",
+    "android.permission.FOREGROUND_SERVICE",
+    "android.permission.CAMERA",
+]
+
+[tool.briefcase.app.yakr.android.gradle]
+build_gradle_dependencies = [
+    "implementation 'androidx.work:work-runtime:2.9.0'",
+]
+
+[project]
+name = "yakr-android"
+version = "0.1.0"
+requires-python = ">=3.12"
+
+[build-system]
+requires = ["briefcase"]
+build-backend = "briefcase.backend"
