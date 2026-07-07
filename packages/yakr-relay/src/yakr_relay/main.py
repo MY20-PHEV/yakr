@@ -28,6 +28,7 @@ def main() -> None:
     parser.add_argument("--role", choices=["entry", "mailbox", "both"], default="mailbox")
     parser.add_argument("--name", default="relay")
     parser.add_argument("--wrap-secret", default=None)
+    parser.add_argument("--require-tickets", action="store_true")
     args = parser.parse_args()
 
     if args.command == "serve":
@@ -36,6 +37,7 @@ def main() -> None:
             role=args.role,
             wrap_secret=_parse_wrap_secret(args.wrap_secret),
             name=args.name,
+            require_tickets=args.require_tickets,
         )
         app = create_app(store, runtime)
 

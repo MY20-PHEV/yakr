@@ -10,6 +10,7 @@ from pydantic import BaseModel
 
 from yakr_core.onion import decode_entry_packet, decode_mailbox_packet
 from yakr_core.relay import RelayRole
+from yakr_core.relay_ticket import RelayTicket, verify_relay_ticket
 from yakr_relay.store import BlobStore, _b64decode, _b64encode
 
 
@@ -17,6 +18,7 @@ class BlobStoreRequest(BaseModel):
     mailbox_tag: str
     expires_at: int
     ciphertext: str
+    ticket: str | None = None
 
 
 class BlobResponse(BaseModel):
@@ -28,10 +30,12 @@ class BlobResponse(BaseModel):
 
 class RelayPacketRequest(BaseModel):
     packet: str
+    ticket: str | None = None
 
 
 class IngestRequest(BaseModel):
     inner: str
+    ticket: str | None = None
 
 
 @dataclass
@@ -39,6 +43,19 @@ class RelayRuntime:
     role: RelayRole
     wrap_secret: bytes | None
     name: str
+    require_tickets: bool = False
+
+
+def _check_ticket(ticket_b64: str | None, *, runtime: RelayRuntime, permission: str) -> None:
+    if not runtime.require_tickets:
+        return
+    if ticket_b64 is None:
+        raise HTTPException(status_code=401, detail="relay ticket required")
+    try:
+        ticket = RelayTicket.from_b64(ticket_b64)
+        verify_relay_ticket(ticket, relay_name=runtime.name, permission=permission)
+    except Exception as exc:
+        raise HTTPException(status_code=401, detail=f"invalid relay ticket: {exc}") from exc
 
 
 def create_app(store: BlobStore, runtime: RelayRuntime | None = None) -> FastAPI:
@@ -53,6 +70,7 @@ def create_app(store: BlobStore, runtime: RelayRuntime | None = None) -> FastAPI
     def store_blob(request: BlobStoreRequest) -> dict[str, str]:
         if runtime.role == "entry":
             raise HTTPException(status_code=405, detail="entry relay does not store blobs directly")
+        _check_ticket(request.ticket, runtime=runtime, permission="store")
         try:
             store.store(
                 _b64decode(request.mailbox_tag),
@@ -85,6 +103,7 @@ def create_app(store: BlobStore, runtime: RelayRuntime | None = None) -> FastAPI
     def relay_packet(request: RelayPacketRequest) -> dict[str, str]:
         if runtime.role not in ("entry", "both"):
             raise HTTPException(status_code=405, detail="not an entry relay")
+        _check_ticket(request.ticket, runtime=runtime, permission="forward")
         if runtime.wrap_secret is None:
             raise HTTPException(status_code=500, detail="entry relay missing wrap secret")
 
@@ -96,7 +115,7 @@ def create_app(store: BlobStore, runtime: RelayRuntime | None = None) -> FastAPI
 
         response = httpx.post(
             next_url,
-            json={"inner": _b64encode(inner_cipher)},
+            json={"inner": _b64encode(inner_cipher), "ticket": request.ticket},
             timeout=10.0,
         )
         if response.status_code not in (201, 202):
@@ -108,6 +127,7 @@ def create_app(store: BlobStore, runtime: RelayRuntime | None = None) -> FastAPI
     def ingest_packet(request: IngestRequest) -> dict[str, str]:
         if runtime.role not in ("mailbox", "both"):
             raise HTTPException(status_code=405, detail="not a mailbox relay")
+        _check_ticket(request.ticket, runtime=runtime, permission="store")
         if runtime.wrap_secret is None:
             raise HTTPException(status_code=500, detail="mailbox relay missing wrap secret")
 
