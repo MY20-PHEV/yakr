@@ -71,14 +71,14 @@ def main() -> None:
     while not server.started:
         time.sleep(0.05)
 
-    request, bob_ephemeral = build_pairing_request(bob, invite, joiner_name="bob")
+    request, secrets = build_pairing_request(bob, invite, joiner_name="bob")
     encoded = base64.urlsafe_b64encode(request.to_bytes()).decode("ascii").rstrip("=")
     response = httpx.post("http://127.0.0.1:18090/v1/pair", json={"request": encoded}, timeout=5.0)
     response.raise_for_status()
     pairing_response = PairingResponse.from_bytes(
         base64.urlsafe_b64decode(response.json()["response"] + "==")
     )
-    bob_contact = joiner_complete_pairing(bob, invite, request, bob_ephemeral, pairing_response)
+    bob_contact = joiner_complete_pairing(bob, invite, request, secrets, pairing_response)
     bob_store.save_contact(bob_contact)
     assert state.paired_contact is not None
     alice_store.save_contact(state.paired_contact)

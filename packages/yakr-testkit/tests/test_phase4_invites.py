@@ -63,7 +63,7 @@ def test_invite_pairing_via_rendezvous() -> None:
     port = server.servers[0].sockets[0].getsockname()[1]
     base = f"http://127.0.0.1:{port}"
 
-    request, bob_ephemeral = build_pairing_request(bob, invite, joiner_name="bob")
+    request, secrets = build_pairing_request(bob, invite, joiner_name="bob")
     encoded = base64.urlsafe_b64encode(request.to_bytes()).decode("ascii").rstrip("=")
     response = httpx.post(f"{base}/v1/pair", json={"request": encoded}, timeout=5.0)
     assert response.status_code == 200
@@ -71,7 +71,7 @@ def test_invite_pairing_via_rendezvous() -> None:
     pairing_response = PairingResponse.from_bytes(
         base64.urlsafe_b64decode(response.json()["response"] + "==")
     )
-    bob_contact = joiner_complete_pairing(bob, invite, request, bob_ephemeral, pairing_response)
+    bob_contact = joiner_complete_pairing(bob, invite, request, secrets, pairing_response)
     assert bob_contact.ratchet is not None
     assert state.paired_contact is not None
     assert state.paired_contact.ratchet is not None
@@ -109,14 +109,14 @@ def test_ratchet_state_persists(tmp_path) -> None:
     alice = Identity.generate("alice")
     bob = Identity.generate("bob")
     invite = create_invite(alice, rendezvous_hint="http://test")
-    request, bob_ephemeral = build_pairing_request(bob, invite, joiner_name="bob")
+    request, secrets = build_pairing_request(bob, invite, joiner_name="bob")
     response, alice_contact = inviter_complete_pairing(
         alice,
         invite,
         request,
         x25519.X25519PrivateKey.generate(),
     )
-    bob_contact = joiner_complete_pairing(bob, invite, request, bob_ephemeral, response)
+    bob_contact = joiner_complete_pairing(bob, invite, request, secrets, response)
 
     store = FileLocalStore(tmp_path / "bob")
     store.save_contact(bob_contact)

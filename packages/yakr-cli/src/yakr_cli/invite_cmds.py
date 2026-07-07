@@ -35,6 +35,7 @@ def invite_create(
     listen_host: str = typer.Option("127.0.0.1", "--host"),
     listen_port: int = typer.Option(8090, "--port"),
     wait: bool = typer.Option(True, "--wait/--no-wait", help="Wait for a joiner"),
+    hybrid_pq: bool = typer.Option(False, "--hybrid/--no-hybrid", help="Publish hybrid PQ invite"),
 ) -> None:
     """Create a signed invite and optionally serve rendezvous pairing."""
     from yakr_cli.main import _require_identity, _store
@@ -42,7 +43,7 @@ def invite_create(
     store = _store()
     identity = _require_identity(store)
     rendezvous_hint = f"http://{listen_host}:{listen_port}"
-    bundle = create_invite(identity, rendezvous_hint=rendezvous_hint)
+    bundle = create_invite(identity, rendezvous_hint=rendezvous_hint, hybrid_pq=hybrid_pq)
     url = invite_to_url(bundle)
     code = safety_code(bundle)
 
@@ -107,7 +108,7 @@ def invite_accept(
     verify_invite(bundle)
     console.print(f"[green]Safety code:[/green] {safety_code(bundle)}")
 
-    request, ephemeral_private = build_pairing_request(
+    request, secrets = build_pairing_request(
         identity,
         bundle,
         joiner_name=identity.name,
@@ -125,7 +126,7 @@ def invite_accept(
     pairing_response = PairingResponse.from_bytes(
         base64.urlsafe_b64decode(response.json()["response"] + "==")
     )
-    contact = joiner_complete_pairing(identity, bundle, request, ephemeral_private, pairing_response)
+    contact = joiner_complete_pairing(identity, bundle, request, secrets, pairing_response)
     contact.name = name or bundle.inviter_name
     store.save_contact(contact)
     console.print(f"[green]Paired with {contact.name}[/green]")
