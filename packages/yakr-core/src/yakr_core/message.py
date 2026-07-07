@@ -7,7 +7,7 @@ from dataclasses import asdict, dataclass
 from typing import Any, Literal
 
 
-MessageType = Literal["text"]
+MessageType = Literal["text", "receipt"]
 
 
 @dataclass
@@ -18,10 +18,12 @@ class InnerMessage:
     seq: int
     created_at: int
     type: MessageType
-    body: str
+    body: str = ""
+    message_id: str | None = None
 
     def to_bytes(self) -> bytes:
-        return json.dumps(asdict(self), separators=(",", ":"), sort_keys=True).encode("utf-8")
+        payload = asdict(self)
+        return json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
 
     @classmethod
     def from_bytes(cls, data: bytes) -> InnerMessage:
@@ -33,7 +35,8 @@ class InnerMessage:
             seq=int(payload["seq"]),
             created_at=int(payload["created_at"]),
             type=payload["type"],
-            body=str(payload["body"]),
+            body=str(payload.get("body", "")),
+            message_id=payload.get("message_id"),
         )
 
     @classmethod
@@ -53,6 +56,25 @@ class InnerMessage:
             created_at=int(time.time() * 1000),
             type="text",
             body=body,
+        )
+
+    @classmethod
+    def receipt(
+        cls,
+        *,
+        conversation_id: str,
+        sender_device_id: str,
+        seq: int,
+        message_id: str,
+    ) -> InnerMessage:
+        return cls(
+            version=1,
+            conversation_id=conversation_id,
+            sender_device_id=sender_device_id,
+            seq=seq,
+            created_at=int(time.time() * 1000),
+            type="receipt",
+            message_id=message_id,
         )
 
 

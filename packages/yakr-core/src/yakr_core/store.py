@@ -18,6 +18,14 @@ class LocalStore(Protocol):
     def save_inbound_message(self, contact_name: str, seq: int, body: str) -> None: ...
     def list_inbound_messages(self, contact_name: str) -> list[tuple[int, str]]: ...
 
+    def save_outbound_pending(
+        self, contact_name: str, msg_id: str, seq: int, body: str
+    ) -> None: ...
+
+    def mark_outbound_delivered(self, contact_name: str, msg_id: str) -> bool: ...
+
+    def list_outbound_pending(self, contact_name: str) -> list[tuple[str, int, str]]: ...
+
 
 @dataclass
 class FileLocalStore:
@@ -83,6 +91,17 @@ class FileLocalStore:
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS outbound_pending (
+                contact_name TEXT NOT NULL,
+                msg_id TEXT NOT NULL,
+                seq INTEGER NOT NULL,
+                body TEXT NOT NULL,
+                PRIMARY KEY (contact_name, msg_id)
+            )
+            """
+        )
         return conn
 
     def save_inbound_message(self, contact_name: str, seq: int, body: str) -> None:
@@ -100,3 +119,30 @@ class FileLocalStore:
                 (contact_name,),
             ).fetchall()
         return [(int(seq), str(body)) for seq, body in rows]
+
+    def save_outbound_pending(
+        self, contact_name: str, msg_id: str, seq: int, body: str
+    ) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO outbound_pending (contact_name, msg_id, seq, body) VALUES (?, ?, ?, ?)",
+                (contact_name, msg_id, seq, body),
+            )
+            conn.commit()
+
+    def mark_outbound_delivered(self, contact_name: str, msg_id: str) -> bool:
+        with self._connect() as conn:
+            cursor = conn.execute(
+                "DELETE FROM outbound_pending WHERE contact_name = ? AND msg_id = ?",
+                (contact_name, msg_id),
+            )
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def list_outbound_pending(self, contact_name: str) -> list[tuple[str, int, str]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT msg_id, seq, body FROM outbound_pending WHERE contact_name = ? ORDER BY seq",
+                (contact_name,),
+            ).fetchall()
+        return [(str(msg_id), int(seq), str(body)) for msg_id, seq, body in rows]

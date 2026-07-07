@@ -64,6 +64,31 @@ class Session:
             mailbox_tag=tag,
         )
 
+    def encrypt_receipt(self, delivered_message_id: str) -> EncryptedMessage:
+        seq = self.contact.next_send_seq
+        inner = InnerMessage.receipt(
+            conversation_id=self.contact.conversation_id,
+            sender_device_id=self.identity.device_id,
+            seq=seq,
+            message_id=delivered_message_id,
+        )
+        key = derive_message_key(self.contact.master_secret, seq)
+        ciphertext = xchacha_encrypt(key, inner.to_bytes())
+        tag = self.mailbox_deriver(outbound=True).derive(self.send_direction)
+        outer = OuterBlob(
+            version=1,
+            mailbox_tag=tag.tag,
+            expires_at=int(time.time() * 1000) + DEFAULT_BLOB_TTL_MS,
+            ciphertext=ciphertext,
+        )
+        self.contact.next_send_seq += 1
+        return EncryptedMessage(
+            outer_blob=outer,
+            inner_message=inner,
+            msg_id=message_id(ciphertext),
+            mailbox_tag=tag,
+        )
+
     def decrypt_outer(self, outer: OuterBlob) -> InnerMessage:
         for seq in range(max(1, self.contact.last_recv_seq), self.contact.next_send_seq + 5):
             key = derive_message_key(self.contact.master_secret, seq)
