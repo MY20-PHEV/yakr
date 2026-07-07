@@ -229,7 +229,7 @@ One relay acts as **mailbox relay** only. No onion wrapping. No path rotation. N
 | Relay API | `POST /v1/blobs`, `GET /v1/blobs/{tag}` |
 | Storage | Relay stores opaque blobs on disk with TTL (7 days default) |
 | Client store | SQLite: contacts, sessions, outbound pending, inbound messages |
-| Transport | localhost HTTP |
+| Transport | localhost HTTP; **Docker Compose for multi-client testing** |
 
 ### Out of Scope
 
@@ -306,7 +306,8 @@ yakr/v0.1/mailbox-tag
 | `yakr-core` | `Contact`, `Session`, `BlobBuilder`, `MailboxTag`, `LocalStore` protocol |
 | `yakr-relay` | `yakr-relay serve` entry point, filesystem blob backend, TTL sweeper |
 | `yakr-cli` | `yakr` CLI: `init`, `send`, `fetch`, `relay` subcommands |
-| `yakr-testkit` | `scripts/demo_offline_delivery.sh`, pytest fixtures |
+| `yakr-testkit` | `scripts/demo_offline_delivery.sh`, pytest fixtures, Docker Compose harness |
+| `docker-compose.yml` | `relay` + per-identity client services (`alice`, `bob`, …) with isolated volumes |
 | `docs/spec` | `phase-1-single-hop.md`, JSON schemas |
 
 ### Exit Criteria
@@ -856,7 +857,7 @@ To begin Phase 1 implementation:
 2. Scaffold uv workspace: `packages/yakr-core`, `yakr-relay`, `yakr-cli`, `yakr-testkit`
 3. Implement classical crypto session + mailbox tags in `yakr_core`
 4. Implement minimal FastAPI relay with blob store
-5. Ship `scripts/demo_offline_delivery.sh` as the Phase 1 exit gate
+5. Ship `scripts/demo_offline_delivery.sh` and `docker-compose.yml` as the Phase 1 exit gate
 
 ---
 
