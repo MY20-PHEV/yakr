@@ -470,7 +470,8 @@ Ensure **successive messages between the same contacts do not reuse the same ent
 ## Phase 4 — Invites and Relay Authorization
 
 **Depends on:** Phase 3  
-**Protocol:** `yakr-v0.4`
+**Protocol:** `yakr-v0.4`  
+**Status:** Complete
 
 ### Goal
 
@@ -524,11 +525,11 @@ Relay verifies ticket signature against a known contact issuer key before accept
 
 ### Exit Criteria
 
-- [ ] Alice generates QR invite; Bob scans/imports and completes pairing with no pre-shared files
-- [ ] Safety codes match on both devices
-- [ ] Relay rejects blob without valid ticket
-- [ ] Consumed invite cannot be replayed
-- [ ] Session survives CLI restart (persisted ratchet state)
+- [x] Alice generates QR invite; Bob scans/imports and completes pairing with no pre-shared files
+- [x] Safety codes match on both devices
+- [x] Relay rejects blob without valid ticket
+- [x] Consumed invite cannot be replayed
+- [x] Session survives CLI restart (persisted ratchet state)
 
 ---
 
