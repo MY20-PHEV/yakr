@@ -37,7 +37,8 @@ packages/yakr-testkit/  test harness and demos (pytest)
 Spin up isolated client identities with persistent volumes — easiest way to test multi-party flows:
 
 ```bash
-./scripts/demo_offline_delivery.sh
+./scripts/demo_offline_delivery.sh      # Phase 1 single-hop
+./scripts/demo_two_hop_delivery.sh      # Phase 2 two-hop + receipts
 ```
 
 Manual steps:

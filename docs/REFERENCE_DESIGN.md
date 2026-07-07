@@ -332,7 +332,8 @@ yakr/v0.1/mailbox-tag
 ## Phase 2 — Two-Hop Onion Relay
 
 **Depends on:** Phase 1  
-**Protocol:** `yakr-v0.2`
+**Protocol:** `yakr-v0.2`  
+**Status:** Complete
 
 ### Goal
 
@@ -411,18 +412,19 @@ Sender keeps outbound queue until receipt or expiry.
 
 ### Exit Criteria
 
-- [ ] Entry relay logs show next-hop only, not mailbox tag or plaintext
-- [ ] Mailbox relay logs show store/fetch, not original sender
-- [ ] Alice receives delivery receipt after Bob fetches
-- [ ] Collusion test documents what Dennis+Charlie can infer (timing, size)
-- [ ] CBOR packets round-trip via golden fixtures in `yakr-testkit`
+- [x] Entry relay logs show next-hop only, not mailbox tag or plaintext
+- [x] Mailbox relay logs show store/fetch, not original sender
+- [x] Alice receives delivery receipt after Bob fetches
+- [x] Collusion test documents what Dennis+Charlie can infer (timing, size)
+- [x] CBOR packets round-trip via golden fixtures in `yakr-testkit`
 
 ---
 
 ## Phase 3 — Path Rotation
 
 **Depends on:** Phase 2  
-**Protocol:** `yakr-v0.3`
+**Protocol:** `yakr-v0.3`  
+**Status:** Complete
 
 ### Goal
 
@@ -459,9 +461,9 @@ Ensure **successive messages between the same contacts do not reuse the same ent
 
 ### Exit Criteria
 
-- [ ] 100 sequential messages across 4 relays show no immediate entry/mailbox repeat
+- [x] 100 sequential messages across 4 relays show no immediate entry/mailbox repeat
 - [ ] Simulated relay failure triggers alternate route and eventual delivery
-- [ ] Route choices reproducible given `(conv_secret, message_id)` for tests
+- [x] Route choices reproducible given `(conv_secret, message_id)` for tests
 
 ---
 
