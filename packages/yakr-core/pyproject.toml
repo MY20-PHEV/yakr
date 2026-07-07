@@ -4,9 +4,10 @@ version = "0.1.0"
 description = "Yakr protocol core library"
 requires-python = ">=3.12"
 dependencies = [
-    "cryptography>=43.0",
+    "cryptography>=47.0",
     "pynacl>=1.5",
     "cbor2>=5.6",
+    "pqcrypto>=0.4.0",
 ]
 
 [build-system]

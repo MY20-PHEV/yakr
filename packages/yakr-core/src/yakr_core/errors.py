@@ -34,3 +34,7 @@ class DuplicateSeqError(YakrError):
 
 class ContactNotFoundError(YakrError):
     code = "YAKR_ERR_CONTACT_NOT_FOUND"
+
+
+class RekeyRequiredError(YakrError):
+    code = "YAKR_ERR_PQ_REKEY_REQUIRED"

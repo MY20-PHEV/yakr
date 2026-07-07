@@ -10,6 +10,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ed25519, x25519
 
 from yakr_core.crypto import derive_master_secret, x25519_shared_secret
+from yakr_core.hybrid_pq import kem_generate_keypair
 
 if TYPE_CHECKING:
     from yakr_core.delivery_profile import DeliveryProfile
@@ -21,6 +22,10 @@ class Identity:
     name: str
     signing_private: ed25519.Ed25519PrivateKey
     agreement_private: x25519.X25519PrivateKey
+    kem_public: bytes = b""
+    kem_private: bytes = b""
+    pq_signing_public: bytes = b""
+    pq_signing_private: bytes = b""
 
     @property
     def device_id(self) -> str:
@@ -45,15 +50,26 @@ class Identity:
         )
 
     @classmethod
-    def generate(cls, name: str) -> Identity:
+    def generate(cls, name: str, *, hybrid_pq: bool = True) -> Identity:
+        kem_public, kem_private = kem_generate_keypair() if hybrid_pq else (b"", b"")
+        pq_signing_public = b""
+        pq_signing_private = b""
+        if hybrid_pq:
+            from pqcrypto.sign.ml_dsa_65 import generate_keypair as pq_generate_keypair
+
+            pq_signing_public, pq_signing_private = pq_generate_keypair()
         return cls(
             name=name,
             signing_private=ed25519.Ed25519PrivateKey.generate(),
             agreement_private=x25519.X25519PrivateKey.generate(),
+            kem_public=kem_public,
+            kem_private=kem_private,
+            pq_signing_public=pq_signing_public,
+            pq_signing_private=pq_signing_private,
         )
 
     def to_dict(self) -> dict[str, str]:
-        return {
+        payload = {
             "name": self.name,
             "signing_private": b64encode(self.signing_private.private_bytes(
                 encoding=serialization.Encoding.Raw,
@@ -66,12 +82,27 @@ class Identity:
                 encryption_algorithm=serialization.NoEncryption(),
             )),
         }
+        if self.kem_private:
+            payload["kem_public"] = b64encode(self.kem_public)
+            payload["kem_private"] = b64encode(self.kem_private)
+        if self.pq_signing_private:
+            payload["pq_signing_public"] = b64encode(self.pq_signing_public)
+            payload["pq_signing_private"] = b64encode(self.pq_signing_private)
+        return payload
 
     @classmethod
     def from_dict(cls, payload: dict[str, str]) -> Identity:
         signing_private = ed25519.Ed25519PrivateKey.from_private_bytes(b64decode(payload["signing_private"]))
         agreement_private = x25519.X25519PrivateKey.from_private_bytes(b64decode(payload["agreement_private"]))
-        return cls(name=payload["name"], signing_private=signing_private, agreement_private=agreement_private)
+        return cls(
+            name=payload["name"],
+            signing_private=signing_private,
+            agreement_private=agreement_private,
+            kem_public=b64decode(payload["kem_public"]) if "kem_public" in payload else b"",
+            kem_private=b64decode(payload["kem_private"]) if "kem_private" in payload else b"",
+            pq_signing_public=b64decode(payload["pq_signing_public"]) if "pq_signing_public" in payload else b"",
+            pq_signing_private=b64decode(payload["pq_signing_private"]) if "pq_signing_private" in payload else b"",
+        )
 
     def save(self, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -96,6 +127,8 @@ class Contact:
     transcript_hash: bytes | None = None
     ratchet: RatchetState | None = None
     delivery_profile: DeliveryProfile | None = None
+    hybrid_pq: bool = False
+    session_started_at: int = 0
 
     @classmethod
     def establish(cls, local: Identity, remote_name: str, remote_bundle: dict[str, str]) -> Contact:
@@ -137,6 +170,10 @@ class Contact:
             payload["ratchet"] = json.dumps(self.ratchet.to_dict())
         if self.delivery_profile is not None:
             payload["delivery_profile"] = self.delivery_profile.to_b64()
+        if self.hybrid_pq:
+            payload["hybrid_pq"] = 1
+        if self.session_started_at:
+            payload["session_started_at"] = self.session_started_at
         return payload
 
     @classmethod
@@ -166,6 +203,8 @@ class Contact:
             transcript_hash=transcript_hash,
             ratchet=ratchet,
             delivery_profile=delivery_profile,
+            hybrid_pq=bool(int(payload.get("hybrid_pq", 0))),
+            session_started_at=int(payload.get("session_started_at", 0)),
         )
 
 

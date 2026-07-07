@@ -11,16 +11,17 @@ class RatchetState:
     recv_chain: bytes
     send_n: int = 0
     recv_n: int = 0
+    hybrid: bool = False
 
     @classmethod
-    def from_master(cls, master_secret: bytes, *, is_initiator: bool) -> RatchetState:
+    def from_master(cls, master_secret: bytes, *, is_initiator: bool, hybrid: bool = False) -> RatchetState:
         send_chain = hkdf_derive(master_secret, b"yakr/v0.4/ratchet-send")
         recv_chain = hkdf_derive(master_secret, b"yakr/v0.4/ratchet-recv")
         if not is_initiator:
             send_chain, recv_chain = recv_chain, send_chain
-        return cls(send_chain=send_chain, recv_chain=recv_chain)
+        return cls(send_chain=send_chain, recv_chain=recv_chain, hybrid=hybrid)
 
-    def to_dict(self) -> dict[str, str | int]:
+    def to_dict(self) -> dict[str, str | int | bool]:
         import base64
 
         return {
@@ -28,10 +29,11 @@ class RatchetState:
             "recv_chain": base64.urlsafe_b64encode(self.recv_chain).decode("ascii").rstrip("="),
             "send_n": self.send_n,
             "recv_n": self.recv_n,
+            "hybrid": self.hybrid,
         }
 
     @classmethod
-    def from_dict(cls, payload: dict[str, str | int]) -> RatchetState:
+    def from_dict(cls, payload: dict[str, str | int | bool]) -> RatchetState:
         import base64
 
         def dec(value: str) -> bytes:
@@ -43,6 +45,7 @@ class RatchetState:
             recv_chain=dec(str(payload["recv_chain"])),
             send_n=int(payload.get("send_n", 0)),
             recv_n=int(payload.get("recv_n", 0)),
+            hybrid=bool(payload.get("hybrid", False)),
         )
 
     def next_send_key(self) -> bytes:

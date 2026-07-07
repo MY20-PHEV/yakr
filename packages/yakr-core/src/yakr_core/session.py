@@ -5,7 +5,8 @@ from dataclasses import dataclass
 
 from yakr_core.crypto import derive_mailbox_secret, derive_message_key, xchacha_decrypt, xchacha_encrypt
 from yakr_core.delivery_profile import DeliveryProfile
-from yakr_core.errors import DecryptError, DuplicateSeqError
+from yakr_core.hybrid_pq import needs_pq_rekey
+from yakr_core.errors import DecryptError, DuplicateSeqError, RekeyRequiredError
 from yakr_core.identity import Contact, Identity
 from yakr_core.mailbox import MailboxTag, MailboxTagDeriver
 from yakr_core.message import InnerMessage, OuterBlob, message_id
@@ -50,6 +51,7 @@ class Session:
         return xchacha_encrypt(key, inner.to_bytes())
 
     def encrypt_text(self, body: str) -> EncryptedMessage:
+        self._require_fresh_session()
         seq = self.contact.next_send_seq
         inner = InnerMessage.text(
             conversation_id=self.contact.conversation_id,
@@ -74,6 +76,7 @@ class Session:
         )
 
     def encrypt_receipt(self, delivered_message_id: str) -> EncryptedMessage:
+        self._require_fresh_session()
         seq = self.contact.next_send_seq
         inner = InnerMessage.receipt(
             conversation_id=self.contact.conversation_id,
@@ -98,6 +101,7 @@ class Session:
         )
 
     def encrypt_profile(self, profile: DeliveryProfile) -> EncryptedMessage:
+        self._require_fresh_session()
         seq = self.contact.next_send_seq
         inner = InnerMessage.profile(
             conversation_id=self.contact.conversation_id,
@@ -153,6 +157,14 @@ class Session:
             self.contact.last_recv_seq = inner.seq
             return inner
         raise DecryptError("unable to decrypt blob")
+
+    def _require_fresh_session(self) -> None:
+        if needs_pq_rekey(
+            hybrid=self.contact.hybrid_pq,
+            session_started_at_ms=self.contact.session_started_at,
+            messages_sent=self.contact.next_send_seq,
+        ):
+            raise RekeyRequiredError("PQ session rekey required")
 
 
 def _direction(sender: str, recipient: str) -> str:
