@@ -177,7 +177,7 @@ Align on problem framing, terminology, threat model, and phased scope before wri
 
 - [x] Whitepaper describes actors, threat model, and non-goals
 - [x] Reference design defines packages, phases, and version strategy
-- [ ] Glossary frozen in `docs/spec/glossary.md` (Phase 1 prerequisite)
+- [x] Glossary frozen in `docs/spec/glossary.md` (Phase 1 prerequisite)
 
 ---
 
@@ -185,6 +185,7 @@ Align on problem framing, terminology, threat model, and phased scope before wri
 
 **Depends on:** Phase 0  
 **Protocol:** `yakr-v0.1`  
+**Status:** Complete  
 **Target user:** Developer running a local four-user demo
 
 ### Goal
@@ -312,12 +313,12 @@ yakr/v0.1/mailbox-tag
 
 ### Exit Criteria
 
-- [ ] Four CLI identities run in one test script without manual steps
-- [ ] Alice sends while Bob is offline; Bob fetches after Alice exits
-- [ ] Relay never receives plaintext or stable sender/recipient IDs
-- [ ] Expired blobs are rejected on store and deleted by sweeper
-- [ ] Duplicate `seq` from same sender is detected client-side
-- [ ] README documents the demo in under 5 commands
+- [x] Four CLI identities run in one test script without manual steps
+- [x] Alice sends while Bob is offline; Bob fetches after Alice exits
+- [x] Relay never receives plaintext or stable sender/recipient IDs
+- [x] Expired blobs are rejected on store and deleted by sweeper
+- [x] Duplicate `seq` from same sender is detected client-side
+- [x] README documents the demo in under 5 commands
 
 ### Risks
 
