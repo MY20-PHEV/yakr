@@ -22,6 +22,16 @@ PAIR_RESPONSE_PREFIX = "yakr://pair-response/"
 OFFLINE_RENDEZVOUS_HINT = "offline://qr"
 
 
+def invite_tag_for_secret(invite_secret: bytes) -> str:
+    import hashlib
+
+    from yakr_core.identity import b64encode
+
+    if len(invite_secret) != 32:
+        raise ValueError("invite_secret must be 32 bytes")
+    return b64encode(hashlib.sha256(invite_secret).digest())
+
+
 @dataclass(frozen=True)
 class PairingRequest:
     invite_secret: bytes

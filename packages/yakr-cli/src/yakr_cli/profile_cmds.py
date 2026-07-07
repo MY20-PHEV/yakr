@@ -16,10 +16,14 @@ from yakr_core.delivery_profile import (
     profile_is_stale,
     verify_delivery_profile,
 )
-from yakr_core.relay import RelayNode, load_relay_network
+from yakr_core.relay_authorization import (
+    assert_publish_relays_allowed,
+    authorized_publish_relays,
+    self_relay_descriptor,
+)
 from yakr_core.session import Session
 from yakr_core.store import FileLocalStore
-from yakr_cli.network import deliver_encrypted, relays_path
+from yakr_cli.network import deliver_encrypted
 
 console = Console()
 logger = logging.getLogger(__name__)
@@ -42,46 +46,39 @@ def _relay_url() -> str:
     return os.environ.get("YAKR_RELAY_URL", "http://127.0.0.1:8080").rstrip("/")
 
 
-def _default_descriptors(
-    *,
-    relay_url: str | None = None,
-    relays_file: Path | None = None,
+def _authorized_descriptors(
+    identity,
+    store: FileLocalStore,
 ) -> list[RelayDescriptor]:
-    relay_url = (relay_url or _relay_url()).rstrip("/")
-    relay_name = os.environ.get("YAKR_RELAY_NAME", "relay")
-    descriptors: list[RelayDescriptor] = []
-
-    relays_file = relays_file or relays_path()
-    if relays_file.exists():
-        network = load_relay_network(relays_file)
-        for node in network.values():
-            descriptors.append(
-                RelayDescriptor(
-                    name=node.name,
-                    role=node.role,
-                    url=node.url,
-                    wrap_secret=node.wrap_secret,
-                )
-            )
-    if not descriptors:
-        descriptors.append(
-            RelayDescriptor(
-                name=relay_name,
-                role="both",
-                url=relay_url,
-                wrap_secret=secrets.token_bytes(32),
-            )
+    contacts = [contact for name in store.list_contacts() if (contact := store.get_contact(name))]
+    relay_url = os.environ.get("YAKR_RELAY_URL")
+    relay_name = os.environ.get("YAKR_RELAY_NAME", identity.name)
+    self_relay = None
+    if relay_url:
+        self_relay = self_relay_descriptor(
+            identity.name,
+            relay_url,
+            relay_name,
+            secrets.token_bytes(32),
         )
-    return descriptors
+    return authorized_publish_relays(
+        identity_name=identity.name,
+        contacts=contacts,
+        self_relay=self_relay,
+    )
 
 
 def build_local_profile(
     identity,
     *,
+    store: FileLocalStore | None = None,
     direct_hint: str | None = None,
     version: int | None = None,
 ) -> DeliveryProfile:
-    descriptors = _default_descriptors()
+    if store is None:
+        store = _store()
+    descriptors = _authorized_descriptors(identity, store)
+    assert_publish_relays_allowed(descriptors, descriptors)
     return create_delivery_profile(
         identity,
         relay_descriptors=descriptors,
@@ -109,9 +106,14 @@ def profile_publish(
     if direct_port is not None:
         direct_hint = f"http://127.0.0.1:{direct_port}"
 
-    profile = build_local_profile(identity, direct_hint=direct_hint, version=version)
+    profile = build_local_profile(identity, store=store, direct_hint=direct_hint, version=version)
     store.save_local_profile(profile)
     console.print(f"[green]Published delivery profile v{profile.version}[/green]")
+    if profile.relay_descriptors:
+        for relay in profile.relay_descriptors:
+            console.print(f"[cyan]Relay:[/cyan] {relay.name} ({relay.url})")
+    else:
+        console.print("[yellow]No relay advertised (pair with a relay operator to add one)[/yellow]")
     if direct_hint:
         console.print(f"[cyan]Direct hint:[/cyan] {direct_hint}")
 
@@ -160,7 +162,7 @@ def profile_push(
 
     profile = store.load_local_profile()
     if profile is None:
-        profile = build_local_profile(identity)
+        profile = build_local_profile(identity, store=store)
         store.save_local_profile(profile)
 
     session = Session(identity, contact)

@@ -29,6 +29,8 @@ Send and fetch algorithms prefer fresh presence, then profile, then shared **gro
 
 Every client MAY embed the relay HTTP API when `relay.active` is advertised. At least one group member (or their VPS) SHOULD run an always-reachable relay for **pairing rendezvous**, message store, and fetch polling.
 
+**Implemented (pre-v1.1):** relay rendezvous (`/v1/pair*`) and relay authorization — peers may only advertise relays operated by paired contacts. See `docs/spec/relay-rendezvous.md` and `docs/spec/relay-authorization.md`.
+
 ## Consequences
 
 **Positive**

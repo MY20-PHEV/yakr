@@ -140,8 +140,8 @@ def create_delivery_profile(
     version: int | None = None,
 ) -> DeliveryProfile:
     now = int(time.time() * 1000)
-    if not relay_descriptors:
-        raise ValueError("delivery profile requires at least one relay descriptor")
+    if not relay_descriptors and not (direct_hints or []):
+        pass  # profile may be direct-only or rely on group-relay fetch without advertising relays
     unsigned = {
         "protocol": PROTOCOL_V5,
         "version": (version or 1),

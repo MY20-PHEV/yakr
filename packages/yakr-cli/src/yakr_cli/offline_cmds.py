@@ -35,7 +35,7 @@ def _require_identity(store):
 def _joiner_profile_bytes(store, identity) -> bytes:
     profile = store.load_local_profile()
     if profile is None:
-        profile = build_local_profile(identity)
+        profile = build_local_profile(identity, store=store)
         store.save_local_profile(profile)
     return profile.to_bytes()
 
@@ -108,7 +108,7 @@ def inviter_respond(
 
     local_profile = store.load_local_profile()
     if local_profile is None:
-        local_profile = build_local_profile(identity)
+        local_profile = build_local_profile(identity, store=store)
         store.save_local_profile(local_profile)
 
     _, contact, response_url = respond_to_pair_request(

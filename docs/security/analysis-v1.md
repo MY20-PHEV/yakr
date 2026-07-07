@@ -34,7 +34,8 @@
 1. Users manually verify invite **safety codes** out of band.
 2. Users choose relays they trust (friends); protocol does not prove relay honesty.
 3. Relays are **untrusted for confidentiality** — they handle only opaque ciphertext.
-4. PQ hybrid mode assumes ML-KEM-768 and ML-DSA-65 remain secure.
+4. Delivery profiles may only list relays operated by **paired contacts** (or self). See `docs/spec/relay-authorization.md`.
+5. PQ hybrid mode assumes ML-KEM-768 and ML-DSA-65 remain secure.
 
 ## 3. Cryptographic Properties
 

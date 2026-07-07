@@ -1,0 +1,47 @@
+# Local Alice + Bob clients against Charlie relay on your VPS.
+#
+#   export CHARLIE_URL=http://YOUR_VPS_IP:8080
+#   ./scripts/demo_vps_charlie_relay.sh
+#
+# Deploy Charlie first: ./scripts/deploy_charlie_vps.sh user@YOUR_VPS
+
+services:
+  setup-vps-charlie:
+    build: .
+    environment:
+      CHARLIE_URL: ${CHARLIE_URL:?set CHARLIE_URL to your VPS relay base URL}
+      CHARLIE_WRAP_SECRET: ${CHARLIE_WRAP_SECRET:-}
+    volumes:
+      - alice-data:/data/alice
+      - bob-data:/data/bob
+      - charlie-operator-data:/data/charlie-operator
+      - shared-data:/data/shared
+    command: ["python", "scripts/setup_vps_charlie_demo.py"]
+
+  alice:
+    build: .
+    profiles: ["clients"]
+    environment:
+      YAKR_HOME: /data
+      YAKR_NAME: alice
+    volumes:
+      - alice-data:/data
+      - shared-data:/data/shared
+    entrypoint: ["yakr"]
+
+  bob:
+    build: .
+    profiles: ["clients"]
+    environment:
+      YAKR_HOME: /data
+      YAKR_NAME: bob
+    volumes:
+      - bob-data:/data
+      - shared-data:/data/shared
+    entrypoint: ["yakr"]
+
+volumes:
+  alice-data:
+  bob-data:
+  charlie-operator-data:
+  shared-data:

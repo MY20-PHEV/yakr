@@ -123,6 +123,14 @@ flowchart TD
         </div>
       </section>
 
+      <section id="relay-auth">
+        <h2>Relay authorization</h2>
+        <p>Peers may only <strong>advertise</strong> a relay in their own signed delivery profile if they are paired with that relay's operator (or operate the relay themselves). Using a contact's advertised relay for delivery does not require pairing with the operator.</p>
+        <div class="callout">
+          <strong>Example:</strong> Alice is paired with Charlie (relay operator) and advertises Charlie in her profile. Bob pairs with Alice via Charlie rendezvous but does not advertise Charlie — he still sends to Alice via her profile and fetches from Charlie for inbound mail.
+        </div>
+      </section>
+
       <section id="tickets">
         <h2>Phase 4: Relay Tickets</h2>
         <p>Public relays can require signed tickets that grant <code>store</code> or <code>forward</code> permission. Tickets are issued during pairing and scoped to a relay name.</p>

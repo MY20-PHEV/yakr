@@ -83,6 +83,18 @@ sequenceDiagram
 # → Safety code: 4510 2126 16</pre>
         </div>
 
+        <h3>Group relay rendezvous</h3>
+        <p>When <code>rendezvous_hint</code> points at a group relay, both sides poll outbound — no inbound HTTP on phones. Alice registers on the relay; Bob posts a pairing request; Alice responds. See <code>docs/spec/relay-rendezvous.md</code>.</p>
+        <div class="example">
+          <div class="example-header"><span class="label">CLI — relay rendezvous</span><span>implemented</span></div>
+          <pre># Alice (paired with relay operator beforehand)
+yakr invite create --rendezvous https://relay.example:8090 --no-wait
+yakr invite relay wait
+
+# Bob (not paired with relay operator)
+yakr invite accept "yakr://invite/..." --name alice</pre>
+        </div>
+
         <div class="example">
           <div class="example-header"><span class="label">CLI — Bob</span><span>Phase 4</span></div>
           <pre>yakr invite accept "yakr://invite/qWhwcm90b2NvbG..."

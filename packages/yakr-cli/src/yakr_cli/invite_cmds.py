@@ -27,17 +27,20 @@ from yakr_core.pairing import OFFLINE_RENDEZVOUS_HINT
 from yakr_core.store import FileLocalStore
 from yakr_cli.profile_cmds import build_local_profile
 from yakr_cli.offline_cmds import offline_app
+from yakr_cli.relay_wait_cmds import relay_app
 from yakr_cli.rendezvous import RendezvousState, create_rendezvous_app
 
 console = Console()
 invite_app = typer.Typer(help="Invite-based contact pairing")
 invite_app.add_typer(offline_app, name="offline")
+invite_app.add_typer(relay_app, name="relay")
 
 
 @invite_app.command("create")
 def invite_create(
     listen_host: str = typer.Option("127.0.0.1", "--host"),
     listen_port: int = typer.Option(8090, "--port"),
+    rendezvous: str | None = typer.Option(None, "--rendezvous", help="Group relay URL for pairing"),
     wait: bool = typer.Option(True, "--wait/--no-wait", help="Wait for a joiner"),
     offline: bool = typer.Option(False, "--offline", help="In-person QR pairing only (no rendezvous server)"),
     hybrid_pq: bool = typer.Option(False, "--hybrid/--no-hybrid", help="Publish hybrid PQ invite"),
@@ -48,14 +51,14 @@ def invite_create(
 
     store = _store()
     identity = _require_identity(store)
-    rendezvous_hint = OFFLINE_RENDEZVOUS_HINT if offline else f"http://{listen_host}:{listen_port}"
+    rendezvous_hint = OFFLINE_RENDEZVOUS_HINT if offline else (rendezvous or f"http://{listen_host}:{listen_port}")
     bundle = create_invite(identity, rendezvous_hint=rendezvous_hint, hybrid_pq=hybrid_pq)
     url = invite_to_url(bundle)
     code = safety_code(bundle)
 
     local_profile = store.load_local_profile()
     if local_profile is None:
-        local_profile = build_local_profile(identity, direct_hint=rendezvous_hint)
+        local_profile = build_local_profile(identity, store=store, direct_hint=rendezvous_hint)
         store.save_local_profile(local_profile)
     inviter_profile = local_profile.to_bytes()
 
@@ -79,6 +82,22 @@ def invite_create(
         return
 
     if not wait:
+        return
+
+    local_hint = f"http://{listen_host}:{listen_port}"
+    if rendezvous_hint.rstrip("/") != local_hint.rstrip("/"):
+        from yakr_cli.relay_pairing import inviter_wait_on_relay
+
+        console.print(f"[yellow]Waiting for joiner via relay {rendezvous_hint}…[/yellow]")
+        _, contact = inviter_wait_on_relay(
+            rendezvous_hint,
+            identity,
+            bundle,
+            inviter_profile=inviter_profile,
+            timeout_secs=120.0,
+        )
+        store.save_contact(contact)
+        console.print(f"[green]Paired with {contact.name}[/green]")
         return
 
     state = RendezvousState(invite=bundle, identity=identity, inviter_profile=inviter_profile)
@@ -136,17 +155,27 @@ def invite_accept(
         joiner_profile=_joiner_profile_bytes(store, identity),
     )
     encoded_request = base64.urlsafe_b64encode(request.to_bytes()).decode("ascii").rstrip("=")
+    base = bundle.rendezvous_hint.rstrip("/")
     response = httpx.post(
-        f"{bundle.rendezvous_hint.rstrip('/')}/v1/pair",
+        f"{base}/v1/pair",
         json={"request": encoded_request},
         timeout=10.0,
     )
-    if response.status_code != 200:
+    if response.status_code not in (200, 202):
+        console.print(f"[red]Pairing failed: {response.status_code} {response.text}[/red]")
         raise typer.Exit(code=1)
 
-    pairing_response = PairingResponse.from_bytes(
-        base64.urlsafe_b64decode(response.json()["response"] + "==")
-    )
+    payload = response.json()
+    if "response" in payload:
+        pairing_response = PairingResponse.from_bytes(
+            base64.urlsafe_b64decode(str(payload["response"]) + "==")
+        )
+    else:
+        from yakr_cli.relay_pairing import poll_relay_pair_response
+
+        invite_tag = str(payload["invite_tag"])
+        console.print(f"[yellow]Waiting for inviter on relay ({invite_tag[:16]}…)…[/yellow]")
+        pairing_response = poll_relay_pair_response(base, invite_tag, timeout_secs=120.0)
     contact = joiner_complete_pairing(identity, bundle, request, secrets, pairing_response)
     contact.name = name or bundle.inviter_name
     store.save_contact(contact)
@@ -156,6 +185,6 @@ def invite_accept(
 def _joiner_profile_bytes(store: FileLocalStore, identity: Identity) -> bytes:
     profile = store.load_local_profile()
     if profile is None:
-        profile = build_local_profile(identity)
+        profile = build_local_profile(identity, store=store)
         store.save_local_profile(profile)
     return profile.to_bytes()

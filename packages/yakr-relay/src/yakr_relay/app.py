@@ -13,6 +13,7 @@ from pydantic import BaseModel
 from yakr_core.onion import decode_entry_packet, decode_mailbox_packet
 from yakr_core.relay import RelayRole
 from yakr_core.relay_ticket import RelayTicket, verify_relay_ticket
+from yakr_relay.pairing_store import PairingStore
 from yakr_relay.store import BlobStore, _b64decode, _b64encode
 
 
@@ -40,6 +41,19 @@ class IngestRequest(BaseModel):
     ticket: str | None = None
 
 
+class PairRegisterRequest(BaseModel):
+    invite_secret: str
+
+
+class PairRequestBody(BaseModel):
+    request: str
+
+
+class PairResponseBody(BaseModel):
+    invite_secret: str
+    response: str
+
+
 @dataclass
 class RelayRuntime:
     role: RelayRole
@@ -61,9 +75,15 @@ def _check_ticket(ticket_b64: str | None, *, runtime: RelayRuntime, permission: 
         raise HTTPException(status_code=401, detail=f"invalid relay ticket: {exc}") from exc
 
 
-def create_app(store: BlobStore, runtime: RelayRuntime | None = None) -> FastAPI:
+def create_app(
+    store: BlobStore,
+    runtime: RelayRuntime | None = None,
+    *,
+    pairing_store: PairingStore | None = None,
+) -> FastAPI:
     runtime = runtime or RelayRuntime(role="mailbox", wrap_secret=None, name="relay")
-    app = FastAPI(title="Yakr Relay", version="0.2.0")
+    pairing_store = pairing_store or PairingStore(store.root)
+    app = FastAPI(title="Yakr Relay", version="0.3.0")
 
     @app.get("/healthz")
     def healthz() -> dict[str, str]:
@@ -149,5 +169,55 @@ def create_app(store: BlobStore, runtime: RelayRuntime | None = None) -> FastAPI
             raise HTTPException(status_code=400, detail="invalid ingest packet") from exc
 
         return {"status": "stored"}
+
+    @app.post("/v1/pair/register", status_code=201)
+    def pair_register(request: PairRegisterRequest) -> dict[str, str]:
+        try:
+            secret = _b64decode(request.invite_secret)
+            invite_tag = pairing_store.register(secret)
+        except ValueError as exc:
+            status = 409 if "consumed" in str(exc) else 400
+            raise HTTPException(status_code=status, detail=str(exc)) from exc
+        return {"invite_tag": invite_tag, "status": "registered"}
+
+    @app.post("/v1/pair", status_code=202)
+    def pair_store_request(request: PairRequestBody) -> dict[str, str]:
+        try:
+            pairing_request = _b64decode(request.request)
+            from yakr_core.pairing import PairingRequest
+
+            parsed = PairingRequest.from_bytes(pairing_request)
+            invite_tag = pairing_store.store_request(parsed.invite_secret, pairing_request)
+        except ValueError as exc:
+            status = 409 if "consumed" in str(exc) else 400
+            raise HTTPException(status_code=status, detail=str(exc)) from exc
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail="invalid pairing request") from exc
+        return {"invite_tag": invite_tag, "status": "stored"}
+
+    @app.get("/v1/pair/pending/{invite_tag}")
+    def pair_pending(invite_tag: str) -> dict[str, str]:
+        pending = pairing_store.get_pending_request(invite_tag)
+        if pending is None:
+            raise HTTPException(status_code=404, detail="no pending request")
+        return {"request": _b64encode(pending)}
+
+    @app.post("/v1/pair/response", status_code=201)
+    def pair_store_response(request: PairResponseBody) -> dict[str, str]:
+        try:
+            secret = _b64decode(request.invite_secret)
+            response = _b64decode(request.response)
+            invite_tag = pairing_store.store_response(secret, response)
+        except ValueError as exc:
+            status = 409 if "consumed" in str(exc) else 400
+            raise HTTPException(status_code=status, detail=str(exc)) from exc
+        return {"invite_tag": invite_tag, "status": "complete"}
+
+    @app.get("/v1/pair/{invite_tag}")
+    def pair_fetch_response(invite_tag: str) -> dict[str, str]:
+        response = pairing_store.get_response(invite_tag)
+        if response is None:
+            raise HTTPException(status_code=404, detail="response not ready")
+        return {"response": _b64encode(response)}
 
     return app

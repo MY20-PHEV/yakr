@@ -10,14 +10,22 @@ Replace pre-shared contact files with invite-based pairing and signed relay tick
 ## Invite Flow
 
 ```bash
-# Alice
+# Alice — local rendezvous
 yakr invite create --port 8090
+
+# Alice — group relay rendezvous (see docs/spec/relay-rendezvous.md)
+yakr invite create --rendezvous https://relay.example:8090 --no-wait
+yakr invite relay wait
 
 # Bob
 yakr invite accept "yakr://invite/..."
 ```
 
 Both sides display the same safety code for out-of-band verification.
+
+## Relay authorization (delivery profiles)
+
+Peers may only **advertise** relays in their own delivery profile if paired with that relay's operator. See [relay-authorization.md](relay-authorization.md).
 
 ## Relay Tickets
 
@@ -35,3 +43,5 @@ export YAKR_RELAY_NAME=relay
 - [x] Relay rejects blobs without valid tickets when required
 - [x] Consumed invite cannot be replayed
 - [x] Ratchet state persists across contact reload
+- [x] Relay rendezvous pairing via group relay (`/v1/pair*`)
+- [x] Relay advertisement limited to paired operators

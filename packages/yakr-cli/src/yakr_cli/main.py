@@ -20,8 +20,9 @@ from yakr_core.store import FileLocalStore
 from yakr_cli.invite_cmds import invite_app
 from yakr_cli.network import (
     deliver_encrypted,
+    delivery_mailbox_urls,
     fetch_direct_blobs,
-    mailbox_urls,
+    fetch_mailbox_urls,
     resolve_contact_route,
 )
 from yakr_core.privacy import SIZE_4K, fetch_tags_for_mode, generate_dummy_ciphertext
@@ -190,7 +191,7 @@ def fetch_cmd(
     )
     real_tag_set = {tag.tag_b64 for tag in deriver.candidate_epochs(session.recv_direction)}
     resolved_route = _resolve_route(store, contact, route, "fetch") if route else None
-    fetch_bases = mailbox_urls(contact, resolved_route)
+    fetch_bases = fetch_mailbox_urls(contact, resolved_route, store=store)
     direct_hints = list(contact.delivery_profile.direct_hints) if contact.delivery_profile else []
 
     fetched = 0
@@ -313,7 +314,7 @@ def _send_dummy_blob(
         expires_at=int(time.time() * 1000) + 7 * 24 * 60 * 60 * 1000,
         ciphertext=dummy,
     )
-    relay_url = mailbox_urls(contact, route)[0]
+    relay_url = delivery_mailbox_urls(contact, route, store=store)[0]
     httpx.post(f"{relay_url}/v1/blobs", json=outer.to_relay_json(), timeout=5.0)
 
 

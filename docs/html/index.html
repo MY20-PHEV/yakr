@@ -118,7 +118,19 @@ flowchart TB
   P6 --> P7[Phase 7<br/>Metadata privacy]
   P7 --> P8[Phase 8<br/>Mobile client]
   P8 --> P9[Phase 9<br/>v1.0 spec freeze]
+  P9 --> P10[Post-v1<br/>Relay rendezvous<br/>Relay auth · Offline QR]
           </pre>
+        </div>
+      </section>
+
+      <section>
+        <h2>Demos</h2>
+        <div class="example">
+          <div class="example-header"><span class="label">Shell</span><span>reference client</span></div>
+          <pre>./scripts/demo_relay_group_pairing.sh     # local Charlie
+VPS_HOST=user@host ./scripts/deploy_charlie_vps.sh
+export CHARLIE_URL=http://host:8090
+./scripts/demo_vps_charlie_relay.sh       # Alice/Bob Docker + VPS Charlie</pre>
         </div>
       </section>
 

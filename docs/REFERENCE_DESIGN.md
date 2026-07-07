@@ -484,7 +484,7 @@ Replace pre-shared config files with **invite-based contact establishment** and 
 | Invite bundle | Signed binary CBOR: identity key, one-time secret, rendezvous hint, expiry |
 | Invite encoding | `yakr://invite/<base64url>` and QR-compatible payload |
 | Safety code | Short fingerprint of long-term identity keys |
-| Rendezvous | Local HTTP rendezvous server in CLI; LAN discovery optional |
+| Rendezvous | Local HTTP in CLI; **group relay** `/v1/pair*` (implemented); offline QR |
 | Relay auth | Signed **store ticket** and **forward ticket** bound to relay public key |
 | Ratchet | Classical double-ratchet (`python-axolotl` pattern or minimal in-tree impl) |
 | Session binding | Transcript hash included in initial KEX |
@@ -530,10 +530,8 @@ Relay verifies ticket signature against a known contact issuer key before accept
 - [x] Relay rejects blob without valid ticket
 - [x] Consumed invite cannot be replayed
 - [x] Session survives CLI restart (persisted ratchet state)
-
----
-
-## Phase 5 — Delivery Profiles
+- [x] Relay rendezvous pairing via group relay (`docs/spec/relay-rendezvous.md`)
+- [x] Relay advertisement limited to paired operators (`docs/spec/relay-authorization.md`)
 
 **Depends on:** Phase 4  
 **Protocol:** `yakr-v0.5`  
@@ -767,7 +765,7 @@ interop/                          third-party client checklist
 ## Phase 10 — Presence and Group Relay Polling
 
 **Depends on:** Phase 9  
-**Status:** Planned  
+**Status:** Partial (relay rendezvous + relay auth implemented; live presence planned)  
 **Protocol:** `yakr-v1.1` (proposed extension)
 
 ### Goal
@@ -790,6 +788,9 @@ See [docs/spec/phase-10-presence.md](spec/phase-10-presence.md).
 - [ ] Presence messages (`type=presence`) between paired contacts
 - [ ] Send/fetch routing: presence → profile → group relay
 - [ ] Five-peer testkit with one shared relay and poll-based offline delivery
+- [x] Group relay as pairing rendezvous (`/v1/pair*`)
+- [x] Relay authorization for delivery profile advertisement
+- [x] VPS Charlie demo (Alice/Bob Docker + remote relay)
 
 ---
 

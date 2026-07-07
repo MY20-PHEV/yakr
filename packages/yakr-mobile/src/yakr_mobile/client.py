@@ -88,7 +88,7 @@ class YakrMobileClient:
         if profile is None:
             from yakr_cli.profile_cmds import build_local_profile
 
-            profile = build_local_profile(identity)
+            profile = build_local_profile(identity, store=self.store.file_store)
             self.store.file_store.save_local_profile(profile)
         request, secrets, request_url = build_offline_pairing_request(
             identity,
@@ -108,7 +108,7 @@ class YakrMobileClient:
         if profile is None:
             from yakr_cli.profile_cmds import build_local_profile
 
-            profile = build_local_profile(identity)
+            profile = build_local_profile(identity, store=self.store.file_store)
             self.store.file_store.save_local_profile(profile)
         _, contact, response_url = respond_to_pair_request(
             identity,
@@ -186,7 +186,7 @@ class YakrMobileClient:
         return SendResult(mode=mode, seq=encrypted.inner_message.seq)
 
     def fetch_contact(self, contact_name: str) -> FetchResult:
-        from yakr_cli.network import fetch_direct_blobs, mailbox_urls, resolve_contact_route
+        from yakr_cli.network import fetch_direct_blobs, fetch_mailbox_urls, resolve_contact_route
 
         identity = self._require_identity()
         contact = self._require_contact(contact_name)
@@ -201,9 +201,15 @@ class YakrMobileClient:
         )
         real_tags = {tag.tag_b64 for tag in deriver.candidate_epochs(session.recv_direction)}
         resolved_route = resolve_contact_route(self.store.file_store, contact, None, "fetch")
-        fetch_bases = mailbox_urls(contact, resolved_route)
-        if not fetch_bases or fetch_bases == ["http://127.0.0.1:8080"]:
-            fetch_bases = [self.relay_url]
+        previous = os.environ.get("YAKR_RELAY_URL")
+        os.environ["YAKR_RELAY_URL"] = self.relay_url
+        try:
+            fetch_bases = fetch_mailbox_urls(contact, resolved_route, store=self.store.file_store)
+        finally:
+            if previous is None:
+                os.environ.pop("YAKR_RELAY_URL", None)
+            else:
+                os.environ["YAKR_RELAY_URL"] = previous
         direct_hints = list(contact.delivery_profile.direct_hints) if contact.delivery_profile else []
 
         messages: list[str] = []

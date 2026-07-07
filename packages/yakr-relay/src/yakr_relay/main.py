@@ -9,6 +9,7 @@ from pathlib import Path
 import uvicorn
 
 from yakr_relay.app import RelayRuntime, create_app
+from yakr_relay.pairing_store import PairingStore
 from yakr_relay.store import BlobStore
 
 
@@ -33,7 +34,9 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.command == "serve":
-        store = BlobStore(Path(args.data_dir))
+        data_dir = Path(args.data_dir)
+        store = BlobStore(data_dir)
+        pairing_store = PairingStore(data_dir)
         runtime = RelayRuntime(
             role=args.role,
             wrap_secret=_parse_wrap_secret(args.wrap_secret),
@@ -41,7 +44,7 @@ def main() -> None:
             require_tickets=args.require_tickets,
             forward_delay_max_secs=args.forward_delay_max,
         )
-        app = create_app(store, runtime)
+        app = create_app(store, runtime, pairing_store=pairing_store)
 
         stop_event = threading.Event()
 
@@ -50,6 +53,7 @@ def main() -> None:
             def sweeper() -> None:
                 while not stop_event.is_set():
                     store.sweep_expired()
+                    pairing_store.sweep_expired()
                     stop_event.wait(60)
 
             thread = threading.Thread(target=sweeper, daemon=True)

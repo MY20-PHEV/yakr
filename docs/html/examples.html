@@ -206,6 +206,19 @@ Host: dave-relay.example:8080</pre>
         </div>
       </section>
 
+      <section id="relay-rendezvous">
+        <h2>Relay rendezvous API</h2>
+        <p>Group relay pairing mailbox — opaque CBOR only. Same host as <code>/v1/blobs</code>.</p>
+        <div class="example">
+          <div class="example-header"><span class="label">HTTP</span><span>pairing</span></div>
+          <pre>POST /v1/pair/register     { "invite_secret": "&lt;b64&gt;" }
+GET  /v1/pair/pending/{tag}
+POST /v1/pair              { "request": "&lt;b64 CBOR&gt;" }
+POST /v1/pair/response     { "invite_secret": "...", "response": "&lt;b64&gt;" }
+GET  /v1/pair/{tag}</pre>
+        </div>
+      </section>
+
       <section id="cli">
         <h2>CLI Demo Commands</h2>
         <div class="example">
@@ -214,7 +227,9 @@ Host: dave-relay.example:8080</pre>
 ./scripts/demo_two_hop_delivery.sh      # Phase 2 onion + receipts
 ./scripts/demo_invite_pairing.sh        # Phase 4 invites
 ./scripts/demo_profile_delivery.sh      # Phase 5 profiles
-./scripts/demo_hybrid_pairing.sh        # Phase 6 hybrid PQ</pre>
+./scripts/demo_hybrid_pairing.sh        # Phase 6 hybrid PQ
+./scripts/demo_relay_group_pairing.sh   # Relay rendezvous (local)
+./scripts/demo_vps_charlie_relay.sh     # Alice/Bob Docker + VPS Charlie</pre>
         </div>
         <div class="example">
           <div class="example-header"><span class="label">Local dev</span></div>

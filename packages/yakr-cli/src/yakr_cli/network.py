@@ -62,23 +62,105 @@ def contact_relay_network(contact: Contact) -> dict[str, RelayNode] | None:
     return relay_network_from_profile(contact.delivery_profile)
 
 
-def mailbox_urls(contact: Contact | None, route: str | None) -> list[str]:
+def _profile_mailbox_urls(profile: DeliveryProfile | None) -> list[str]:
+    if profile is None:
+        return []
+    return [item.url for item in mailbox_descriptors(profile)]
+
+
+def local_mailbox_urls(store: FileLocalStore) -> list[str]:
+    return _profile_mailbox_urls(store.load_local_profile())
+
+
+def _env_relay_url() -> str | None:
+    return os.environ.get("YAKR_RELAY_URL", "").rstrip("/") or None
+
+
+def delivery_mailbox_urls(
+    contact: Contact,
+    route: str | None,
+    *,
+    store: FileLocalStore | None = None,
+) -> list[str]:
+    """Relay URLs for storing a message to contact (recipient routes, then sender group relays)."""
     if route is not None:
-        network = None
-        if contact is not None:
-            network = contact_relay_network(contact)
-        network = network or load_relay_network(relays_path())
+        network = contact_relay_network(contact)
+        network = network or (load_relay_network(relays_path()) if relays_path().exists() else None)
+        if network is None:
+            raise ValueError("route requires contact or relays.json network")
         _, mailbox_name = parse_route(route)
         return [network[mailbox_name].url]
-    if contact is not None and contact.delivery_profile is not None:
-        mailboxes = mailbox_descriptors(contact.delivery_profile)
-        if mailboxes:
-            return [item.url for item in mailboxes]
-    return [os.environ.get("YAKR_RELAY_URL", "http://127.0.0.1:8080").rstrip("/")]
+
+    urls = _profile_mailbox_urls(contact.delivery_profile)
+    if urls:
+        return urls
+
+    if store is not None:
+        sender_urls = local_mailbox_urls(store)
+        if sender_urls:
+            return sender_urls
+
+    env_relay = _env_relay_url()
+    if env_relay:
+        return [env_relay]
+
+    raise ValueError(
+        f"no relay route to deliver to {contact.name}: recipient advertises no relay "
+        "and sender has no paired relay"
+    )
 
 
-def mailbox_url(route: str | None, *, contact: Contact | None = None) -> str:
-    return mailbox_urls(contact, route)[0]
+def fetch_mailbox_urls(
+    contact: Contact,
+    route: str | None,
+    *,
+    store: FileLocalStore | None = None,
+) -> list[str]:
+    """Relay URLs to poll for inbound messages in a conversation."""
+    if route is not None:
+        return delivery_mailbox_urls(contact, route, store=store)
+
+    seen: set[str] = set()
+    urls: list[str] = []
+    if store is not None:
+        for url in local_mailbox_urls(store):
+            if url not in seen:
+                urls.append(url)
+                seen.add(url)
+    for url in _profile_mailbox_urls(contact.delivery_profile):
+        if url not in seen:
+            urls.append(url)
+            seen.add(url)
+    if not urls:
+        env_relay = _env_relay_url()
+        if env_relay:
+            return [env_relay]
+    if not urls:
+        raise ValueError(
+            f"no relay route to fetch messages for {contact.name}: pair with a relay operator "
+            "or receive via a contact who advertises one"
+        )
+    return urls
+
+
+def mailbox_urls(
+    contact: Contact | None,
+    route: str | None,
+    *,
+    store: FileLocalStore | None = None,
+) -> list[str]:
+    if contact is None:
+        raise ValueError("contact required")
+    return fetch_mailbox_urls(contact, route, store=store)
+
+
+def mailbox_url(
+    route: str | None,
+    *,
+    contact: Contact | None = None,
+    store: FileLocalStore | None = None,
+) -> str:
+    return mailbox_urls(contact, route, store=store)[0]
 
 
 def _ticket(
@@ -264,7 +346,7 @@ def deliver_encrypted(
             raise ValueError("store required for automatic profile routing")
         resolved_route = resolve_contact_route(store, contact, route or "auto", encrypted.msg_id)
 
-    relay_urls = mailbox_urls(contact, resolved_route)
+    relay_urls = delivery_mailbox_urls(contact, resolved_route, store=store)
     relay_url = relay_urls[0]
 
     try:

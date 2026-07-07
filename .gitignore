@@ -14,11 +14,13 @@ build/
 .tmp-invite/
 .tmp-profile-demo/
 .tmp-hybrid-demo/
+.tmp-relay-group-demo/
 data/
 
 # IDE
 .idea/
 .vscode/
+.DS_Store
 
 # Docker
 *.log

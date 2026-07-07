@@ -254,7 +254,7 @@ https://relay.dennis.example
   /v1/blobs/*     store/fetch messages (mailbox)
 ```
 
-After pairing, Dennis SHOULD appear in both peers' `group_relays` and `relay_descriptors`.
+After pairing, a group relay SHOULD appear in **`relay_descriptors` only for peers paired with that relay operator**. Joiners MAY use the rendezvous relay for pairing and poll it for inbound mail without advertising it in their own profile.
 
 #### Security
 
