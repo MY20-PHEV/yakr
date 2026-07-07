@@ -4,6 +4,7 @@ import time
 from dataclasses import dataclass
 
 from yakr_core.crypto import derive_mailbox_secret, derive_message_key, xchacha_decrypt, xchacha_encrypt
+from yakr_core.delivery_profile import DeliveryProfile
 from yakr_core.errors import DecryptError, DuplicateSeqError
 from yakr_core.identity import Contact, Identity
 from yakr_core.mailbox import MailboxTag, MailboxTagDeriver
@@ -37,7 +38,10 @@ class Session:
     def mailbox_deriver(self, *, outbound: bool) -> MailboxTagDeriver:
         direction = self.send_direction if outbound else self.recv_direction
         secret = derive_mailbox_secret(self.contact.master_secret, direction)
-        return MailboxTagDeriver(secret)
+        epoch_secs = 3600
+        if self.contact.delivery_profile is not None:
+            epoch_secs = self.contact.delivery_profile.mailbox_epoch_secs
+        return MailboxTagDeriver(secret, epoch_secs=epoch_secs)
 
     def _encrypt_inner(self, inner: InnerMessage) -> bytes:
         if self.contact.ratchet is not None:
@@ -76,6 +80,30 @@ class Session:
             sender_device_id=self.identity.device_id,
             seq=seq,
             message_id=delivered_message_id,
+        )
+        ciphertext = self._encrypt_inner(inner)
+        tag = self.mailbox_deriver(outbound=True).derive(self.send_direction)
+        outer = OuterBlob(
+            version=1,
+            mailbox_tag=tag.tag,
+            expires_at=int(time.time() * 1000) + DEFAULT_BLOB_TTL_MS,
+            ciphertext=ciphertext,
+        )
+        self.contact.next_send_seq += 1
+        return EncryptedMessage(
+            outer_blob=outer,
+            inner_message=inner,
+            msg_id=message_id(ciphertext),
+            mailbox_tag=tag,
+        )
+
+    def encrypt_profile(self, profile: DeliveryProfile) -> EncryptedMessage:
+        seq = self.contact.next_send_seq
+        inner = InnerMessage.profile(
+            conversation_id=self.contact.conversation_id,
+            sender_device_id=self.identity.device_id,
+            seq=seq,
+            profile_b64=profile.to_b64(),
         )
         ciphertext = self._encrypt_inner(inner)
         tag = self.mailbox_deriver(outbound=True).derive(self.send_direction)

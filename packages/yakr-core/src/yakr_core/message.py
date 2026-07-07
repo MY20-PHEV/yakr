@@ -7,7 +7,7 @@ from dataclasses import asdict, dataclass
 from typing import Any, Literal
 
 
-MessageType = Literal["text", "receipt"]
+MessageType = Literal["text", "receipt", "profile"]
 
 
 @dataclass
@@ -75,6 +75,25 @@ class InnerMessage:
             created_at=int(time.time() * 1000),
             type="receipt",
             message_id=message_id,
+        )
+
+    @classmethod
+    def profile(
+        cls,
+        *,
+        conversation_id: str,
+        sender_device_id: str,
+        seq: int,
+        profile_b64: str,
+    ) -> InnerMessage:
+        return cls(
+            version=1,
+            conversation_id=conversation_id,
+            sender_device_id=sender_device_id,
+            seq=seq,
+            created_at=int(time.time() * 1000),
+            type="profile",
+            body=profile_b64,
         )
 
 

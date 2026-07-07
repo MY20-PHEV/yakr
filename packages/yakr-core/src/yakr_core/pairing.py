@@ -10,6 +10,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ed25519, x25519
 
 from yakr_core.crypto import hkdf_derive, x25519_shared_secret
+from yakr_core.delivery_profile import DeliveryProfile, verify_delivery_profile
 from yakr_core.identity import Contact, Identity, conversation_id_for
 from yakr_core.invite import InviteBundle
 from yakr_core.ratchet import RatchetState
@@ -25,6 +26,7 @@ class PairingRequest:
     joiner_signing_public: bytes
     joiner_agreement_public: bytes
     joiner_ephemeral_public: bytes
+    joiner_profile: bytes = b""
 
     def to_bytes(self) -> bytes:
         return cbor2.dumps(
@@ -34,6 +36,7 @@ class PairingRequest:
                 "joiner_signing_public": self.joiner_signing_public,
                 "joiner_agreement_public": self.joiner_agreement_public,
                 "joiner_ephemeral_public": self.joiner_ephemeral_public,
+                "joiner_profile": self.joiner_profile,
             }
         )
 
@@ -46,6 +49,7 @@ class PairingRequest:
             joiner_signing_public=bytes(payload["joiner_signing_public"]),
             joiner_agreement_public=bytes(payload["joiner_agreement_public"]),
             joiner_ephemeral_public=bytes(payload["joiner_ephemeral_public"]),
+            joiner_profile=bytes(payload.get("joiner_profile", b"")),
         )
 
 
@@ -53,12 +57,14 @@ class PairingRequest:
 class PairingResponse:
     inviter_ephemeral_public: bytes
     transcript_hash: bytes
+    inviter_profile: bytes = b""
 
     def to_bytes(self) -> bytes:
         return cbor2.dumps(
             {
                 "inviter_ephemeral_public": self.inviter_ephemeral_public,
                 "transcript_hash": self.transcript_hash,
+                "inviter_profile": self.inviter_profile,
             }
         )
 
@@ -68,10 +74,17 @@ class PairingResponse:
         return cls(
             inviter_ephemeral_public=bytes(payload["inviter_ephemeral_public"]),
             transcript_hash=bytes(payload["transcript_hash"]),
+            inviter_profile=bytes(payload.get("inviter_profile", b"")),
         )
 
 
-def build_pairing_request(identity: Identity, invite: InviteBundle, joiner_name: str) -> tuple[PairingRequest, x25519.X25519PrivateKey]:
+def build_pairing_request(
+    identity: Identity,
+    invite: InviteBundle,
+    joiner_name: str,
+    *,
+    joiner_profile: bytes = b"",
+) -> tuple[PairingRequest, x25519.X25519PrivateKey]:
     ephemeral_private = x25519.X25519PrivateKey.generate()
     request = PairingRequest(
         invite_secret=invite.invite_secret,
@@ -82,6 +95,7 @@ def build_pairing_request(identity: Identity, invite: InviteBundle, joiner_name:
             encoding=serialization.Encoding.Raw,
             format=serialization.PublicFormat.Raw,
         ),
+        joiner_profile=joiner_profile,
     )
     return request, ephemeral_private
 
@@ -143,11 +157,21 @@ def contact_id_for(signing_public: bytes, agreement_public: bytes) -> bytes:
     return hashlib.sha256(signing_public + agreement_public).digest()
 
 
+def profile_from_pairing_bytes(data: bytes, signing_public: bytes) -> DeliveryProfile | None:
+    if not data:
+        return None
+    profile = DeliveryProfile.from_bytes(data)
+    verify_delivery_profile(profile, signing_public)
+    return profile
+
+
 def inviter_complete_pairing(
     identity: Identity,
     invite: InviteBundle,
     request: PairingRequest,
     inviter_ephemeral_private: x25519.X25519PrivateKey,
+    *,
+    inviter_profile: bytes = b"",
 ) -> tuple[PairingResponse, Contact]:
     inviter_ephemeral_public = inviter_ephemeral_private.public_key().public_bytes(
         encoding=serialization.Encoding.Raw,
@@ -170,10 +194,15 @@ def inviter_complete_pairing(
         contact_id=contact_id_for(request.joiner_signing_public, request.joiner_agreement_public),
         transcript_hash=transcript_hash,
         ratchet=RatchetState.from_master(master, is_initiator=True),
+        delivery_profile=profile_from_pairing_bytes(
+            request.joiner_profile,
+            request.joiner_signing_public,
+        ),
     )
     response = PairingResponse(
         inviter_ephemeral_public=inviter_ephemeral_public,
         transcript_hash=transcript_hash,
+        inviter_profile=inviter_profile,
     )
     return response, contact
 
@@ -203,4 +232,8 @@ def joiner_complete_pairing(
         contact_id=contact_id_for(invite.signing_public, invite.agreement_public),
         transcript_hash=response.transcript_hash,
         ratchet=RatchetState.from_master(master, is_initiator=False),
+        delivery_profile=profile_from_pairing_bytes(
+            response.inviter_profile,
+            invite.signing_public,
+        ),
     )

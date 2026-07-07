@@ -12,6 +12,7 @@ from cryptography.hazmat.primitives.asymmetric import ed25519, x25519
 from yakr_core.crypto import derive_master_secret, x25519_shared_secret
 
 if TYPE_CHECKING:
+    from yakr_core.delivery_profile import DeliveryProfile
     from yakr_core.ratchet import RatchetState
 
 
@@ -94,6 +95,7 @@ class Contact:
     contact_id: bytes | None = None
     transcript_hash: bytes | None = None
     ratchet: RatchetState | None = None
+    delivery_profile: DeliveryProfile | None = None
 
     @classmethod
     def establish(cls, local: Identity, remote_name: str, remote_bundle: dict[str, str]) -> Contact:
@@ -133,15 +135,21 @@ class Contact:
             payload["transcript_hash"] = b64encode(self.transcript_hash)
         if self.ratchet is not None:
             payload["ratchet"] = json.dumps(self.ratchet.to_dict())
+        if self.delivery_profile is not None:
+            payload["delivery_profile"] = self.delivery_profile.to_b64()
         return payload
 
     @classmethod
     def from_dict(cls, payload: dict[str, str | int]) -> Contact:
+        from yakr_core.delivery_profile import DeliveryProfile
         from yakr_core.ratchet import RatchetState
 
         ratchet = None
         if "ratchet" in payload:
             ratchet = RatchetState.from_dict(json.loads(str(payload["ratchet"])))
+        delivery_profile = None
+        if "delivery_profile" in payload:
+            delivery_profile = DeliveryProfile.from_b64(str(payload["delivery_profile"]))
         contact_id = b64decode(str(payload["contact_id"])) if "contact_id" in payload else None
         transcript_hash = (
             b64decode(str(payload["transcript_hash"])) if "transcript_hash" in payload else None
@@ -157,6 +165,7 @@ class Contact:
             contact_id=contact_id,
             transcript_hash=transcript_hash,
             ratchet=ratchet,
+            delivery_profile=delivery_profile,
         )
 
 
