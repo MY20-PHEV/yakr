@@ -13,7 +13,13 @@ from yakr_core.message import OuterBlob, message_id
 from yakr_core.privacy import fetch_tags_for_mode
 from yakr_core.session import Session
 from yakr_core.store import FileLocalStore
-from yakr_cli.network import deliver_encrypted, fetch_direct_blobs, fetch_mailbox_urls
+from yakr_cli.network import (
+    deliver_encrypted,
+    delivery_mailbox_urls,
+    fetch_direct_blobs,
+    fetch_mailbox_urls,
+    fetch_relay_blobs,
+)
 
 
 @dataclass
@@ -100,12 +106,14 @@ class MeshParticipant:
 
     def resend_pending(self, peer: str) -> list[SentMessage]:
         """Re-encrypt and deliver each pending outbound message (new seq each time)."""
-        resent: list[SentMessage] = []
-        for msg_id, _seq, body in list(self.store.list_outbound_pending(peer)):
-            record = self.send(peer, body)
-            self.store.mark_outbound_delivered(peer, msg_id)
-            resent.append(record)
-        return resent
+        from yakr_cli.network import resend_pending_for_contact
+
+        before = self.store.list_outbound_pending(peer)
+        count = resend_pending_for_contact(self.store, self.identity, peer)
+        return [
+            SentMessage(self.name, peer, body, msg_id, seq)
+            for msg_id, seq, body in before[:count]
+        ]
 
     def fetch(
         self,
@@ -147,12 +155,8 @@ class MeshParticipant:
             if direct_hints:
                 for item in fetch_direct_blobs(tag.tag_b64, direct_hints):
                     items.append((None, item))
-            for fetch_base in fetch_bases:
-                response = httpx.get(f"{fetch_base}/v1/blobs/{tag.tag_b64}", timeout=15.0)
-                if response.status_code != 200:
-                    raise YakrError(f"relay fetch failed: {response.status_code}")
-                for item in response.json():
-                    items.append((fetch_base, item))
+            for item in fetch_relay_blobs(tag.tag_b64, fetch_bases, timeout=15.0):
+                items.append((None, item))
 
             seen: set[str] = set()
             for _fetch_base, item in items:
