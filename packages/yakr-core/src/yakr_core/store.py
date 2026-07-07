@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Protocol
 
 from yakr_core.identity import Contact, Identity, export_public_bundle
+from yakr_core.routing import RouteState
 
 
 class LocalStore(Protocol):
@@ -25,6 +26,10 @@ class LocalStore(Protocol):
     def mark_outbound_delivered(self, contact_name: str, msg_id: str) -> bool: ...
 
     def list_outbound_pending(self, contact_name: str) -> list[tuple[str, int, str]]: ...
+
+    def load_route_state(self, contact_name: str) -> RouteState: ...
+
+    def save_route_state(self, contact_name: str, state: RouteState) -> None: ...
 
 
 @dataclass
@@ -146,3 +151,21 @@ class FileLocalStore:
                 (contact_name,),
             ).fetchall()
         return [(str(msg_id), int(seq), str(body)) for msg_id, seq, body in rows]
+
+    @property
+    def route_state_path(self) -> Path:
+        return self.root / "route_state.json"
+
+    def load_route_state(self, contact_name: str) -> RouteState:
+        if not self.route_state_path.exists():
+            return RouteState()
+        payload = json.loads(self.route_state_path.read_text(encoding="utf-8"))
+        contact_state = payload.get(contact_name, {})
+        return RouteState.from_dict(contact_state)
+
+    def save_route_state(self, contact_name: str, state: RouteState) -> None:
+        payload: dict[str, dict[str, str | None]] = {}
+        if self.route_state_path.exists():
+            payload = json.loads(self.route_state_path.read_text(encoding="utf-8"))
+        payload[contact_name] = state.to_dict()
+        self.route_state_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")

@@ -14,7 +14,8 @@ from yakr_core.identity import Contact, Identity, export_public_bundle
 from yakr_core.message import OuterBlob, message_id
 from yakr_core.session import Session
 from yakr_core.store import FileLocalStore
-from yakr_cli.network import mailbox_url, reverse_route, send_encrypted
+from yakr_cli.network import load_relay_network, mailbox_url, relays_path, send_encrypted
+from yakr_core.routing import select_route
 
 app = typer.Typer(no_args_is_help=True, help="Yakr reference client")
 console = Console()
@@ -33,6 +34,29 @@ def _relay_url() -> str:
 
 def _store() -> FileLocalStore:
     return FileLocalStore(_home())
+
+
+def _resolve_route(
+    store: FileLocalStore,
+    contact: Contact,
+    route: str | None,
+    message_id: str,
+) -> str | None:
+    if route is None:
+        return None
+    if route != "auto":
+        return route
+
+    network = load_relay_network(relays_path())
+    state = store.load_route_state(contact.name)
+    entry, mailbox, new_state = select_route(
+        network=network,
+        conversation_secret=contact.master_secret,
+        message_id=message_id,
+        state=state,
+    )
+    store.save_route_state(contact.name, new_state)
+    return f"{entry},{mailbox}"
 
 
 def _require_identity(store: FileLocalStore) -> Identity:
@@ -105,7 +129,7 @@ def contact_add_cmd(
 def send_cmd(
     contact_name: str = typer.Argument(..., help="Recipient contact name"),
     message: str = typer.Argument(..., help="Message body"),
-    route: str | None = typer.Option(None, "--route", help="Two-hop route entry,mailbox"),
+    route: str | None = typer.Option(None, "--route", help="entry,mailbox or auto"),
 ) -> None:
     """Encrypt and deliver a message for a contact via the relay."""
     store = _store()
@@ -116,11 +140,12 @@ def send_cmd(
 
     session = Session(identity, contact)
     encrypted = session.encrypt_text(message)
+    resolved_route = _resolve_route(store, contact, route, encrypted.msg_id)
     store.save_contact(contact)
     store.save_outbound_pending(contact_name, encrypted.msg_id, encrypted.inner_message.seq, message)
 
-    send_encrypted(encrypted, relay_url=_relay_url(), route=route)
-    mode = f"two-hop via {route}" if route else "single-hop"
+    send_encrypted(encrypted, relay_url=_relay_url(), route=resolved_route)
+    mode = f"two-hop via {resolved_route}" if resolved_route else "single-hop"
     console.print(f"[green]Sent to {contact_name}[/green] ({mode}, seq={encrypted.inner_message.seq})")
 
 
