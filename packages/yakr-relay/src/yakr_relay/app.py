@@ -81,7 +81,8 @@ def create_app(store: BlobStore, runtime: RelayRuntime | None = None) -> FastAPI
                 _b64decode(request.ciphertext),
             )
         except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+            status = 429 if "blob limit exceeded" in str(exc) else 400
+            raise HTTPException(status_code=status, detail=str(exc)) from exc
         return {"status": "stored"}
 
     @app.get("/v1/blobs/{mailbox_tag}", response_model=list[BlobResponse])
@@ -141,6 +142,9 @@ def create_app(store: BlobStore, runtime: RelayRuntime | None = None) -> FastAPI
         try:
             outer = decode_mailbox_packet(_b64decode(request.inner), runtime.wrap_secret)
             store.store(outer.mailbox_tag, outer.expires_at, outer.ciphertext)
+        except ValueError as exc:
+            status = 429 if "blob limit exceeded" in str(exc) else 400
+            raise HTTPException(status_code=status, detail=str(exc)) from exc
         except Exception as exc:
             raise HTTPException(status_code=400, detail="invalid ingest packet") from exc
 

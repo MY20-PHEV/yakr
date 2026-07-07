@@ -27,9 +27,16 @@ class StoredBlob:
 
 
 class BlobStore:
-    def __init__(self, root: Path, *, max_blob_size: int =  64 * 1024) -> None:
+    def __init__(
+        self,
+        root: Path,
+        *,
+        max_blob_size: int = 64 * 1024,
+        max_blobs_per_tag: int = 256,
+    ) -> None:
         self.root = root
         self.max_blob_size = max_blob_size
+        self.max_blobs_per_tag = max_blobs_per_tag
         self.root.mkdir(parents=True, exist_ok=True)
         self._db_path = self.root / "relay.db"
         self._lock = threading.Lock()
@@ -64,6 +71,13 @@ class BlobStore:
             raise ValueError("blob already expired")
 
         with self._lock, self._connect() as conn:
+            count = conn.execute(
+                "SELECT COUNT(*) FROM blobs WHERE mailbox_tag = ? AND expires_at > ?",
+                (mailbox_tag, now_ms),
+            ).fetchone()[0]
+            if count >= self.max_blobs_per_tag:
+                raise ValueError("mailbox tag blob limit exceeded")
+
             conn.execute(
                 "INSERT INTO blobs (mailbox_tag, expires_at, ciphertext, stored_at) VALUES (?, ?, ?, ?)",
                 (mailbox_tag, expires_at, ciphertext, now_ms),
