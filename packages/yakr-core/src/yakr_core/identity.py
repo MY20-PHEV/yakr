@@ -4,11 +4,15 @@ import base64
 import json
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ed25519, x25519
 
 from yakr_core.crypto import derive_master_secret, x25519_shared_secret
+
+if TYPE_CHECKING:
+    from yakr_core.ratchet import RatchetState
 
 
 @dataclass
@@ -50,12 +54,12 @@ class Identity:
     def to_dict(self) -> dict[str, str]:
         return {
             "name": self.name,
-            "signing_private": _b64(self.signing_private.private_bytes(
+            "signing_private": b64encode(self.signing_private.private_bytes(
                 encoding=serialization.Encoding.Raw,
                 format=serialization.PrivateFormat.Raw,
                 encryption_algorithm=serialization.NoEncryption(),
             )),
-            "agreement_private": _b64(self.agreement_private.private_bytes(
+            "agreement_private": b64encode(self.agreement_private.private_bytes(
                 encoding=serialization.Encoding.Raw,
                 format=serialization.PrivateFormat.Raw,
                 encryption_algorithm=serialization.NoEncryption(),
@@ -64,8 +68,8 @@ class Identity:
 
     @classmethod
     def from_dict(cls, payload: dict[str, str]) -> Identity:
-        signing_private = ed25519.Ed25519PrivateKey.from_private_bytes(_db64(payload["signing_private"]))
-        agreement_private = x25519.X25519PrivateKey.from_private_bytes(_db64(payload["agreement_private"]))
+        signing_private = ed25519.Ed25519PrivateKey.from_private_bytes(b64decode(payload["signing_private"]))
+        agreement_private = x25519.X25519PrivateKey.from_private_bytes(b64decode(payload["agreement_private"]))
         return cls(name=payload["name"], signing_private=signing_private, agreement_private=agreement_private)
 
     def save(self, path: Path) -> None:
@@ -87,14 +91,17 @@ class Contact:
     conversation_id: str
     next_send_seq: int = 1
     last_recv_seq: int = 0
+    contact_id: bytes | None = None
+    transcript_hash: bytes | None = None
+    ratchet: RatchetState | None = None
 
     @classmethod
     def establish(cls, local: Identity, remote_name: str, remote_bundle: dict[str, str]) -> Contact:
-        remote_signing = _db64(remote_bundle["signing_public"])
-        remote_agreement = _db64(remote_bundle["agreement_public"])
+        remote_signing = b64decode(remote_bundle["signing_public"])
+        remote_agreement = b64decode(remote_bundle["agreement_public"])
         shared = x25519_shared_secret(local.agreement_private, remote_agreement)
         master = derive_master_secret(shared)
-        conversation_id = _conversation_id(local.name, remote_name)
+        conversation_id = conversation_id_for(local.name, remote_name)
         return cls(
             name=remote_name,
             signing_public=remote_signing,
@@ -106,51 +113,76 @@ class Contact:
     def public_bundle(self) -> dict[str, str]:
         return {
             "name": self.name,
-            "signing_public": _b64(self.signing_public),
-            "agreement_public": _b64(self.agreement_public),
+            "signing_public": b64encode(self.signing_public),
+            "agreement_public": b64encode(self.agreement_public),
         }
 
     def to_dict(self) -> dict[str, str | int]:
-        return {
+        payload: dict[str, str | int] = {
             "name": self.name,
-            "signing_public": _b64(self.signing_public),
-            "agreement_public": _b64(self.agreement_public),
-            "master_secret": _b64(self.master_secret),
+            "signing_public": b64encode(self.signing_public),
+            "agreement_public": b64encode(self.agreement_public),
+            "master_secret": b64encode(self.master_secret),
             "conversation_id": self.conversation_id,
             "next_send_seq": self.next_send_seq,
             "last_recv_seq": self.last_recv_seq,
         }
+        if self.contact_id is not None:
+            payload["contact_id"] = b64encode(self.contact_id)
+        if self.transcript_hash is not None:
+            payload["transcript_hash"] = b64encode(self.transcript_hash)
+        if self.ratchet is not None:
+            payload["ratchet"] = json.dumps(self.ratchet.to_dict())
+        return payload
 
     @classmethod
     def from_dict(cls, payload: dict[str, str | int]) -> Contact:
+        from yakr_core.ratchet import RatchetState
+
+        ratchet = None
+        if "ratchet" in payload:
+            ratchet = RatchetState.from_dict(json.loads(str(payload["ratchet"])))
+        contact_id = b64decode(str(payload["contact_id"])) if "contact_id" in payload else None
+        transcript_hash = (
+            b64decode(str(payload["transcript_hash"])) if "transcript_hash" in payload else None
+        )
         return cls(
             name=str(payload["name"]),
-            signing_public=_db64(str(payload["signing_public"])),
-            agreement_public=_db64(str(payload["agreement_public"])),
-            master_secret=_db64(str(payload["master_secret"])),
+            signing_public=b64decode(str(payload["signing_public"])),
+            agreement_public=b64decode(str(payload["agreement_public"])),
+            master_secret=b64decode(str(payload["master_secret"])),
             conversation_id=str(payload["conversation_id"]),
             next_send_seq=int(payload.get("next_send_seq", 1)),
             last_recv_seq=int(payload.get("last_recv_seq", 0)),
+            contact_id=contact_id,
+            transcript_hash=transcript_hash,
+            ratchet=ratchet,
         )
 
 
 def export_public_bundle(identity: Identity) -> dict[str, str]:
     return {
         "name": identity.name,
-        "signing_public": _b64(identity.signing_public_bytes),
-        "agreement_public": _b64(identity.agreement_public_bytes),
+        "signing_public": b64encode(identity.signing_public_bytes),
+        "agreement_public": b64encode(identity.agreement_public_bytes),
     }
 
 
-def _conversation_id(a: str, b: str) -> str:
+def conversation_id_for(a: str, b: str) -> str:
     left, right = sorted([a, b])
     return f"pairwise_{left}_{right}"
 
 
-def _b64(data: bytes) -> str:
+def b64encode(data: bytes) -> str:
     return base64.urlsafe_b64encode(data).decode("ascii").rstrip("=")
 
 
-def _db64(value: str) -> bytes:
+def b64decode(value: str) -> bytes:
     padding = "=" * (-len(value) % 4)
     return base64.urlsafe_b64decode(value + padding)
+
+
+# Backward-compatible aliases used by older modules.
+_b64 = b64encode
+_db64 = b64decode
+_conversation_id = conversation_id_for

@@ -39,6 +39,12 @@ class Session:
         secret = derive_mailbox_secret(self.contact.master_secret, direction)
         return MailboxTagDeriver(secret)
 
+    def _encrypt_inner(self, inner: InnerMessage) -> bytes:
+        if self.contact.ratchet is not None:
+            return self.contact.ratchet.encrypt(inner.to_bytes())
+        key = derive_message_key(self.contact.master_secret, inner.seq)
+        return xchacha_encrypt(key, inner.to_bytes())
+
     def encrypt_text(self, body: str) -> EncryptedMessage:
         seq = self.contact.next_send_seq
         inner = InnerMessage.text(
@@ -47,8 +53,7 @@ class Session:
             seq=seq,
             body=body,
         )
-        key = derive_message_key(self.contact.master_secret, seq)
-        ciphertext = xchacha_encrypt(key, inner.to_bytes())
+        ciphertext = self._encrypt_inner(inner)
         tag = self.mailbox_deriver(outbound=True).derive(self.send_direction)
         outer = OuterBlob(
             version=1,
@@ -72,8 +77,7 @@ class Session:
             seq=seq,
             message_id=delivered_message_id,
         )
-        key = derive_message_key(self.contact.master_secret, seq)
-        ciphertext = xchacha_encrypt(key, inner.to_bytes())
+        ciphertext = self._encrypt_inner(inner)
         tag = self.mailbox_deriver(outbound=True).derive(self.send_direction)
         outer = OuterBlob(
             version=1,
@@ -90,11 +94,28 @@ class Session:
         )
 
     def decrypt_outer(self, outer: OuterBlob) -> InnerMessage:
+        if self.contact.ratchet is not None:
+            for offset in range(10):
+                seq_hint = self.contact.ratchet.recv_n + offset
+                try:
+                    plaintext = self.contact.ratchet.decrypt_at(outer.ciphertext, seq_hint=seq_hint)
+                except Exception:
+                    continue
+                inner = InnerMessage.from_bytes(plaintext)
+                if inner.conversation_id != self.contact.conversation_id:
+                    raise DecryptError("conversation mismatch")
+                if inner.seq <= self.contact.last_recv_seq:
+                    raise DuplicateSeqError(f"duplicate seq {inner.seq}")
+                self.contact.ratchet.commit_recv(seq_hint)
+                self.contact.last_recv_seq = inner.seq
+                return inner
+            raise DecryptError("unable to decrypt blob")
+
         for seq in range(max(1, self.contact.last_recv_seq), self.contact.next_send_seq + 5):
             key = derive_message_key(self.contact.master_secret, seq)
             try:
                 plaintext = xchacha_decrypt(key, outer.ciphertext)
-            except Exception as exc:
+            except Exception:
                 continue
             inner = InnerMessage.from_bytes(plaintext)
             if inner.conversation_id != self.contact.conversation_id:
