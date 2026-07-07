@@ -679,7 +679,8 @@ Add **practical metadata reduction** with explicit privacy modes, without making
 ## Phase 8 — Mobile Reference Client (Android First)
 
 **Depends on:** Phase 7  
-**Protocol:** `yakr-v1.0` (candidate freeze)
+**Protocol:** `yakr-v1.0` (candidate freeze)  
+**Status:** Complete
 
 ### Goal
 
@@ -730,10 +731,10 @@ Phase 8 starts with Option A to keep one language through the stack.
 
 ### Exit Criteria
 
-- [ ] Two Android devices exchange messages with one offline, relay on third device or VPS
-- [ ] QR invite works device-to-device
-- [ ] Relay mode respects Wi-Fi/charging constraints
-- [ ] App survives process death; messages persist and resume fetch
+- [x] Two Android devices exchange messages with one offline, relay on third device or VPS
+- [x] QR invite works device-to-device
+- [x] Relay mode respects Wi-Fi/charging constraints
+- [x] App survives process death; messages persist and resume fetch
 
 ---
 

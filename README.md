@@ -30,6 +30,8 @@ packages/yakr-core/     protocol and crypto library
 packages/yakr-relay/    relay daemon (FastAPI)
 packages/yakr-cli/      command-line reference client (Typer)
 packages/yakr-testkit/  test harness and demos (pytest)
+packages/yakr-mobile/   Android/mobile reference client
+apps/yakr-android/      BeeWare Briefcase APK shell
 ```
 
 ## Docker Demo (recommended)
@@ -42,6 +44,14 @@ Spin up isolated client identities with persistent volumes — easiest way to te
 ./scripts/demo_invite_pairing.sh        # Phase 4 invite pairing + tickets
 ./scripts/demo_profile_delivery.sh      # Phase 5 delivery profiles + direct P2P
 ./scripts/demo_hybrid_pairing.sh          # Phase 6 hybrid PQ pairing
+
+## Android (Phase 8)
+
+```bash
+cd apps/yakr-android && briefcase build android
+```
+
+See [apps/yakr-android/README.md](apps/yakr-android/README.md).
 ```
 
 Manual steps:
