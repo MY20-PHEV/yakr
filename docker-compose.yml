@@ -1,0 +1,98 @@
+services:
+  relay:
+    build: .
+    command:
+      - yakr-relay
+      - serve
+      - --host
+      - "0.0.0.0"
+      - --port
+      - "8080"
+      - --data-dir
+      - /data
+    ports:
+      - "8080:8080"
+    volumes:
+      - relay-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/healthz"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  setup:
+    build: .
+    environment:
+      YAKR_RELAY_URL: http://relay:8080
+    volumes:
+      - alice-data:/data/alice
+      - bob-data:/data/bob
+      - charlie-data:/data/charlie
+      - dennis-data:/data/dennis
+    depends_on:
+      relay:
+        condition: service_healthy
+    command: ["python", "scripts/setup_network.py"]
+
+  alice:
+    build: .
+    profiles: ["clients"]
+    environment:
+      YAKR_HOME: /data
+      YAKR_NAME: alice
+      YAKR_RELAY_URL: http://relay:8080
+    volumes:
+      - alice-data:/data
+    depends_on:
+      relay:
+        condition: service_healthy
+    entrypoint: ["yakr"]
+
+  bob:
+    build: .
+    profiles: ["clients"]
+    environment:
+      YAKR_HOME: /data
+      YAKR_NAME: bob
+      YAKR_RELAY_URL: http://relay:8080
+    volumes:
+      - bob-data:/data
+    depends_on:
+      relay:
+        condition: service_healthy
+    entrypoint: ["yakr"]
+
+  charlie:
+    build: .
+    profiles: ["clients"]
+    environment:
+      YAKR_HOME: /data
+      YAKR_NAME: charlie
+      YAKR_RELAY_URL: http://relay:8080
+    volumes:
+      - charlie-data:/data
+    depends_on:
+      relay:
+        condition: service_healthy
+    entrypoint: ["yakr"]
+
+  dennis:
+    build: .
+    profiles: ["clients"]
+    environment:
+      YAKR_HOME: /data
+      YAKR_NAME: dennis
+      YAKR_RELAY_URL: http://relay:8080
+    volumes:
+      - dennis-data:/data
+    depends_on:
+      relay:
+        condition: service_healthy
+    entrypoint: ["yakr"]
+
+volumes:
+  relay-data:
+  alice-data:
+  bob-data:
+  charlie-data:
+  dennis-data:
