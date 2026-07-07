@@ -5,7 +5,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 echo "==> Building images"
-docker compose build
+docker compose build relay setup alice bob
 
 echo "==> Starting relay"
 docker compose up -d relay

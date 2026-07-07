@@ -10,12 +10,68 @@ services:
       - "8080"
       - --data-dir
       - /data
+      - --role
+      - mailbox
     ports:
       - "8080:8080"
     volumes:
       - relay-data:/data
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/healthz"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  dennis-relay:
+    build: .
+    command:
+      - yakr-relay
+      - serve
+      - --host
+      - "0.0.0.0"
+      - --port
+      - "8081"
+      - --data-dir
+      - /data
+      - --role
+      - both
+      - --name
+      - dennis
+      - --wrap-secret
+      - Imi7C-2eFGiIpdu2IdJuonFJf5qivjYMvNPdkWySjqY
+    ports:
+      - "8081:8081"
+    volumes:
+      - dennis-relay-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/healthz"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  charlie-relay:
+    build: .
+    command:
+      - yakr-relay
+      - serve
+      - --host
+      - "0.0.0.0"
+      - --port
+      - "8082"
+      - --data-dir
+      - /data
+      - --role
+      - both
+      - --name
+      - charlie
+      - --wrap-secret
+      - 41OuNHtipVn2Uco5VdPJNxHfT6C4zsX7JiGfVU853r8
+    ports:
+      - "8082:8082"
+    volumes:
+      - charlie-relay-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/healthz"]
       interval: 2s
       timeout: 3s
       retries: 15
@@ -29,8 +85,13 @@ services:
       - bob-data:/data/bob
       - charlie-data:/data/charlie
       - dennis-data:/data/dennis
+      - shared-data:/data/shared
     depends_on:
       relay:
+        condition: service_healthy
+      dennis-relay:
+        condition: service_healthy
+      charlie-relay:
         condition: service_healthy
     command: ["python", "scripts/setup_network.py"]
 
@@ -41,8 +102,10 @@ services:
       YAKR_HOME: /data
       YAKR_NAME: alice
       YAKR_RELAY_URL: http://relay:8080
+      YAKR_RELAYS_FILE: /data/shared/relays.json
     volumes:
       - alice-data:/data
+      - shared-data:/data/shared
     depends_on:
       relay:
         condition: service_healthy
@@ -55,8 +118,10 @@ services:
       YAKR_HOME: /data
       YAKR_NAME: bob
       YAKR_RELAY_URL: http://relay:8080
+      YAKR_RELAYS_FILE: /data/shared/relays.json
     volumes:
       - bob-data:/data
+      - shared-data:/data/shared
     depends_on:
       relay:
         condition: service_healthy
@@ -69,8 +134,10 @@ services:
       YAKR_HOME: /data
       YAKR_NAME: charlie
       YAKR_RELAY_URL: http://relay:8080
+      YAKR_RELAYS_FILE: /data/shared/relays.json
     volumes:
       - charlie-data:/data
+      - shared-data:/data/shared
     depends_on:
       relay:
         condition: service_healthy
@@ -83,8 +150,10 @@ services:
       YAKR_HOME: /data
       YAKR_NAME: dennis
       YAKR_RELAY_URL: http://relay:8080
+      YAKR_RELAYS_FILE: /data/shared/relays.json
     volumes:
       - dennis-data:/data
+      - shared-data:/data/shared
     depends_on:
       relay:
         condition: service_healthy
@@ -92,6 +161,9 @@ services:
 
 volumes:
   relay-data:
+  dennis-relay-data:
+  charlie-relay-data:
+  shared-data:
   alice-data:
   bob-data:
   charlie-data:
