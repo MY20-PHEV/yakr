@@ -53,6 +53,7 @@ yakr resend bob
 - [ ] Embedded relay when dialable (`reachable` required; LAN/IPv6 — see ADR 008)
 - [ ] Five-client testkit matching VPS trust model (no Bob↔Charlie shortcut)
 - [ ] Security analysis updated for presence metadata
+- [ ] Ephemeral cloud relay deploy (`yakr relay deploy` / ADR 009)
 
 ## Spec
 

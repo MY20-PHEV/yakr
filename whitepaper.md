@@ -1844,6 +1844,19 @@ interop tests
 security analysis
 ```
 
+### Phase 9 (future): Ephemeral cloud relay
+
+Optional product/CLI path for users without homelab skills:
+
+```text
+yakr relay deploy --provider aws|gcp
+IaC module (Terraform/CloudFormation) → same Docker image as homelab
+auto TLS + relay_descriptor + profile publish
+yakr relay destroy → tear down + profile cleanup
+```
+
+User's cloud account, user's container — pairing-gated self-operated relay, not platform infrastructure. See ADR 009.
+
 ---
 
 ## 26. Open Questions
@@ -1928,6 +1941,26 @@ delivery profiles list device-specific mailbox tags
 encrypted local history transfer
 no automatic cloud backup
 ```
+
+### 26.7 Ephemeral cloud relay deploy (future)
+
+The reference `yakr-relay` image is containerized; homelab deploy today uses SSH + Docker. A natural extension is **one-click (or few-click) deploy to the user's own cloud account** (AWS, GCP, etc.) with **pairing baked in**:
+
+```text
+User runs: yakr relay deploy --provider aws
+  → provisions small VM / container service in the user's account
+  → generates operator TLS + wrap secret
+  → adds relay_descriptor to the user's signed profile (self-operated)
+  → presence push with public URL
+
+User runs: yakr relay destroy
+  → tears down cloud resources
+  → updates profile to remove stale descriptor
+```
+
+This is **not** a Yakr-central relay farm — the user pays their cloud bill and owns the VM. It matches relay-authorization (self-operated relay) and ADR 008 (mobile users need a reachable mailbox they control, not their phone). Friends already paired with the user consume the new URL from profile/presence; no “pair with AWS” contact.
+
+See `docs/adr/009-ephemeral-cloud-relay.md` for design notes.
 
 ---
 
