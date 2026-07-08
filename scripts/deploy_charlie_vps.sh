@@ -18,6 +18,10 @@ CHARLIE_PORT="${CHARLIE_PORT:-8090}"
 REMOTE_DIR="${REMOTE_DIR:-~/yakr-relay}"
 CHARLIE_WRAP_SECRET="${CHARLIE_WRAP_SECRET:-}"
 CHARLIE_TLS_DIR="${CHARLIE_TLS_DIR:-}"
+RELAY_CONTAINER="${RELAY_CONTAINER:-yakr-charlie}"
+RELAY_NAME="${RELAY_NAME:-charlie}"
+RELAY_DATA_VOLUME="${RELAY_DATA_VOLUME:-yakr-charlie-data}"
+URL_EXPORT_NAME="${URL_EXPORT_NAME:-CHARLIE_URL}"
 
 if [[ -z "$CHARLIE_WRAP_SECRET" ]]; then
   CHARLIE_WRAP_SECRET="$(python3 - <<'PY'
@@ -52,15 +56,15 @@ docker build -t "$IMAGE_TAG" .
 echo "Saving image and copying to ${VPS_HOST}…"
 docker save "$IMAGE_TAG" | ssh "$VPS_HOST" "docker load"
 
-echo "Starting Charlie relay on port ${CHARLIE_PORT} (${SCHEME})…"
+echo "Starting ${RELAY_NAME} relay on port ${CHARLIE_PORT} (${SCHEME})…"
 # shellcheck disable=SC2029
-ssh "$VPS_HOST" docker rm -f yakr-charlie 2>/dev/null || true
+ssh "$VPS_HOST" docker rm -f "${RELAY_CONTAINER}" 2>/dev/null || true
 # shellcheck disable=SC2029
 ssh "$VPS_HOST" docker run -d \
-  --name yakr-charlie \
+  --name "${RELAY_CONTAINER}" \
   --restart unless-stopped \
   -p "${CHARLIE_PORT}:8080" \
-  -v yakr-charlie-data:/data \
+  -v "${RELAY_DATA_VOLUME}:/data" \
   "${DOCKER_TLS_MOUNT[@]}" \
   "$IMAGE_TAG" \
   yakr-relay serve \
@@ -68,7 +72,7 @@ ssh "$VPS_HOST" docker run -d \
     --port 8080 \
     --data-dir /data \
     --role both \
-    --name charlie \
+    --name "${RELAY_NAME}" \
     --wrap-secret "$CHARLIE_WRAP_SECRET" \
     "${RELAY_TLS_ARGS[@]}"
 
@@ -78,10 +82,10 @@ ssh "$VPS_HOST" "curl -sf ${CURL_INSECURE} ${SCHEME}://127.0.0.1:${CHARLIE_PORT}
 
 VPS_IP="$(ssh "$VPS_HOST" 'curl -sf ifconfig.me 2>/dev/null || hostname -I | awk "{print \$1}"')"
 echo ""
-echo "Charlie relay is up."
+echo "${RELAY_NAME} relay is up."
 echo "  Health:  ${SCHEME}://${VPS_IP}:${CHARLIE_PORT}/healthz"
 echo "  Export for local demo:"
-echo "    export CHARLIE_URL=${SCHEME}://${VPS_IP}:${CHARLIE_PORT}"
+echo "    export ${URL_EXPORT_NAME}=${SCHEME}://${VPS_IP}:${CHARLIE_PORT}"
 echo "    export CHARLIE_WRAP_SECRET=${CHARLIE_WRAP_SECRET}"
 if [[ -n "$CHARLIE_TLS_DIR" ]]; then
   echo "    # SPKI pin: $(cat "$CHARLIE_TLS_DIR/spki_sha256.hex" 2>/dev/null || echo see relay-tls/spki_sha256.hex)"

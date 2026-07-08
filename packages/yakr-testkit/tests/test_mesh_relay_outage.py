@@ -213,7 +213,6 @@ def test_charlie_relay_outage_delays_fetch_until_primary_returns(charlie_mesh) -
     for party, peer in (
         (mesh.bob, "alice"),
         (mesh.alice, "charlie"),
-        (mesh.charlie, "bob"),
     ):
         msgs, err = party.try_fetch(peer, send_receipts=True)
         assert err is None

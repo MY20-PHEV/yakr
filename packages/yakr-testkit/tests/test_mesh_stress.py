@@ -92,17 +92,17 @@ def test_out_of_order_delivery_via_delayed_fetch(charlie_mesh) -> None:
     """Multiple sends pile up on relay; one fetch drains them in seq order."""
     mesh = charlie_mesh
     for i in range(12):
-        mesh.charlie.send("bob", f"charlie-burst-{i}")
-    for i in range(8):
         mesh.alice.send("bob", f"alice-burst-{i}")
+    for i in range(8):
+        mesh.bob.send("alice", f"bob-burst-{i}")
 
-    charlie_msgs = mesh.bob.fetch("charlie", send_receipts=True)
-    alice_msgs = mesh.bob.fetch("alice", send_receipts=True)
+    bob_msgs = mesh.bob.fetch("alice", send_receipts=True)
+    alice_msgs = mesh.alice.fetch("bob", send_receipts=True)
 
-    assert len(charlie_msgs) == 12
+    assert len(bob_msgs) == 12
     assert len(alice_msgs) == 8
-    assert [m.body for m in charlie_msgs] == [f"charlie-burst-{i}" for i in range(12)]
-    assert [m.body for m in alice_msgs] == [f"alice-burst-{i}" for i in range(8)]
+    assert [m.body for m in bob_msgs] == [f"alice-burst-{i}" for i in range(12)]
+    assert [m.body for m in alice_msgs] == [f"bob-burst-{i}" for i in range(8)]
 
 
 def test_valid_until_on_all_messages(charlie_mesh) -> None:

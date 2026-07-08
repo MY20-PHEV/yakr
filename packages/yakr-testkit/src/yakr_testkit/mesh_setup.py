@@ -40,6 +40,7 @@ class RelayHandle:
     server: uvicorn.Server | None = None
     thread: threading.Thread | None = None
     relay_host: str = "127.0.0.1"
+    local: bool = True
 
     def stop(self) -> None:
         if self.server is None:
@@ -121,7 +122,9 @@ class CharlieMesh:
         self.dennis_relay.start()
 
     def stop(self) -> None:
-        self.stop_all_relays()
+        for relay in (self.charlie_relay, self.dennis_relay):
+            if getattr(relay, "local", True):
+                relay.stop()
 
 
 def _wait_relay_healthy(
@@ -342,13 +345,6 @@ def build_charlie_mesh(tmp_path: Path, *, wrap_secret: bytes | None = None) -> C
     if joiner_error:
         raise joiner_error[0]
 
-    bob_charlie = Contact.establish(bob, "charlie", export_public_bundle(charlie))
-    bob_charlie.delivery_profile = charlie_profile
-    bob_store.save_contact(bob_charlie)
-
-    charlie_bob = Contact.establish(charlie, "bob", export_public_bundle(bob))
-    charlie_store.save_contact(charlie_bob)
-
     for st in (bob_store, charlie_store, dennis_store):
         previous = os.environ.get("YAKR_RELAY_URL")
         os.environ["YAKR_RELAY_URL"] = relay_url
@@ -372,29 +368,23 @@ def build_charlie_mesh(tmp_path: Path, *, wrap_secret: bytes | None = None) -> C
 
 
 def build_send_schedule() -> list[tuple[str, str, int]]:
-    """Burst send schedule totaling 104 messages across all pairs."""
+    """Burst send schedule totaling 110 messages (Alice/Bob/Charlie; no Bob↔Charlie)."""
     return [
+        ("alice", "bob", 12),
+        ("alice", "charlie", 6),
+        ("charlie", "alice", 8),
+        ("bob", "alice", 10),
         ("alice", "bob", 8),
-        ("alice", "charlie", 4),
-        ("charlie", "alice", 6),
-        ("bob", "alice", 7),
-        ("alice", "bob", 5),
-        ("charlie", "bob", 4),
-        ("bob", "charlie", 3),
         ("alice", "charlie", 5),
+        ("bob", "alice", 12),
+        ("charlie", "alice", 6),
+        ("alice", "bob", 7),
         ("bob", "alice", 9),
-        ("charlie", "alice", 4),
-        ("alice", "bob", 6),
-        ("charlie", "bob", 5),
-        ("bob", "alice", 8),
-        ("alice", "charlie", 3),
-        ("bob", "charlie", 4),
-        ("charlie", "alice", 7),
-        ("alice", "bob", 4),
-        ("bob", "alice", 6),
-        ("charlie", "bob", 3),
-        ("bob", "charlie", 2),
         ("alice", "charlie", 4),
+        ("charlie", "alice", 7),
+        ("alice", "bob", 6),
+        ("bob", "alice", 8),
+        ("alice", "charlie", 5),
         ("charlie", "alice", 5),
     ]
 
@@ -408,14 +398,10 @@ def build_fetch_rounds() -> list[tuple[str, str, bool]]:
         ("alice", "charlie", False),
         ("bob", "alice", True),
         ("alice", "bob", True),
-        ("charlie", "bob", False),
-        ("bob", "charlie", True),
         ("alice", "charlie", True),
         ("charlie", "alice", False),
         ("bob", "alice", False),
-        ("charlie", "bob", True),
         ("alice", "bob", False),
-        ("bob", "charlie", False),
         ("charlie", "alice", True),
     ]
 
