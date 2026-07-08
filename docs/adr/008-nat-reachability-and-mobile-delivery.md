@@ -121,3 +121,4 @@ This is why Yakr is **decentralized E2E messaging with social relays**, not tran
 - `docs/spec/relay-failover.md` — send ordering
 - `docs/spec/presence-minimal.md` — implemented presence subset
 - ADR 007 — presence layer and group relays
+- ADR 010 — offline mesh transports when internet backbone is unavailable
