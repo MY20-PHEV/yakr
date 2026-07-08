@@ -47,7 +47,7 @@ Validation:
 
 ### `GET /v1/blobs/{mailbox_tag}`
 
-Return all non-expired blobs for the tag.
+Return all non-expired blobs for the tag. Order is implementation-defined (`stored_at` ascending is typical); clients MUST NOT assume blob order matches application `seq` ([fetch-algorithm.md](./fetch-algorithm.md)).
 
 Relay blobs MUST expire within **24 hours** — see [ephemeral-messages.md](./ephemeral-messages.md).
 
@@ -57,7 +57,7 @@ Relay blobs MUST expire within **24 hours** — see [ephemeral-messages.md](./ep
 - [x] Alice sends while Bob is offline; Bob fetches later
 - [x] Relay stores ciphertext only (no plaintext sender/recipient IDs)
 - [x] Expired blobs rejected on store and removed by sweeper
-- [x] Duplicate `seq` detected client-side
+- [x] Duplicate `seq` detected client-side (strict `last_recv_seq + 1`; out-of-order blobs retried per [fetch-algorithm.md](./fetch-algorithm.md))
 - [x] README documents Docker demo in under 5 commands
 
 See also [mesh-testing-and-resilience.md](./mesh-testing-and-resilience.md) for Charlie 3-peer stress tests and relay outage findings.

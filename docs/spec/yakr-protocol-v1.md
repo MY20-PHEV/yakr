@@ -224,7 +224,7 @@ Relays MUST NOT decrypt application plaintext.
 2. **Pairing** — X25519 (+ optional ML-KEM) → `master_secret`, ratchet state.
 3. **Profile exchange** — signed `DeliveryProfile` selects relays, epoch, receipt policy.
 4. **Send** — encrypt inner message, wrap in `OuterBlob`, optionally onion-route through entry → mailbox relay.
-5. **Fetch** — derive mailbox tags for current and lookback epochs, GET blobs, decrypt.
+5. **Fetch** — derive mailbox tags for current and lookback epochs, GET blobs, decrypt in strict application `seq` order (see [fetch-algorithm.md](./fetch-algorithm.md)).
 
 Detailed phase specs remain in `docs/spec/phase-*.md`.
 
@@ -252,11 +252,14 @@ YAKR_ERR_RELAY_OFFLINE
 YAKR_ERR_RELAY_UNAUTHORIZED
 YAKR_ERR_BLOB_EXPIRED
 YAKR_ERR_DECRYPT_FAILED
+YAKR_ERR_DUPLICATE_SEQ
 YAKR_ERR_PROFILE_STALE
 YAKR_ERR_ROUTE_EXHAUSTED
 YAKR_ERR_INVITE_EXPIRED
 YAKR_ERR_PQ_REKEY_REQUIRED
 ```
+
+`YAKR_ERR_DUPLICATE_SEQ` covers exact replays, already-accepted `seq`, and **out-of-order** blobs deferred by the fetch retry loop ([fetch-algorithm.md](./fetch-algorithm.md)).
 
 ## 8. Test Vectors
 

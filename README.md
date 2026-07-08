@@ -6,6 +6,8 @@ A decentralised, social-relay, post-quantum messaging protocol — from *yakking
 
 Not affiliated with unrelated sound-alike businesses — see [NOTICE.md](NOTICE.md).
 
+**Web:** [yakr.co.uk](https://yakr.co.uk) (registered; DNS pending) · Merch: [yakr.store](https://yakr.store) (future)
+
 ## Documents
 
 | Document | Description |
@@ -21,6 +23,7 @@ Not affiliated with unrelated sound-alike businesses — see [NOTICE.md](NOTICE.
 | [docs/spec/presence-minimal.md](docs/spec/presence-minimal.md) | **Implemented** minimal presence (30m TTL location hints) |
 | [docs/spec/tls-endpoints.md](docs/spec/tls-endpoints.md) | **Implemented** pairing-anchored TLS (SPKI pins in profiles) |
 | [docs/spec/ephemeral-messages.md](docs/spec/ephemeral-messages.md) | 24h ephemeral message TTL |
+| [docs/spec/fetch-algorithm.md](docs/spec/fetch-algorithm.md) | **Normative** fetch ordering, receipts, and contact state |
 | [docs/spec/double-ratchet.md](docs/spec/double-ratchet.md) | X25519 double ratchet |
 | [docs/spec/mesh-testing-and-resilience.md](docs/spec/mesh-testing-and-resilience.md) | Mesh stress and relay outage test status |
 | [docs/html/index.html](docs/html/index.html) | Visual protocol guide (HTML + flowcharts) |

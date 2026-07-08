@@ -170,6 +170,18 @@ class FileLocalStore:
             )
         conn.execute(
             """
+            CREATE TABLE IF NOT EXISTS sent_messages (
+                contact_name TEXT NOT NULL,
+                seq INTEGER NOT NULL,
+                body TEXT NOT NULL,
+                created_at INTEGER NOT NULL,
+                valid_until INTEGER NOT NULL,
+                PRIMARY KEY (contact_name, seq)
+            )
+            """
+        )
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS relay_presence (
                 operator_name TEXT PRIMARY KEY,
                 reachable_url TEXT NOT NULL,
@@ -217,30 +229,35 @@ class FileLocalStore:
             conn.commit()
 
     def list_inbound_messages(self, contact_name: str, identity: Identity) -> list[tuple[int, str]]:
+        return [(seq, body) for seq, body, _at in self.list_inbound_messages_timed(contact_name, identity)]
+
+    def list_inbound_messages_timed(
+        self, contact_name: str, identity: Identity
+    ) -> list[tuple[int, str, int]]:
         from yakr_core.ephemeral import enforce_message_ttl
         from yakr_core.message import InnerMessage
         from yakr_core.session import unwrap_local_ciphertext
 
         now = int(time.time() * 1000)
-        results: list[tuple[int, str]] = []
+        results: list[tuple[int, str, int]] = []
         with self._connect() as conn:
             rows = conn.execute(
                 """
-                SELECT seq, valid_until, local_ciphertext
+                SELECT seq, valid_until, received_at, local_ciphertext
                 FROM inbound_messages
                 WHERE contact_name = ? AND valid_until > ?
-                ORDER BY seq
+                ORDER BY received_at, seq
                 """,
                 (contact_name, now),
             ).fetchall()
-        for _seq, valid_until, wrapped in rows:
+        for _seq, valid_until, received_at, wrapped in rows:
             try:
                 inner = InnerMessage.from_bytes(unwrap_local_ciphertext(identity, wrapped))
                 enforce_message_ttl(inner.valid_until, now_ms=now)
             except Exception:
                 continue
             if inner.type == "text":
-                results.append((inner.seq, inner.body))
+                results.append((inner.seq, inner.body, int(received_at)))
         return results
 
     def sweep_expired_messages(self) -> int:
@@ -269,7 +286,31 @@ class FileLocalStore:
                 """,
                 (contact_name, msg_id, seq, body, now, valid_until),
             )
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO sent_messages
+                (contact_name, seq, body, created_at, valid_until)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (contact_name, seq, body, now, valid_until),
+            )
             conn.commit()
+
+    def list_sent_messages(self, contact_name: str) -> list[tuple[int, str]]:
+        return [(seq, body) for seq, body, _at in self.list_sent_messages_timed(contact_name)]
+
+    def list_sent_messages_timed(self, contact_name: str) -> list[tuple[int, str, int]]:
+        now = int(time.time() * 1000)
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT seq, body, created_at FROM sent_messages
+                WHERE contact_name = ? AND valid_until > ?
+                ORDER BY created_at, seq
+                """,
+                (contact_name, now),
+            ).fetchall()
+        return [(int(seq), str(body), int(created_at)) for seq, body, created_at in rows]
 
     def mark_outbound_delivered(self, contact_name: str, msg_id: str) -> bool:
         with self._connect() as conn:
@@ -298,6 +339,10 @@ class FileLocalStore:
         with self._connect() as conn:
             cursor = conn.execute(
                 "DELETE FROM outbound_pending WHERE valid_until <= ? OR created_at <= ?",
+                (now, now - MESSAGE_TTL_MS),
+            )
+            conn.execute(
+                "DELETE FROM sent_messages WHERE valid_until <= ? OR created_at <= ?",
                 (now, now - MESSAGE_TTL_MS),
             )
             conn.commit()

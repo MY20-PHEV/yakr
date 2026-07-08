@@ -9,7 +9,7 @@ import httpx
 
 from yakr_core.crypto import derive_mailbox_secret
 from yakr_core.delivery_profile import DeliveryProfile, verify_delivery_profile
-from yakr_core.errors import YakrError
+from yakr_core.errors import DuplicateSeqError, YakrError
 from yakr_core.identity import Identity
 from yakr_core.invite import invite_from_url, verify_invite
 from yakr_core.message import OuterBlob
@@ -231,48 +231,66 @@ class YakrMobileClient:
                 metrics.record_fetch(len(response.content), decoy=is_decoy)
 
             seen: set[str] = set()
+            queue: list[dict] = []
             for fetch_base, item in items:
                 ciphertext = str(item.get("ciphertext", ""))
                 if ciphertext in seen:
                     continue
                 seen.add(ciphertext)
-                outer = OuterBlob.from_relay_json(item)
-                try:
-                    inner = session.decrypt_outer(outer)
-                except YakrError:
-                    continue
-                if inner.type == "profile" and inner.body:
-                    profile = DeliveryProfile.from_b64(inner.body)
-                    verify_delivery_profile(profile, contact.signing_public)
-                    contact.delivery_profile = profile
+                queue.append(item)
+            queue.sort(key=lambda blob: int(blob.get("stored_at", 0)))
+
+            pending = list(queue)
+            while pending:
+                progressed = False
+                still_pending: list[dict] = []
+                for item in pending:
+                    outer = OuterBlob.from_relay_json(item)
+                    try:
+                        inner = session.decrypt_outer(outer)
+                    except DuplicateSeqError:
+                        still_pending.append(item)
+                        continue
+                    except YakrError:
+                        continue
+                    progressed = True
+
+                    if inner.type == "profile" and inner.body:
+                        profile = DeliveryProfile.from_b64(inner.body)
+                        verify_delivery_profile(profile, contact.signing_public)
+                        contact.delivery_profile = profile
+                        self.store.save_contact(contact)
+                        continue
+                    if inner.type == "receipt":
+                        if inner.message_id:
+                            self.store.mark_outbound_delivered(contact_name, inner.message_id)
+                        self.store.save_contact(contact)
+                        continue
+                    if inner.type != "text":
+                        continue
+                    self.store.save_inbound_message(contact_name, inner, identity=identity)
                     self.store.save_contact(contact)
-                    continue
-                if inner.type == "receipt":
-                    if inner.message_id:
-                        self.store.mark_outbound_delivered(contact_name, inner.message_id)
-                    continue
-                if inner.type != "text":
-                    continue
-                self.store.save_inbound_message(contact_name, inner, identity=identity)
-                self.store.save_contact(contact)
-                messages.append(inner.body)
-                receipt = session.encrypt_receipt(message_id(outer.ciphertext))
-                self.store.save_contact(contact)
-                previous = os.environ.get("YAKR_RELAY_URL")
-                os.environ["YAKR_RELAY_URL"] = self.relay_url
-                try:
-                    deliver_encrypted(
-                        receipt,
-                        contact=contact,
-                        identity=identity,
-                        store=self.store.file_store,
-                        allow_direct=False,
-                    )
-                finally:
-                    if previous is None:
-                        os.environ.pop("YAKR_RELAY_URL", None)
-                    else:
-                        os.environ["YAKR_RELAY_URL"] = previous
+                    messages.append(inner.body)
+                    receipt = session.encrypt_receipt(message_id(outer.ciphertext))
+                    self.store.save_contact(contact)
+                    previous = os.environ.get("YAKR_RELAY_URL")
+                    os.environ["YAKR_RELAY_URL"] = self.relay_url
+                    try:
+                        deliver_encrypted(
+                            receipt,
+                            contact=contact,
+                            identity=identity,
+                            store=self.store.file_store,
+                            allow_direct=False,
+                        )
+                    finally:
+                        if previous is None:
+                            os.environ.pop("YAKR_RELAY_URL", None)
+                        else:
+                            os.environ["YAKR_RELAY_URL"] = previous
+                if not progressed:
+                    break
+                pending = still_pending
 
         self.store.save_privacy_metrics(metrics)
         self.store.save_worker_state("last_fetch_at", str(int(time.time())))

@@ -20,6 +20,22 @@ DENNIS_WRAP = hashlib.sha256(b"yakr-demo-dennis-wrap-v0").digest()
 CHARLIE_WRAP = hashlib.sha256(b"yakr-demo-charlie-wrap-v0").digest()
 
 
+def _pair_all_identities() -> None:
+    """Bidirectional contact-add for every pair (demo mesh, not invite flow)."""
+    homes = {name: DATA_ROOT / name for name in IDENTITIES}
+    for i, left in enumerate(IDENTITIES):
+        for right in IDENTITIES[i + 1 :]:
+            run(homes[left], "contact-add", right, str(homes[right] / "public.json"))
+            run(homes[right], "contact-add", left, str(homes[left] / "public.json"))
+
+
+def _relay_network() -> dict[str, RelayNode]:
+    return {
+        "dennis": RelayNode("dennis", "both", "http://dennis-relay:8081", DENNIS_WRAP),
+        "charlie": RelayNode("charlie", "both", "http://charlie-relay:8082", CHARLIE_WRAP),
+    }
+
+
 def _b64(data: bytes) -> str:
     return base64.urlsafe_b64encode(data).decode("ascii").rstrip("=")
 
@@ -32,6 +48,7 @@ def run(home: Path, *args: str) -> None:
             **os.environ,
             "YAKR_HOME": str(home),
             "YAKR_RELAY_URL": "http://relay:8080",
+            "YAKR_REQUIRE_TLS": "0",
         },
     )
 
@@ -45,21 +62,15 @@ def main() -> None:
             db.unlink()
         run(home, "init", "--name", name, "--force")
 
-    alice_home = DATA_ROOT / "alice"
-    bob_home = DATA_ROOT / "bob"
-    run(alice_home, "contact-add", "bob", str(bob_home / "public.json"))
-    run(bob_home, "contact-add", "alice", str(alice_home / "public.json"))
+    _pair_all_identities()
 
     SHARED_ROOT.mkdir(parents=True, exist_ok=True)
-    save_relay_network(
-        SHARED_ROOT / "relays.json",
-        {
-            "dennis": RelayNode("dennis", "both", "http://dennis-relay:8081", DENNIS_WRAP),
-            "charlie": RelayNode("charlie", "both", "http://charlie-relay:8082", CHARLIE_WRAP),
-        },
-    )
+    save_relay_network(SHARED_ROOT / "relays.json", _relay_network())
 
-    print("Yakr demo network ready: alice <-> bob, relays dennis + charlie")
+    for name in IDENTITIES:
+        run(DATA_ROOT / name, "profile", "publish")
+
+    print("Yakr demo mesh ready: alice, bob, charlie, dennis (all paired)")
     print(f"Dennis wrap (dev): {_b64(DENNIS_WRAP)}")
     print(f"Charlie wrap (dev): {_b64(CHARLIE_WRAP)}")
 

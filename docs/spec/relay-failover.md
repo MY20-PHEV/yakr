@@ -22,6 +22,8 @@ Fetch polls mailbox URLs outbound. Recipients do **not** need inbound connectivi
 
 Fetch polls **all** mailbox URLs (sender + recipient profile union). Failover on send does not duplicate blobs across relays.
 
+Clients MUST sort and retry blob decrypt per [fetch-algorithm.md](./fetch-algorithm.md). Relay `stored_at` order is not guaranteed to match application `seq`.
+
 ## Recovery
 
 ```bash

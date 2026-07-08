@@ -4,7 +4,7 @@ from rich.console import Console
 
 from yakr_core.crypto import derive_mailbox_secret
 from yakr_core.delivery_profile import DeliveryProfile, verify_delivery_profile
-from yakr_core.errors import ContactNotFoundError, YakrError
+from yakr_core.errors import ContactNotFoundError, DuplicateSeqError, YakrError
 from yakr_core.identity import Contact, Identity
 from yakr_core.message import OuterBlob, message_id
 from yakr_core.presence import apply_presence_message
@@ -20,6 +20,15 @@ from yakr_cli.network import (
 from yakr_cli.receipt_cmds import flush_pending_receipts, send_delivery_receipt
 
 console = Console()
+
+
+def _refresh_contact_send_state(store: FileLocalStore, contact: Contact) -> None:
+    """Merge send-side ratchet state from disk after a nested receipt send."""
+    persisted = store.get_contact(contact.name)
+    if persisted is None:
+        return
+    contact.next_send_seq = persisted.next_send_seq
+    contact.ratchet = persisted.ratchet
 
 
 def resolve_fetch_route(
@@ -61,7 +70,7 @@ def fetch_contact_inbound(
         mailbox_secret=mailbox_secret,
     )
     real_tag_set = {tag.tag_b64 for tag in deriver.candidate_epochs(session.recv_direction)}
-    resolved_route = resolve_fetch_route(store, contact, route) if route else None
+    resolved_route = resolve_fetch_route(store, contact, route)
     fetch_bases = fetch_mailbox_urls(contact, resolved_route, store=store)
     direct_hints = list(contact.delivery_profile.direct_hints) if contact.delivery_profile else []
 
@@ -82,70 +91,89 @@ def fetch_contact_inbound(
             metrics.record_fetch(len(str(item.get("ciphertext", ""))), decoy=is_decoy)
 
         seen: set[str] = set()
+        queue: list[dict[str, str | int]] = []
         for _fetch_base, item in items:
             ciphertext = str(item.get("ciphertext", ""))
             if ciphertext in seen:
                 continue
             seen.add(ciphertext)
-            outer = OuterBlob.from_relay_json(item)
-            try:
-                inner = session.decrypt_outer(outer)
-            except YakrError:
-                continue
+            queue.append(item)
+        queue.sort(key=lambda blob: int(blob.get("stored_at", 0)))
 
-            if inner.type == "profile" and inner.body:
-                profile = DeliveryProfile.from_b64(inner.body)
-                verify_delivery_profile(profile, contact.signing_public)
-                contact.delivery_profile = profile
+        pending = list(queue)
+        while pending:
+            progressed = False
+            still_pending: list[dict[str, str | int]] = []
+            for item in pending:
+                outer = OuterBlob.from_relay_json(item)
+                try:
+                    inner = session.decrypt_outer(outer)
+                except DuplicateSeqError:
+                    still_pending.append(item)
+                    continue
+                except YakrError:
+                    continue
+                progressed = True
+
+                if inner.type == "profile" and inner.body:
+                    profile = DeliveryProfile.from_b64(inner.body)
+                    verify_delivery_profile(profile, contact.signing_public)
+                    contact.delivery_profile = profile
+                    store.save_contact(contact)
+                    if not quiet:
+                        console.print(
+                            f"[green]Updated delivery profile for {contact_name} "
+                            f"(v{profile.version})[/green]"
+                        )
+                    continue
+
+                presence = None
+                try:
+                    presence = apply_presence_message(store, contact, inner)
+                except YakrError:
+                    pass
+                if presence is not None:
+                    store.save_contact(contact)
+                    if not quiet:
+                        console.print(
+                            f"[green]Updated presence for {presence.operator_name} "
+                            f"→ {presence.reachable_url}[/green]"
+                        )
+                    continue
+
+                if inner.type == "receipt" and inner.message_id:
+                    if store.mark_outbound_delivered(contact_name, inner.message_id) and not quiet:
+                        console.print(f"[green]Delivery receipt for {inner.message_id[:12]}…[/green]")
+                    store.save_contact(contact)
+                    continue
+
+                if inner.type != "text":
+                    continue
+
+                store.save_inbound_message(contact_name, inner, identity=identity)
+                if not quiet:
+                    console.print(f"[cyan]{contact_name}[/cyan]: {inner.body}")
+                fetched += 1
+
+                delivered_id = message_id(outer.ciphertext)
+                receipt_route = resolve_contact_route(store, contact, route, delivered_id)
+                if not send_delivery_receipt(
+                    store,
+                    identity,
+                    contact_name,
+                    delivered_id,
+                    route=receipt_route,
+                ):
+                    if not quiet:
+                        console.print(
+                            f"[yellow]Receipt for {delivered_id[:12]}… queued "
+                            f"(relay unreachable)[/yellow]"
+                        )
+                _refresh_contact_send_state(store, contact)
                 store.save_contact(contact)
-                if not quiet:
-                    console.print(
-                        f"[green]Updated delivery profile for {contact_name} "
-                        f"(v{profile.version})[/green]"
-                    )
-                continue
-
-            presence = None
-            try:
-                presence = apply_presence_message(store, contact, inner)
-            except YakrError:
-                pass
-            if presence is not None:
-                store.save_contact(contact)
-                if not quiet:
-                    console.print(
-                        f"[green]Updated presence for {presence.operator_name} "
-                        f"→ {presence.reachable_url}[/green]"
-                    )
-                continue
-
-            if inner.type == "receipt" and inner.message_id:
-                if store.mark_outbound_delivered(contact_name, inner.message_id) and not quiet:
-                    console.print(f"[green]Delivery receipt for {inner.message_id[:12]}…[/green]")
-                continue
-
-            if inner.type != "text":
-                continue
-
-            store.save_inbound_message(contact_name, inner, identity=identity)
-            store.save_contact(contact)
-            if not quiet:
-                console.print(f"[cyan]{contact_name}[/cyan]: {inner.body}")
-            fetched += 1
-
-            delivered_id = message_id(outer.ciphertext)
-            if not send_delivery_receipt(
-                store,
-                identity,
-                contact_name,
-                delivered_id,
-                route=resolved_route,
-            ):
-                if not quiet:
-                    console.print(
-                        f"[yellow]Receipt for {delivered_id[:12]}… queued "
-                        f"(relay unreachable)[/yellow]"
-                    )
+            if not progressed:
+                break
+            pending = still_pending
 
     store.save_privacy_metrics(metrics)
     return fetched

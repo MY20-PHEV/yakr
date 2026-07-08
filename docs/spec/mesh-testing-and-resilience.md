@@ -85,7 +85,7 @@ Homelab failover test additionally needs `CHARLIE_VPS_HOST` (or `VPS_HOST`) for 
 With Charlie relay **always up**:
 
 - 112+ messages across Alice, Bob, Charlie — zero loss
-- Burst sends pile up on relay; single fetch drains in seq order
+- Burst sends pile up on relay; single fetch drains in seq order ([fetch-algorithm.md](./fetch-algorithm.md): sort by `stored_at`, retry on `YAKR_ERR_DUPLICATE_SEQ`)
 - Delivery receipt state machine: fetch without receipts → pending; duplicate fetch empty; flush + drain clears pending
 - Double ratchet v2 and 24h `valid_until` survive volume
 - Second fetch on same mailbox returns nothing (idempotent)
