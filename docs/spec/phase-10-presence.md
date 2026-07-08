@@ -1,49 +1,62 @@
-# Phase 10 — Presence and Group Relay Polling
+# Phase 10 — Presence, TLS, and Relay Resilience
 
-**Protocol:** `yakr-v1.1` (proposed)  
-**Status:** Not started  
+**Protocol:** `yakr-v1.0` + extensions  
+**Status:** Partial (see exit criteria below)  
 **Depends on:** Phase 9
 
 ## Goal
 
-Enable friend groups to message reliably with:
+Enable reliable friend-group messaging with:
 
-- **Live presence** — paired peers exchange reachability and embedded relay status
-- **Group relay polling** — shared reachable relay for offline store-and-forward
-- **Embedded client relay** — optional policy-gated relay API on any peer
+- **Live presence** — ephemeral reachability without re-signing profiles
+- **Pairing-anchored TLS** — HTTPS everywhere, SPKI pins in signed profiles
+- **Relay resilience** — ordered failover, resend, queued receipts
 
 ## Deliverables
 
 ```text
-docs/spec/presence-v1.md              normative extension (draft)
-packages/yakr-core/                   type=presence, PresencePayload, routing
-packages/yakr-mobile/                 embedded relay + presence push on policy change
-packages/yakr-cli/                    presence push/show, embedded relay mode
-packages/yakr-testkit/                five-peer group sim, one VPS relay
+docs/spec/presence-minimal.md       implemented
+docs/spec/tls-endpoints.md          implemented
+docs/spec/relay-failover.md         implemented
+docs/spec/presence-v1.md            full design (deferred)
+packages/yakr-core/                 presence, TLS pins, receipt queue store
+packages/yakr-cli/                  presence, receipts flush, resend
+packages/yakr-testkit/              Charlie+Dennis mesh, TLS, outage tests
+docs/demo-vps-charlie.md            HTTPS homelab workflow
 ```
 
 ## User-visible capability
 
 ```text
-# Dennis runs group relay on VPS
-yakr-relay serve --port 443 --data-dir ./data
+# HTTPS relay on VPS (pairing-anchored cert)
+python scripts/generate_operator_relay_tls.py ~/.yakr/charlie
+CHARLIE_TLS_DIR=~/.yakr/charlie/relay-tls ./scripts/deploy_charlie_vps.sh
 
-# Charlie on home Wi‑Fi enables embedded relay
-yakr relay embed --port 18100 --wifi-only
+# Operator IP change
+yakr profile publish    # or yakr presence push
 
-# Presence auto-pushed to contacts; friends poll Dennis for messages
-yakr fetch --all   # polls group relays from presence + profile
+# Recovery after outage
+yakr fetch bob
+yakr receipts flush
+yakr resend bob
 ```
 
 ## Exit criteria
 
-- [ ] `type=presence` inner messages parsed and routed per `presence-v1.md`
-- [ ] Sender tries presence → profile → group relay in normative order
-- [ ] FetchWorker polls shared group relay without manual `YAKR_RELAY_URL`
-- [ ] Embedded relay on mobile when `relay_enabled` + Wi‑Fi/charging gates pass
-- [ ] Five-client testkit: four phones + one VPS relay; offline delivery via poll
+- [x] `type=presence` inner messages (`presence-minimal.md`)
+- [x] Routing: presence → profile URL
+- [x] TLS SPKI pins on profiles and relay descriptors
+- [x] Send failover + `yakr resend`
+- [x] Queued receipts + `yakr receipts flush`
+- [ ] Full `presence-v1.md` routing (group relays, embedded relay)
+- [ ] `yakr fetch --all` without manual relay env
+- [ ] Embedded relay on mobile (`relay_enabled` + Wi‑Fi/charging gates)
+- [ ] Five-client testkit matching VPS trust model (no Bob↔Charlie shortcut)
 - [ ] Security analysis updated for presence metadata
 
 ## Spec
 
-See [presence-v1.md](presence-v1.md) and [ADR 007](../adr/007-presence-and-group-relays.md).
+- [presence-minimal.md](presence-minimal.md) — implemented subset
+- [presence-v1.md](presence-v1.md) — full future design
+- [tls-endpoints.md](tls-endpoints.md)
+- [ADR 007](../adr/007-presence-and-group-relays.md)

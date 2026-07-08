@@ -462,7 +462,7 @@ Ensure **successive messages between the same contacts do not reuse the same ent
 ### Exit Criteria
 
 - [x] 100 sequential messages across 4 relays show no immediate entry/mailbox repeat
-- [ ] Simulated relay failure triggers alternate route and eventual delivery
+- [x] Simulated relay failure triggers alternate route and eventual delivery (relay failover + outage tests; see `relay-failover.md`)
 - [x] Route choices reproducible given `(conv_secret, message_id)` for tests
 
 ---
@@ -762,35 +762,41 @@ interop/                          third-party client checklist
 
 ---
 
-## Phase 10 — Presence and Group Relay Polling
+## Phase 10 — Presence, TLS, and Relay Resilience
 
 **Depends on:** Phase 9  
-**Status:** Partial (relay rendezvous + relay auth implemented; live presence planned)  
-**Protocol:** `yakr-v1.1` (proposed extension)
+**Status:** Partial (minimal presence + TLS + failover implemented; full `presence-v1` deferred)  
+**Protocol:** `yakr-v1.0` + extensions (`presence-minimal`, `tls-endpoints`, `relay-failover`)
 
 ### Goal
 
-Peers exchange **live reachability and relay status** with paired contacts. A **reachable group relay** in the friend graph provides store-and-forward; all clients **poll** it for message updates.
+Peers exchange **live reachability** without re-signing profiles; relays fail over; transport is **HTTPS with pairing-anchored pins**.
 
-### Deliverables
+### Implemented (reference client + testkit)
 
-```text
-docs/spec/presence-v1.md
-docs/adr/007-presence-and-group-relays.md
-embedded client relay + presence push
-group-relay poll routing in send/fetch
-```
-
-See [docs/spec/phase-10-presence.md](spec/phase-10-presence.md).
+| Area | Spec |
+|------|------|
+| Minimal presence (`type=presence`, 30m TTL) | [presence-minimal.md](spec/presence-minimal.md) |
+| Pairing-anchored TLS + per-relay `tls_spki_sha256` | [tls-endpoints.md](spec/tls-endpoints.md) |
+| Ordered send failover + `yakr resend` | [relay-failover.md](spec/relay-failover.md) |
+| Queued delivery receipts + `yakr receipts flush` | CLI + SQLite `pending_receipts` |
+| Charlie+Dennis mesh stress/outage tests | [mesh-testing-and-resilience.md](spec/mesh-testing-and-resilience.md) |
+| VPS Charlie homelab (HTTPS deploy path) | [demo-vps-charlie.md](demo-vps-charlie.md) |
 
 ### Exit Criteria
 
-- [ ] Presence messages (`type=presence`) between paired contacts
-- [ ] Send/fetch routing: presence → profile → group relay
-- [ ] Five-peer testkit with one shared relay and poll-based offline delivery
+- [x] Presence messages (`type=presence`) between paired contacts
+- [x] Send/fetch routing: presence → profile URL (legacy hint)
+- [x] Pairing-anchored TLS on all HTTPS endpoints
+- [x] Relay descriptor carries operator TLS pin (transitive trust via signed profiles)
+- [x] Send failover across ordered relays; `yakr resend` for pending outbound
+- [x] Delivery receipts queued when relay down; `yakr receipts flush` on recovery
 - [x] Group relay as pairing rendezvous (`/v1/pair*`)
 - [x] Relay authorization for delivery profile advertisement
 - [x] VPS Charlie demo (Alice/Bob Docker + remote relay)
+- [ ] Full `presence-v1.md` (group relays, embedded client relay, `fetch --all`)
+- [ ] Five-peer testkit matching VPS trust model exactly (no Bob↔Charlie shortcut)
+- [ ] Embedded relay (`yakr relay embed`) on CLI/mobile
 
 ---
 
@@ -889,13 +895,13 @@ Track unresolved items here; close with ADRs in `docs/adr/`.
 
 ## 9. Immediate Next Steps
 
-To begin Phase 1 implementation:
+Phase 1–9 are complete. Current focus (Phase 10 partial):
 
-1. Add `docs/spec/glossary.md` and `docs/spec/phase-1-single-hop.md`
-2. Scaffold uv workspace: `packages/yakr-core`, `yakr-relay`, `yakr-cli`, `yakr-testkit`
-3. Implement classical crypto session + mailbox tags in `yakr_core`
-4. Implement minimal FastAPI relay with blob store
-5. Ship `scripts/demo_offline_delivery.sh` and `docker-compose.yml` as the Phase 1 exit gate
+1. **Homelab** — deploy Charlie with HTTPS (`deploy_charlie_vps.sh` + `generate_operator_relay_tls.py`); use `yakr presence push` on IP change
+2. **CLI polish** — receipt queue (done); optional background `resend`/`receipts` worker
+3. **Full presence-v1** — embedded relay, `fetch --all`, group relay polling
+4. **Transports** — Tor dial strings with same TLS pin model
+5. **Multi-device** — see `docs/spec/multi-device.md`
 
 ---
 

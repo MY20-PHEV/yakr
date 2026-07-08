@@ -34,11 +34,13 @@ from yakr_cli.privacy_cmds import privacy_app
 
 from yakr_cli.profile_cmds import profile_app
 from yakr_cli.presence_cmds import presence_app
+from yakr_cli.receipt_cmds import flush_pending_receipts, receipts_app, send_delivery_receipt
 
 app = typer.Typer(no_args_is_help=True, help="Yakr reference client")
 app.add_typer(invite_app, name="invite")
 app.add_typer(profile_app, name="profile")
 app.add_typer(presence_app, name="presence")
+app.add_typer(receipts_app, name="receipts")
 app.add_typer(privacy_app, name="privacy")
 console = Console()
 
@@ -189,6 +191,9 @@ def fetch_cmd(
     session = Session(identity, contact)
     store.sweep_expired_messages()
     store.sweep_expired_outbound()
+    flushed = flush_pending_receipts(store, identity, contact_name=contact_name, route=route)
+    if flushed:
+        console.print(f"[green]Flushed {flushed} queued delivery receipt(s)[/green]")
     deriver = session.mailbox_deriver(outbound=False)
     mailbox_secret = derive_mailbox_secret(contact.master_secret, session.recv_direction)
     tags = fetch_tags_for_mode(
@@ -268,20 +273,16 @@ def fetch_cmd(
             fetched += 1
 
             delivered_id = message_id(outer.ciphertext)
-            receipt = session.encrypt_receipt(delivered_id)
-            store.save_contact(contact)
-            reverse_route = None
-            if resolved_route:
-                entry_name, mailbox_name = resolved_route.split(",")
-                reverse_route = f"{mailbox_name.strip()},{entry_name.strip()}"
-            deliver_encrypted(
-                receipt,
-                contact=contact,
-                identity=identity,
-                route=reverse_route,
-                store=store,
-                allow_direct=False,
-            )
+            if not send_delivery_receipt(
+                store,
+                identity,
+                contact_name,
+                delivered_id,
+                route=resolved_route,
+            ):
+                console.print(
+                    f"[yellow]Receipt for {delivered_id[:12]}… queued (relay unreachable)[/yellow]"
+                )
 
     store.save_privacy_metrics(metrics)
     if fetched == 0:

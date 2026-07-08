@@ -16,7 +16,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from yakr_core.delivery_profile import RelayDescriptor, create_delivery_profile
+from yakr_core.delivery_profile import RelayDescriptor, create_delivery_profile, relay_descriptor_for_operator
 from yakr_core.identity import Contact, export_public_bundle
 
 DATA_ROOT = Path("/data")
@@ -74,7 +74,7 @@ def main() -> None:
     charlie_profile = create_delivery_profile(
         charlie,
         relay_descriptors=[
-            RelayDescriptor("charlie", "both", charlie_url, charlie_wrap),
+            relay_descriptor_for_operator(charlie, "both", charlie_url, charlie_wrap),
         ],
     )
     charlie_contact = Contact.establish(alice, "charlie", export_public_bundle(charlie))
@@ -92,7 +92,7 @@ def main() -> None:
         dennis_profile = create_delivery_profile(
             dennis,
             relay_descriptors=[
-                RelayDescriptor("dennis", "both", dennis_url, dennis_wrap),
+                relay_descriptor_for_operator(dennis, "both", dennis_url, dennis_wrap),
             ],
         )
         dennis_contact = Contact.establish(alice, "dennis", export_public_bundle(dennis))
