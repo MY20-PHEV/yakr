@@ -18,7 +18,7 @@ from yakr_core.delivery_profile import (
 )
 from yakr_core.identity import Contact, Identity
 from yakr_core.onion import build_onion_packet
-from yakr_core.presence import resolve_operator_url
+from yakr_core.presence import fresh_group_relay_urls, is_presence_fresh, resolve_operator_url
 from yakr_core.relay import RelayNode, load_relay_network
 from yakr_core.relay_ticket import issue_relay_ticket
 from yakr_core.message import OuterBlob
@@ -128,6 +128,50 @@ def _profile_mailbox_urls(
     ]
 
 
+def _append_unique_urls(urls: list[str], seen: set[str], candidates: list[str]) -> None:
+    for url in candidates:
+        normalized = url.rstrip("/")
+        if normalized and normalized not in seen:
+            urls.append(normalized)
+            seen.add(normalized)
+
+
+def _contact_profile_mailbox_urls(
+    contact: Contact,
+    *,
+    store: FileLocalStore | None = None,
+) -> list[str]:
+    return _profile_mailbox_urls(contact.delivery_profile, store=store)
+
+
+def _trust_graph_mailbox_urls(
+    store: FileLocalStore,
+    contact: Contact | None = None,
+) -> list[str]:
+    """Union of local, contact, all paired profiles, and fresh presence group relays."""
+    seen: set[str] = set()
+    urls: list[str] = []
+
+    _append_unique_urls(urls, seen, local_mailbox_urls(store))
+
+    if contact is not None:
+        _append_unique_urls(urls, seen, _contact_profile_mailbox_urls(contact, store=store))
+
+    for name in store.list_contacts():
+        paired = store.get_contact(name)
+        if paired is None:
+            continue
+        _append_unique_urls(urls, seen, _contact_profile_mailbox_urls(paired, store=store))
+
+    _append_unique_urls(urls, seen, fresh_group_relay_urls(store))
+
+    for payload in store.list_presences():
+        if is_presence_fresh(payload):
+            _append_unique_urls(urls, seen, [payload.reachable_url])
+
+    return urls
+
+
 def local_mailbox_urls(store: FileLocalStore) -> list[str]:
     return _profile_mailbox_urls(store.load_local_profile(), store=store)
 
@@ -153,17 +197,10 @@ def delivery_mailbox_urls(
 
     seen: set[str] = set()
     urls: list[str] = []
-    for url in _profile_mailbox_urls(contact.delivery_profile, store=store):
-        normalized = url.rstrip("/")
-        if normalized not in seen:
-            urls.append(normalized)
-            seen.add(normalized)
+    _append_unique_urls(urls, seen, _profile_mailbox_urls(contact.delivery_profile, store=store))
     if store is not None:
-        for url in local_mailbox_urls(store):
-            normalized = url.rstrip("/")
-            if normalized not in seen:
-                urls.append(normalized)
-                seen.add(normalized)
+        _append_unique_urls(urls, seen, local_mailbox_urls(store))
+        _append_unique_urls(urls, seen, fresh_group_relay_urls(store))
     if urls:
         return urls
 
@@ -187,27 +224,19 @@ def fetch_mailbox_urls(
     if route is not None:
         return delivery_mailbox_urls(contact, route, store=store)
 
-    seen: set[str] = set()
-    urls: list[str] = []
     if store is not None:
-        for url in local_mailbox_urls(store):
-            if url not in seen:
-                urls.append(url)
-                seen.add(url)
-    for url in _profile_mailbox_urls(contact.delivery_profile, store=store):
-        if url not in seen:
-            urls.append(url)
-            seen.add(url)
-    if not urls:
-        env_relay = _env_relay_url()
-        if env_relay:
-            return [env_relay]
-    if not urls:
-        raise ValueError(
-            f"no relay route to fetch messages for {contact.name}: pair with a relay operator "
-            "or receive via a contact who advertises one"
-        )
-    return urls
+        urls = _trust_graph_mailbox_urls(store, contact)
+        if urls:
+            return urls
+
+    env_relay = _env_relay_url()
+    if env_relay:
+        return [env_relay]
+
+    raise ValueError(
+        f"no relay route to fetch messages for {contact.name}: pair with a relay operator "
+        "or receive via a contact who advertises one"
+    )
 
 
 def mailbox_urls(

@@ -67,6 +67,8 @@ Charlie can post presence to Dennis's mailbox; Alice polls Dennis (listed in her
 ```bash
 yakr presence push [contact]   # fan-out to all paired contacts (or one)
 yakr presence show [operator]  # show cached hints
+yakr fetch --all               # poll all contacts + trust-graph relays
+yakr relay embed               # foreground embedded relay (ADR 008 dialability)
 ```
 
 ## See also

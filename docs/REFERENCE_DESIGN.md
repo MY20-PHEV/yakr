@@ -765,7 +765,7 @@ interop/                          third-party client checklist
 ## Phase 10 — Presence, TLS, and Relay Resilience
 
 **Depends on:** Phase 9  
-**Status:** Partial (minimal presence + TLS + failover implemented; full `presence-v1` deferred)  
+**Status:** Complete (minimal presence + TLS + failover + group relay polling + fetch --all + relay embed; ADR 009 cloud deploy deferred)  
 **Protocol:** `yakr-v1.0` + extensions (`presence-minimal`, `tls-endpoints`, `relay-failover`)
 
 ### Goal
@@ -782,11 +782,13 @@ Peers exchange **live reachability** without re-signing profiles; relays fail ov
 | Queued delivery receipts + `yakr receipts flush` | CLI + SQLite `pending_receipts` |
 | Charlie+Dennis mesh stress/outage tests | [mesh-testing-and-resilience.md](spec/mesh-testing-and-resilience.md) |
 | VPS Charlie homelab (HTTPS deploy path) | [demo-vps-charlie.md](demo-vps-charlie.md) |
+| `yakr fetch --all` + trust-graph relay polling | [fetch_cmds.py](../packages/yakr-cli/src/yakr_cli/fetch_cmds.py), [network.py](../packages/yakr-cli/src/yakr_cli/network.py) |
+| `yakr relay embed` (dialable embedded relay) | [relay_embed_cmds.py](../packages/yakr-cli/src/yakr_cli/relay_embed_cmds.py), ADR 008 |
 
 ### Exit Criteria
 
 - [x] Presence messages (`type=presence`) between paired contacts
-- [x] Send/fetch routing: presence → profile URL (legacy hint)
+- [x] Send/fetch routing: presence → profile URL → group relay presence cache
 - [x] Pairing-anchored TLS on all HTTPS endpoints
 - [x] Relay descriptor carries operator TLS pin (transitive trust via signed profiles)
 - [x] Send failover across ordered relays; `yakr resend` for pending outbound
@@ -794,9 +796,9 @@ Peers exchange **live reachability** without re-signing profiles; relays fail ov
 - [x] Group relay as pairing rendezvous (`/v1/pair*`)
 - [x] Relay authorization for delivery profile advertisement
 - [x] VPS Charlie demo (Alice/Bob Docker + remote relay)
-- [ ] Full `presence-v1.md` (group relays, embedded client relay, `fetch --all`)
+- [x] `yakr fetch --all` polls all paired contacts without `YAKR_RELAY_URL`
 - [x] Five-peer testkit matching VPS trust model (no Bob↔Charlie operator shortcut)
-- [ ] Embedded relay (`yakr relay embed`) on CLI/mobile
+- [x] Embedded relay (`yakr relay embed`) on CLI with ADR 008 dialability gating
 
 ---
 
@@ -895,15 +897,14 @@ Track unresolved items here; close with ADRs in `docs/adr/`.
 
 ## 9. Immediate Next Steps
 
-Phase 1–9 are complete. Current focus (Phase 10 partial):
+Phase 1–9 are complete. Phase 10 is complete except future ADR work. Current focus:
 
 1. **Homelab** — deploy Charlie with HTTPS (`deploy_charlie_vps.sh` + `generate_operator_relay_tls.py`); use `yakr presence push` on IP change
-2. **CLI polish** — receipt queue (done); optional background `resend`/`receipts` worker
-3. **Full presence-v1** — group relay polling, dialable embedded relay (ADR 008), `fetch --all`
-4. **Transports** — Tor dial strings with same TLS pin model; Meshtastic/LoRaWAN mesh adapters ([ADR 010](adr/010-offline-mesh-transports.md))
-5. **Multi-device** — see `docs/spec/multi-device.md`
-6. **Ephemeral cloud relay** (future) — one-click deploy/teardown of containerized `yakr-relay` in user's AWS/GCP account with profile baked in ([ADR 009](adr/009-ephemeral-cloud-relay.md))
-7. **Offline mesh** (future) — Meshtastic gateway bridge + blob fragmentation; LoRaWAN paired gateway ([ADR 010](adr/010-offline-mesh-transports.md))
+2. **CLI polish** — optional background `resend`/`receipts` worker
+3. **Transports** — Tor dial strings with same TLS pin model; Meshtastic/LoRaWAN mesh adapters ([ADR 010](adr/010-offline-mesh-transports.md))
+4. **Multi-device** — see `docs/spec/multi-device.md`
+5. **Ephemeral cloud relay** (future) — one-click deploy/teardown of containerized `yakr-relay` in user's AWS/GCP account with profile baked in ([ADR 009](adr/009-ephemeral-cloud-relay.md))
+6. **Offline mesh** (future) — Meshtastic gateway bridge + blob fragmentation; LoRaWAN paired gateway ([ADR 010](adr/010-offline-mesh-transports.md))
 
 ---
 

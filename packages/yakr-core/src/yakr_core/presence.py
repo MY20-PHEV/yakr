@@ -120,3 +120,21 @@ def resolve_operator_url(
     if cached is not None and is_presence_fresh(cached, now_ms=now_ms):
         return cached.reachable_url.rstrip("/")
     return profile_url.rstrip("/")
+
+
+def fresh_group_relay_urls(
+    store: FileLocalStore,
+    *,
+    now_ms: int | None = None,
+) -> list[str]:
+    """Fresh reachable URLs from the presence cache (shared group relay poll points)."""
+    seen: set[str] = set()
+    urls: list[str] = []
+    for payload in store.list_presences():
+        if not is_presence_fresh(payload, now_ms=now_ms):
+            continue
+        normalized = payload.reachable_url.rstrip("/")
+        if normalized not in seen:
+            seen.add(normalized)
+            urls.append(normalized)
+    return urls
