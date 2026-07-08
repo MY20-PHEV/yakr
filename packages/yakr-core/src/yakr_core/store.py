@@ -55,6 +55,18 @@ class LocalStore(Protocol):
 
     def list_presences(self) -> list["PresencePayload"]: ...
 
+    def save_pending_receipt(
+        self,
+        contact_name: str,
+        delivered_id: str,
+        *,
+        route: str | None = None,
+    ) -> None: ...
+
+    def list_pending_receipts(self, contact_name: str | None = None) -> list[tuple[str, str, str | None]]: ...
+
+    def delete_pending_receipt(self, contact_name: str, delivered_id: str) -> bool: ...
+
 
 @dataclass
 class FileLocalStore:
@@ -165,6 +177,17 @@ class FileLocalStore:
                 valid_until INTEGER NOT NULL,
                 source_contact TEXT NOT NULL,
                 updated_at INTEGER NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS pending_receipts (
+                contact_name TEXT NOT NULL,
+                delivered_id TEXT NOT NULL,
+                route TEXT,
+                created_at INTEGER NOT NULL,
+                PRIMARY KEY (contact_name, delivered_id)
             )
             """
         )
@@ -416,3 +439,53 @@ class FileLocalStore:
             )
             for name, url, active, valid_until in rows
         ]
+
+    def save_pending_receipt(
+        self,
+        contact_name: str,
+        delivered_id: str,
+        *,
+        route: str | None = None,
+    ) -> None:
+        now = int(time.time() * 1000)
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO pending_receipts
+                (contact_name, delivered_id, route, created_at)
+                VALUES (?, ?, ?, ?)
+                """,
+                (contact_name, delivered_id, route, now),
+            )
+            conn.commit()
+
+    def list_pending_receipts(self, contact_name: str | None = None) -> list[tuple[str, str, str | None]]:
+        with self._connect() as conn:
+            if contact_name is None:
+                rows = conn.execute(
+                    """
+                    SELECT contact_name, delivered_id, route
+                    FROM pending_receipts
+                    ORDER BY created_at
+                    """
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """
+                    SELECT contact_name, delivered_id, route
+                    FROM pending_receipts
+                    WHERE contact_name = ?
+                    ORDER BY created_at
+                    """,
+                    (contact_name,),
+                ).fetchall()
+        return [(str(name), str(delivered_id), route) for name, delivered_id, route in rows]
+
+    def delete_pending_receipt(self, contact_name: str, delivered_id: str) -> bool:
+        with self._connect() as conn:
+            cursor = conn.execute(
+                "DELETE FROM pending_receipts WHERE contact_name = ? AND delivered_id = ?",
+                (contact_name, delivered_id),
+            )
+            conn.commit()
+            return cursor.rowcount > 0

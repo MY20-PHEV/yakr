@@ -1,9 +1,11 @@
 # Local Alice + Bob clients against Charlie relay on your VPS.
 #
-#   export CHARLIE_URL=http://YOUR_VPS_IP:8080
+#   export CHARLIE_URL=https://YOUR_VPS_IP:8090
+#   export YAKR_REQUIRE_TLS=1   # auto-set by demo script when CHARLIE_URL is https
 #   ./scripts/demo_vps_charlie_relay.sh
 #
-# Deploy Charlie first: ./scripts/deploy_charlie_vps.sh user@YOUR_VPS
+# Deploy Charlie first:
+#   CHARLIE_TLS_DIR=... VPS_HOST=user@YOUR_VPS ./scripts/deploy_charlie_vps.sh
 
 services:
   setup-vps-charlie:
@@ -11,6 +13,9 @@ services:
     environment:
       CHARLIE_URL: ${CHARLIE_URL:?set CHARLIE_URL to your VPS relay base URL}
       CHARLIE_WRAP_SECRET: ${CHARLIE_WRAP_SECRET:-}
+      YAKR_REQUIRE_TLS: ${YAKR_REQUIRE_TLS:-1}
+      DENNIS_URL: ${DENNIS_URL:-}
+      DENNIS_WRAP_SECRET: ${DENNIS_WRAP_SECRET:-}
     volumes:
       - alice-data:/data/alice
       - bob-data:/data/bob
@@ -24,6 +29,7 @@ services:
     environment:
       YAKR_HOME: /data
       YAKR_NAME: alice
+      YAKR_REQUIRE_TLS: ${YAKR_REQUIRE_TLS:-1}
     volumes:
       - alice-data:/data
       - shared-data:/data/shared
@@ -35,6 +41,7 @@ services:
     environment:
       YAKR_HOME: /data
       YAKR_NAME: bob
+      YAKR_REQUIRE_TLS: ${YAKR_REQUIRE_TLS:-1}
     volumes:
       - bob-data:/data
       - shared-data:/data/shared

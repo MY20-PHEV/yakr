@@ -2,30 +2,42 @@
 # Demo: Alice + Bob in local Docker, Charlie relay on your VPS.
 #
 # Prerequisites:
-#   1. Deploy Charlie: VPS_HOST=user@YOUR_VPS ./scripts/deploy_charlie_vps.sh
-#   2. export CHARLIE_URL=http://YOUR_VPS_IP:8080
-#   3. Open VPS firewall for TCP 8080 (or your CHARLIE_PORT)
+#   1. Deploy Charlie (HTTPS recommended):
+#        python scripts/generate_operator_relay_tls.py ~/.yakr/charlie
+#        CHARLIE_TLS_DIR=~/.yakr/charlie/relay-tls VPS_HOST=user@YOUR_VPS ./scripts/deploy_charlie_vps.sh
+#   2. export CHARLIE_URL=https://YOUR_VPS_IP:8090
+#   3. Open VPS firewall for TCP 8090 (or your CHARLIE_PORT)
 #
 # Dry-run against local charlie-relay instead of VPS:
 #   docker compose up -d charlie-relay
 #   export CHARLIE_URL=http://host.docker.internal:8082
+#   export YAKR_REQUIRE_TLS=0
 #   ./scripts/demo_vps_charlie_relay.sh
 
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-CHARLIE_URL="${CHARLIE_URL:?set CHARLIE_URL to your VPS relay, e.g. http://203.0.113.10:8080}"
+CHARLIE_URL="${CHARLIE_URL:?set CHARLIE_URL to your VPS relay, e.g. https://203.0.113.10:8090}"
 CHARLIE_URL="${CHARLIE_URL%/}"
 HEALTH_URL="${CHARLIE_HEALTH_URL:-${CHARLIE_URL//host.docker.internal/127.0.0.1}}"
 
+if [[ "$CHARLIE_URL" == https://* ]]; then
+  export YAKR_REQUIRE_TLS="${YAKR_REQUIRE_TLS:-1}"
+  CURL_TLS_OPTS=(-k)
+else
+  export YAKR_REQUIRE_TLS="${YAKR_REQUIRE_TLS:-0}"
+  CURL_TLS_OPTS=()
+fi
+
 COMPOSE=(docker compose -f docker-compose.vps-charlie.yml)
 
-echo "Checking Charlie relay at ${HEALTH_URL}…"
-if ! curl -sf "${HEALTH_URL}/healthz" >/dev/null; then
+echo "Checking Charlie relay at ${HEALTH_URL} (YAKR_REQUIRE_TLS=${YAKR_REQUIRE_TLS})…"
+if ! curl -sf "${CURL_TLS_OPTS[@]}" "${HEALTH_URL}/healthz" >/dev/null; then
   echo "Cannot reach ${HEALTH_URL}/healthz"
-  echo "Deploy with: VPS_HOST=user@YOUR_VPS ./scripts/deploy_charlie_vps.sh"
+  echo "Deploy with: CHARLIE_TLS_DIR=... VPS_HOST=user@YOUR_VPS ./scripts/deploy_charlie_vps.sh"
   echo "Local dry-run: docker compose up -d charlie-relay"
   echo "  export CHARLIE_URL=http://host.docker.internal:8082"
+  echo "  export YAKR_REQUIRE_TLS=0"
   exit 1
 fi
 

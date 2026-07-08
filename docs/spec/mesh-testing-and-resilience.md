@@ -19,11 +19,12 @@ Yakr now has:
 | Send failover across ordered relays | Implemented | [relay-failover.md](./relay-failover.md) |
 | Ephemeral relay presence (location hints) | Implemented | [presence-minimal.md](./presence-minimal.md) |
 | Pairing-anchored TLS (HTTPS required) | Implemented | [tls-endpoints.md](./tls-endpoints.md) |
-| Production receipt retry on relay down | **Partial** (testkit only) | — |
+| Queued delivery receipts (`yakr receipts flush`) | Implemented | CLI + `pending_receipts` store |
+| Production receipt retry on relay down | **Implemented** (CLI) | `yakr receipts flush` |
 
 **Testkit:** 95+ pytest tests passing (`packages/yakr-testkit/tests/`, excluding mobile CLI integration).
 
-**Homelab Charlie:** `http://100.125.109.114:8090` — redeployed with current image; demo works after wiping old v0.4 volumes (`docker compose -f docker-compose.vps-charlie.yml down -v`).
+**Homelab Charlie:** deploy with HTTPS via `scripts/deploy_charlie_vps.sh` + `CHARLIE_TLS_DIR` (see [demo-vps-charlie.md](../demo-vps-charlie.md)).
 
 ## Charlie mesh topology (test harness)
 
@@ -93,17 +94,11 @@ With Charlie relay **always up**:
 
 ### 1. No automatic send retry
 
-When `deliver_encrypted()` fails (relay down), the client:
+When `deliver_encrypted()` fails (relay down), use `yakr resend <contact>` after the relay returns. A background worker is not yet implemented.
 
-1. Already incremented `next_send_seq`
-2. Saved `outbound_pending`
-3. Did **not** store the ciphertext on the relay
+### 2. Receipt delivery during relay outage
 
-Recovery today: `yakr pending` lists stuck messages; **no `yakr resend` command**. Testkit uses `MeshParticipant.resend_pending()` (re-encrypt + deliver, clear stale pending entry).
-
-### 2. Receipt delivery requires live relay
-
-Production CLI `fetch` / receipt send paths raise on connection failure. Testkit `flush_receipts()` now keeps failed receipts in `_unreceipted` for retry — this behavior is **not** yet in `yakr-cli`.
+CLI `fetch` queues failed delivery receipts in SQLite (`pending_receipts`). Run `yakr receipts flush` or fetch again after the relay returns. `fetch` also attempts to flush queued receipts at the start of each poll.
 
 ### 3. `YAKR_RELAY_URL` can poison delivery profiles
 
@@ -135,7 +130,8 @@ For operators and future send-retry worker design:
 - [x] Send failover across ordered `relay_descriptors` (Charlie → Dennis)
 - [x] Mesh stress harness includes Charlie + Dennis dual relay
 - [x] Minimal presence v1 (`type=presence`, `yakr presence push`, routing prefers cache)
-- [ ] CLI receipt flush resilience (match testkit `_unreceipted` retry)
+- [x] Pairing-anchored TLS + homelab HTTPS deploy path
+- [x] CLI receipt flush resilience (`yakr receipts flush`, `pending_receipts` store)
 - [ ] Live homelab stress (`stress_charlie_mesh.py --live` wired to `CHARLIE_URL`)
 - [ ] Drop Bob↔Charlie test shortcut if stress should match VPS trust model exactly
 - [ ] Multi-device identity ([multi-device.md](./multi-device.md) — spec only)

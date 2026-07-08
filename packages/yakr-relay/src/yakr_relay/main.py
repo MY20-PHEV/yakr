@@ -31,6 +31,8 @@ def main() -> None:
     parser.add_argument("--wrap-secret", default=None)
     parser.add_argument("--require-tickets", action="store_true")
     parser.add_argument("--forward-delay-max", type=int, default=0, help="Max random forward delay seconds")
+    parser.add_argument("--ssl-keyfile", default=None, help="TLS private key PEM (HTTPS)")
+    parser.add_argument("--ssl-certfile", default=None, help="TLS certificate PEM (HTTPS)")
     args = parser.parse_args()
 
     if args.command == "serve":
@@ -63,7 +65,14 @@ def main() -> None:
         def _stop_sweeper() -> None:
             stop_event.set()
 
-        uvicorn.run(app, host=args.host, port=args.port, log_level="info")
+        uvicorn.run(
+            app,
+            host=args.host,
+            port=args.port,
+            log_level="info",
+            ssl_keyfile=args.ssl_keyfile,
+            ssl_certfile=args.ssl_certfile,
+        )
 
 
 if __name__ == "__main__":
