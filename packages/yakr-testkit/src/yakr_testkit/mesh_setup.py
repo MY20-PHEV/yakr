@@ -10,7 +10,7 @@ from pathlib import Path
 import httpx
 import uvicorn
 
-from yakr_core.delivery_profile import RelayDescriptor, create_delivery_profile
+from yakr_core.delivery_profile import RelayDescriptor, create_delivery_profile, relay_descriptor_for_operator
 from yakr_core.identity import Contact, Identity, export_public_bundle
 from yakr_core.invite import create_invite, invite_to_url
 from yakr_core.store import FileLocalStore
@@ -19,6 +19,7 @@ from yakr_cli.relay_pairing import inviter_wait_on_relay
 from yakr_testkit.mesh_client import MeshParticipant
 from yakr_core.invite import invite_from_url
 from yakr_core.pairing import build_pairing_request, joiner_complete_pairing
+from yakr_core.tls import endpoint_tls_spki_sha256, write_endpoint_tls_files
 from yakr_cli.relay_pairing import poll_relay_pair_response, post_relay_pair_request
 from yakr_relay.app import RelayRuntime, create_app
 from yakr_relay.pairing_store import PairingStore
@@ -33,6 +34,9 @@ class RelayHandle:
     wrap_secret: bytes
     relay_data_path: Path
     pairing_path: Path
+    tls_spki_sha256: bytes
+    ssl_keyfile: Path
+    ssl_certfile: Path
     server: uvicorn.Server | None = None
     thread: threading.Thread | None = None
     relay_host: str = "127.0.0.1"
@@ -62,6 +66,8 @@ class RelayHandle:
             host=self.relay_host,
             port=self.relay_port,
             log_level="error",
+            ssl_keyfile=str(self.ssl_keyfile),
+            ssl_certfile=str(self.ssl_certfile),
         )
         server = uvicorn.Server(config)
         thread = threading.Thread(target=server.run, daemon=True)
@@ -73,8 +79,8 @@ class RelayHandle:
             raise RuntimeError(f"relay {self.name} failed to start")
         self.server = server
         self.thread = thread
-        self.relay_url = f"http://{self.relay_host}:{self.relay_port}"
-        _wait_relay_healthy(self.relay_url)
+        self.relay_url = f"https://{self.relay_host}:{self.relay_port}"
+        _wait_relay_healthy(self.relay_url, tls_spki=self.tls_spki_sha256)
 
 
 @dataclass
@@ -118,12 +124,23 @@ class CharlieMesh:
         self.stop_all_relays()
 
 
-def _wait_relay_healthy(relay_url: str, *, timeout_secs: float = 5.0) -> None:
+def _wait_relay_healthy(
+    relay_url: str,
+    *,
+    tls_spki: bytes | None = None,
+    timeout_secs: float = 5.0,
+) -> None:
+    from yakr_core.http_client import yakr_get
+
     deadline = time.time() + timeout_secs
     last_error: Exception | None = None
     while time.time() < deadline:
         try:
-            response = httpx.get(f"{relay_url}/healthz", timeout=0.5)
+            response = yakr_get(
+                f"{relay_url}/healthz",
+                explicit_pin=tls_spki,
+                timeout=0.5,
+            )
             if response.status_code == 200:
                 return
         except Exception as exc:
@@ -137,6 +154,7 @@ def _start_relay_server(
     pairing_path: Path,
     wrap_secret: bytes,
     *,
+    identity: Identity,
     name: str,
     host: str = "127.0.0.1",
     port: int = 0,
@@ -148,7 +166,16 @@ def _start_relay_server(
         RelayRuntime(role="both", wrap_secret=wrap_secret, name=name),
         pairing_store=pairing_store,
     )
-    config = uvicorn.Config(app, host=host, port=port, log_level="error")
+    keyfile, certfile = write_endpoint_tls_files(identity, relay_data_path / "tls")
+    tls_spki = endpoint_tls_spki_sha256(identity)
+    config = uvicorn.Config(
+        app,
+        host=host,
+        port=port,
+        log_level="error",
+        ssl_keyfile=str(keyfile),
+        ssl_certfile=str(certfile),
+    )
     server = uvicorn.Server(config)
     thread = threading.Thread(target=server.run, daemon=True)
     thread.start()
@@ -158,8 +185,8 @@ def _start_relay_server(
     if not server.started:
         raise RuntimeError(f"relay {name} failed to start")
     relay_port = server.servers[0].sockets[0].getsockname()[1]
-    relay_url = f"http://{host}:{relay_port}"
-    _wait_relay_healthy(relay_url)
+    relay_url = f"https://{host}:{relay_port}"
+    _wait_relay_healthy(relay_url, tls_spki=tls_spki)
     return RelayHandle(
         name=name,
         relay_url=relay_url,
@@ -167,6 +194,9 @@ def _start_relay_server(
         wrap_secret=wrap_secret,
         relay_data_path=relay_data_path,
         pairing_path=pairing_path,
+        tls_spki_sha256=tls_spki,
+        ssl_keyfile=keyfile,
+        ssl_certfile=certfile,
         server=server,
         thread=thread,
         relay_host=host,
@@ -175,6 +205,7 @@ def _start_relay_server(
 
 def _joiner_accept(relay_url: str, invite_url: str, bob_store: FileLocalStore, bob: Identity) -> Contact:
     bundle = invite_from_url(invite_url)
+    relay_pin = bundle.rendezvous_tls_spki_sha256 or None
     profile = build_local_profile(bob, store=bob_store)
     request, pairing_secrets = build_pairing_request(
         bob,
@@ -182,8 +213,17 @@ def _joiner_accept(relay_url: str, invite_url: str, bob_store: FileLocalStore, b
         joiner_name="bob",
         joiner_profile=profile.to_bytes(),
     )
-    invite_tag = post_relay_pair_request(relay_url, request)
-    pairing_response = poll_relay_pair_response(relay_url, invite_tag, timeout_secs=30.0)
+    invite_tag = post_relay_pair_request(
+        relay_url,
+        request,
+        rendezvous_tls_spki_sha256=relay_pin,
+    )
+    pairing_response = poll_relay_pair_response(
+        relay_url,
+        invite_tag,
+        rendezvous_tls_spki_sha256=relay_pin,
+        timeout_secs=30.0,
+    )
     contact = joiner_complete_pairing(bob, bundle, request, pairing_secrets, pairing_response)
     contact.name = "alice"
     bob_store.save_contact(contact)
@@ -191,26 +231,30 @@ def _joiner_accept(relay_url: str, invite_url: str, bob_store: FileLocalStore, b
 
 
 def build_charlie_mesh(tmp_path: Path, *, wrap_secret: bytes | None = None) -> CharlieMesh:
+    os.environ["YAKR_REQUIRE_TLS"] = "1"
     charlie_wrap = wrap_secret or secrets.token_bytes(32)
     dennis_wrap = secrets.token_bytes(32)
+
+    alice = Identity.generate("alice")
+    bob = Identity.generate("bob")
+    charlie = Identity.generate("charlie")
+    dennis = Identity.generate("dennis")
+
     charlie_relay = _start_relay_server(
         tmp_path / "relay-charlie",
         tmp_path / "pairing-charlie",
         charlie_wrap,
+        identity=charlie,
         name="charlie",
     )
     dennis_relay = _start_relay_server(
         tmp_path / "relay-dennis",
         tmp_path / "pairing-dennis",
         dennis_wrap,
+        identity=dennis,
         name="dennis",
     )
     relay_url = charlie_relay.relay_url
-
-    alice = Identity.generate("alice")
-    bob = Identity.generate("bob")
-    charlie = Identity.generate("charlie")
-    dennis = Identity.generate("dennis")
 
     alice_store = FileLocalStore(tmp_path / "alice")
     bob_store = FileLocalStore(tmp_path / "bob")
@@ -224,15 +268,21 @@ def build_charlie_mesh(tmp_path: Path, *, wrap_secret: bytes | None = None) -> C
     ):
         st.save_identity(ident)
 
+    charlie_descriptor = relay_descriptor_for_operator(
+        charlie, "both", charlie_relay.relay_url, charlie_wrap
+    )
+    dennis_descriptor = relay_descriptor_for_operator(
+        dennis, "both", dennis_relay.relay_url, dennis_wrap
+    )
     charlie_profile = create_delivery_profile(
         charlie,
-        relay_descriptors=[RelayDescriptor("charlie", "both", charlie_relay.relay_url, charlie_wrap)],
+        relay_descriptors=[charlie_descriptor],
     )
     charlie_store.save_local_profile(charlie_profile)
 
     dennis_profile = create_delivery_profile(
         dennis,
-        relay_descriptors=[RelayDescriptor("dennis", "both", dennis_relay.relay_url, dennis_wrap)],
+        relay_descriptors=[dennis_descriptor],
     )
     dennis_store.save_local_profile(dennis_profile)
 
@@ -252,14 +302,15 @@ def build_charlie_mesh(tmp_path: Path, *, wrap_secret: bytes | None = None) -> C
 
     alice_profile = create_delivery_profile(
         alice,
-        relay_descriptors=[
-            RelayDescriptor("charlie", "both", charlie_relay.relay_url, charlie_wrap),
-            RelayDescriptor("dennis", "both", dennis_relay.relay_url, dennis_wrap),
-        ],
+        relay_descriptors=[charlie_descriptor, dennis_descriptor],
     )
     alice_store.save_local_profile(alice_profile)
 
-    invite = create_invite(alice, rendezvous_hint=relay_url)
+    invite = create_invite(
+        alice,
+        rendezvous_hint=relay_url,
+        rendezvous_tls_spki_sha256=charlie_profile.endpoint_tls_spki_sha256,
+    )
     invite_url = invite_to_url(invite)
     joiner_error: list[Exception] = []
 

@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import ed25519, x25519
+from cryptography.hazmat.primitives.asymmetric import ed25519, ec, x25519
 
 from yakr_core.crypto import derive_master_secret, derive_mailbox_secret, x25519_shared_secret
 from yakr_core.ratchet import RatchetState
@@ -28,6 +28,7 @@ class Identity:
     kem_private: bytes = b""
     pq_signing_public: bytes = b""
     pq_signing_private: bytes = b""
+    tls_ecdsa_private: ec.EllipticCurvePrivateKey | None = None
 
     @property
     def device_id(self) -> str:
@@ -68,6 +69,7 @@ class Identity:
             kem_private=kem_private,
             pq_signing_public=pq_signing_public,
             pq_signing_private=pq_signing_private,
+            tls_ecdsa_private=ec.generate_private_key(ec.SECP256R1()),
         )
 
     def to_dict(self) -> dict[str, str]:
@@ -90,12 +92,26 @@ class Identity:
         if self.pq_signing_private:
             payload["pq_signing_public"] = b64encode(self.pq_signing_public)
             payload["pq_signing_private"] = b64encode(self.pq_signing_private)
+        if self.tls_ecdsa_private is not None:
+            payload["tls_ecdsa_private"] = b64encode(
+                self.tls_ecdsa_private.private_bytes(
+                    encoding=serialization.Encoding.DER,
+                    format=serialization.PrivateFormat.PKCS8,
+                    encryption_algorithm=serialization.NoEncryption(),
+                )
+            )
         return payload
 
     @classmethod
     def from_dict(cls, payload: dict[str, str]) -> Identity:
         signing_private = ed25519.Ed25519PrivateKey.from_private_bytes(b64decode(payload["signing_private"]))
         agreement_private = x25519.X25519PrivateKey.from_private_bytes(b64decode(payload["agreement_private"]))
+        tls_ecdsa_private = None
+        if "tls_ecdsa_private" in payload:
+            tls_ecdsa_private = serialization.load_der_private_key(
+                b64decode(payload["tls_ecdsa_private"]),
+                password=None,
+            )
         return cls(
             name=payload["name"],
             signing_private=signing_private,
@@ -104,6 +120,7 @@ class Identity:
             kem_private=b64decode(payload["kem_private"]) if "kem_private" in payload else b"",
             pq_signing_public=b64decode(payload["pq_signing_public"]) if "pq_signing_public" in payload else b"",
             pq_signing_private=b64decode(payload["pq_signing_private"]) if "pq_signing_private" in payload else b"",
+            tls_ecdsa_private=tls_ecdsa_private,  # type: ignore[arg-type]
         )
 
     def save(self, path: Path) -> None:

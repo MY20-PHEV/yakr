@@ -3,7 +3,26 @@ from __future__ import annotations
 from collections.abc import Iterable
 
 from yakr_core.delivery_profile import RelayDescriptor
-from yakr_core.identity import Contact
+from yakr_core.identity import Contact, Identity
+from yakr_core.tls import endpoint_tls_spki_sha256
+
+
+def _with_operator_tls(descriptor: RelayDescriptor, contact: Contact) -> RelayDescriptor:
+    """Ensure relay descriptor carries the operator TLS pin from their signed profile."""
+    if descriptor.tls_spki_sha256:
+        return descriptor
+    if contact.delivery_profile is None:
+        return descriptor
+    tls = contact.delivery_profile.endpoint_tls_spki_sha256
+    if not tls:
+        return descriptor
+    return RelayDescriptor(
+        name=descriptor.name,
+        role=descriptor.role,
+        url=descriptor.url,
+        wrap_secret=descriptor.wrap_secret,
+        tls_spki_sha256=tls,
+    )
 
 
 def relays_operated_by_contact(contact: Contact) -> list[RelayDescriptor]:
@@ -11,7 +30,7 @@ def relays_operated_by_contact(contact: Contact) -> list[RelayDescriptor]:
     if contact.delivery_profile is None:
         return []
     return [
-        descriptor
+        _with_operator_tls(descriptor, contact)
         for descriptor in contact.delivery_profile.relay_descriptors
         if descriptor.name == contact.name
     ]
@@ -59,17 +78,18 @@ def assert_publish_relays_allowed(
 
 
 def self_relay_descriptor(
-    identity_name: str,
+    identity: Identity,
     relay_url: str,
     relay_name: str,
     wrap_secret: bytes,
 ) -> RelayDescriptor | None:
     """Build a self-operated relay descriptor, or None if env points at someone else's relay."""
-    if relay_name != identity_name:
+    if relay_name != identity.name:
         return None
     return RelayDescriptor(
-        name=identity_name,
+        name=identity.name,
         role="both",
         url=relay_url.rstrip("/"),
         wrap_secret=wrap_secret,
+        tls_spki_sha256=endpoint_tls_spki_sha256(identity),
     )

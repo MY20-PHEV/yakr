@@ -57,7 +57,7 @@ def _authorized_descriptors(
     self_relay = None
     if relay_url:
         self_relay = self_relay_descriptor(
-            identity.name,
+            identity,
             relay_url,
             relay_name,
             secrets.token_bytes(32),

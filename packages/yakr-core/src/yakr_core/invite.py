@@ -33,6 +33,7 @@ class InviteBundle:
     kem_public: bytes = b""
     pq_signing_public: bytes = b""
     pq_signature: bytes = b""
+    rendezvous_tls_spki_sha256: bytes = b""
 
     def _unsigned_dict(self) -> dict[str, object]:
         payload: dict[str, object] = {
@@ -49,6 +50,8 @@ class InviteBundle:
             payload["kem_public"] = self.kem_public
         if self.pq_signing_public:
             payload["pq_signing_public"] = self.pq_signing_public
+        if self.rendezvous_tls_spki_sha256:
+            payload["rendezvous_tls_spki_sha256"] = self.rendezvous_tls_spki_sha256
         return payload
 
     def unsigned_payload(self) -> bytes:
@@ -77,6 +80,7 @@ class InviteBundle:
             kem_public=bytes(payload.get("kem_public", b"")),
             pq_signing_public=bytes(payload.get("pq_signing_public", b"")),
             pq_signature=bytes(payload.get("pq_signature", b"")),
+            rendezvous_tls_spki_sha256=bytes(payload.get("rendezvous_tls_spki_sha256", b"")),
         )
 
 
@@ -88,6 +92,7 @@ def create_invite(
     identity: Identity,
     *,
     rendezvous_hint: str,
+    rendezvous_tls_spki_sha256: bytes | None = None,
     ttl_ms: int = DEFAULT_INVITE_TTL_MS,
     hybrid_pq: bool = False,
 ) -> InviteBundle:
@@ -96,6 +101,7 @@ def create_invite(
     kem_public = b""
     pq_signing_public = b""
     pq_signature = b""
+    rendezvous_tls = rendezvous_tls_spki_sha256 or b""
 
     if hybrid_pq:
         if not identity.kem_public:
@@ -119,6 +125,8 @@ def create_invite(
                 "kem_public": kem_public,
                 "pq_signing_public": pq_signing_public,
             }
+            if rendezvous_tls:
+                unsigned["rendezvous_tls_spki_sha256"] = rendezvous_tls
             payload = cbor2.dumps(unsigned)
             signature = identity.signing_private.sign(payload)
             pq_signature = pq_sign(identity.pq_signing_private, payload)
@@ -135,6 +143,7 @@ def create_invite(
                 kem_public=kem_public,
                 pq_signing_public=pq_signing_public,
                 pq_signature=pq_signature,
+                rendezvous_tls_spki_sha256=rendezvous_tls,
             )
 
     unsigned = {
@@ -147,6 +156,8 @@ def create_invite(
         "expires_at": int(time.time() * 1000) + ttl_ms,
         "capabilities": capabilities,
     }
+    if rendezvous_tls:
+        unsigned["rendezvous_tls_spki_sha256"] = rendezvous_tls
     payload = cbor2.dumps(unsigned)
     signature = identity.signing_private.sign(payload)
     return InviteBundle(
@@ -162,6 +173,7 @@ def create_invite(
         kem_public=kem_public,
         pq_signing_public=pq_signing_public,
         pq_signature=pq_signature,
+        rendezvous_tls_spki_sha256=rendezvous_tls,
     )
 
 

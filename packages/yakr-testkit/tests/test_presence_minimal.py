@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from yakr_core.delivery_profile import RelayDescriptor, create_delivery_profile
+from yakr_core.delivery_profile import RelayDescriptor, create_delivery_profile, relay_descriptor_for_operator
 from yakr_core.identity import Contact, Identity, export_public_bundle
 from yakr_core.presence import (
     PresencePayload,
@@ -21,7 +21,7 @@ from yakr_testkit.mesh_setup import build_charlie_mesh
 
 
 def test_presence_payload_roundtrip() -> None:
-    payload = PresencePayload.for_operator("charlie", "http://10.0.0.5:8090")
+    payload = PresencePayload.for_operator("charlie", "https://10.0.0.5:8090")
     restored = PresencePayload.from_b64(payload.to_b64())
     assert restored == payload
     assert is_presence_fresh(restored)
@@ -29,10 +29,10 @@ def test_presence_payload_roundtrip() -> None:
 
 def test_resolve_operator_url_prefers_fresh_presence(tmp_path: Path) -> None:
     store = FileLocalStore(tmp_path / "alice")
-    payload = PresencePayload.for_operator("charlie", "http://fresh:8090")
+    payload = PresencePayload.for_operator("charlie", "https://fresh:8090")
     store.save_presence(payload, source_contact="charlie")
-    assert resolve_operator_url(store, "charlie", "http://stale:8090") == "http://fresh:8090"
-    assert resolve_operator_url(None, "charlie", "http://stale:8090") == "http://stale:8090"
+    assert resolve_operator_url(store, "charlie", "https://stale:8090") == "https://fresh:8090"
+    assert resolve_operator_url(None, "charlie", "https://stale:8090") == "https://stale:8090"
 
 
 def test_delivery_mailbox_urls_uses_presence_over_stale_profile(tmp_path: Path) -> None:
@@ -43,23 +43,23 @@ def test_delivery_mailbox_urls_uses_presence_over_stale_profile(tmp_path: Path) 
     contact.delivery_profile = create_delivery_profile(
         charlie,
         relay_descriptors=[
-            RelayDescriptor("charlie", "both", "http://127.0.0.1:1", wrap),
+            RelayDescriptor("charlie", "both", "https://127.0.0.1:1", wrap),
         ],
     )
     store = FileLocalStore(tmp_path / "alice")
     store.save_presence(
-        PresencePayload.for_operator("charlie", "http://live:8090"),
+        PresencePayload.for_operator("charlie", "https://live:8090"),
         source_contact="charlie",
     )
     urls = delivery_mailbox_urls(contact, None, store=store)
-    assert urls[0] == "http://live:8090"
+    assert urls[0] == "https://live:8090"
 
 
 def test_apply_presence_rejects_wrong_operator(tmp_path: Path) -> None:
     alice = Identity.generate("alice")
     charlie = Identity.generate("charlie")
     contact = Contact.establish(alice, "charlie", export_public_bundle(charlie))
-    payload = PresencePayload.for_operator("dennis", "http://dennis:8090")
+    payload = PresencePayload.for_operator("dennis", "https://dennis:8090")
     inner = InnerMessage.presence(
         conversation_id=contact.conversation_id,
         sender_device_id=charlie.device_id,
@@ -79,17 +79,18 @@ def test_charlie_pushes_presence_to_alice_via_dennis(tmp_path: Path) -> None:
             create_delivery_profile(
                 mesh.charlie.identity,
                 relay_descriptors=[
-                    RelayDescriptor(
-                        "charlie",
+                    relay_descriptor_for_operator(
+                        mesh.charlie.identity,
                         "both",
                         mesh.charlie_relay.relay_url,
                         mesh.charlie_relay.wrap_secret,
                     ),
-                    RelayDescriptor(
-                        "dennis",
+                    relay_descriptor_for_operator(
+                        mesh.dennis.identity,
                         "both",
                         mesh.dennis_relay.relay_url,
                         mesh.dennis_relay.wrap_secret,
+                        name="dennis",
                     ),
                 ],
             )
@@ -112,7 +113,7 @@ def test_charlie_pushes_presence_to_alice_via_dennis(tmp_path: Path) -> None:
                     RelayDescriptor(
                         "charlie",
                         "both",
-                        "http://127.0.0.1:1",
+                        "https://127.0.0.1:1",
                         mesh.charlie_relay.wrap_secret,
                     ),
                     RelayDescriptor(
