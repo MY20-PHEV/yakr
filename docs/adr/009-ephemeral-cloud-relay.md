@@ -101,6 +101,7 @@ On **destroy**:
 ## References
 
 - ADR 008 — NAT, mobile, relay-first delivery
+- ADR 010 — offline mesh transports (complementary when internet is down)
 - `docs/spec/relay-authorization.md` — self-operated relay rule
 - `scripts/deploy_charlie_vps.sh`, `scripts/generate_operator_relay_tls.py`
 - `docs/demo-vps-charlie.md`

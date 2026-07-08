@@ -900,9 +900,10 @@ Phase 1–9 are complete. Current focus (Phase 10 partial):
 1. **Homelab** — deploy Charlie with HTTPS (`deploy_charlie_vps.sh` + `generate_operator_relay_tls.py`); use `yakr presence push` on IP change
 2. **CLI polish** — receipt queue (done); optional background `resend`/`receipts` worker
 3. **Full presence-v1** — group relay polling, dialable embedded relay (ADR 008), `fetch --all`
-4. **Transports** — Tor dial strings with same TLS pin model
+4. **Transports** — Tor dial strings with same TLS pin model; Meshtastic/LoRaWAN mesh adapters ([ADR 010](adr/010-offline-mesh-transports.md))
 5. **Multi-device** — see `docs/spec/multi-device.md`
 6. **Ephemeral cloud relay** (future) — one-click deploy/teardown of containerized `yakr-relay` in user's AWS/GCP account with profile baked in ([ADR 009](adr/009-ephemeral-cloud-relay.md))
+7. **Offline mesh** (future) — Meshtastic gateway bridge + blob fragmentation; LoRaWAN paired gateway ([ADR 010](adr/010-offline-mesh-transports.md))
 
 ---
 

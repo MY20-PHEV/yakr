@@ -8,7 +8,7 @@
 
 Every Yakr peer endpoint **MUST** speak **HTTPS**. Trust is **not** from public CAs. Clients verify the server certificate by **SPKI SHA-256 pin** carried in the paired contact's **signed delivery profile**.
 
-Future transports (Tor, etc.) use the same pin model on top of their dial string.
+Future transports (Tor, Meshtastic, LoRaWAN, etc.) use the same **trust-by-signed-profile** model: a dial string plus an operator-bound pin or public key in the paired contact's delivery profile — not public CAs. HTTPS uses `tls_spki_sha256`; mesh gateways use the equivalent node/gateway key material (see [ADR 010](../adr/010-offline-mesh-transports.md)).
 
 ## Profile field
 

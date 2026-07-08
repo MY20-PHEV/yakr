@@ -63,6 +63,19 @@ Instead:
   fetched by outbound poll — a decentralised, socially bounded delivery fabric.
 ```
 
+### 2.1 Target users and scenarios
+
+Yakr is aimed at people who **cannot rely on a single messaging operator** and who can place **at least one reachable mailbox** in their trust graph — a colleague’s VPS abroad, their own homelab or cloud relay, or (future) a paired RF gateway.
+
+| Scenario | What Yakr provides | What it does not promise |
+|----------|-------------------|---------------------------|
+| **Journalists / activists in censored or conflict zones** | Small trusted cell; relay in a safer jurisdiction; outbound poll from hostile networks; failover across relays | Perfect anonymity against a global observer; immunity from relay timing/metadata |
+| **Whistleblowers paired with a journalist** | E2E to a known contact; no global account directory; journalist-operated mailbox | Strong source protection without procedural discipline, Tor, and careful relay placement |
+| **Off-grid / disaster-preparedness groups** | No Big Tech message cloud; homelab or mesh gateway as mailbox; async when links are slow | Messaging with **zero** link layer — internet **or** paired radio path required |
+| **Privacy-focused homelab users** | Self-operated relay; pairing-gated advertisement; optional high-privacy relay-only mode | Convenience of a single centralised app backend |
+
+**Honest requirement:** Some **reachable** store-and-forward point must exist in the pairing graph — HTTPS relay today, Meshtastic/LoRaWAN gateway tomorrow (§17.3). Yakr is **decentralised E2E messaging with socially scoped relays**, not untraceable broadcast anonymity.
+
 ---
 
 ## 3. Design Philosophy
@@ -582,7 +595,7 @@ Conceptual example:
   "relay_descriptors": [
     {
       "relay_key": "opaque_relay_public_key",
-      "transport": ["hyperswarm", "https", "tor"],
+      "transport": ["https", "tor", "meshtastic", "lorawan"],
       "mailbox_policy": "small",
       "expires": "2026-07-09T10:00:00Z"
     }
@@ -1262,6 +1275,7 @@ Same LAN / link-local          — co-located peers, no NAT between them
 Tor onion service (.onion)     — both run Tor; still transits Tor relays
 UDP hole punching              — unreliable on cellular; deferred
 Public IPv6 endpoint           — rare on mobile; carriers often block inbound
+Meshtastic / LoRa (§17.3)      — not phone-to-phone wire; paired mesh gateway path
 ```
 
 Deferred or non-normative for v1:
@@ -1297,6 +1311,35 @@ Tor onion endpoints are the main credible option for **internet-wide direct** wi
 ### 17.2 Direct Delivery Privacy
 
 Direct delivery may reveal network addresses to each other (or Tor paths). Users may disable direct attempts for higher privacy — relay-only delivery remains fully supported.
+
+### 17.3 Offline mesh transports (Meshtastic / LoRaWAN) — future
+
+When the **public internet backbone** is down, blocked, or too risky, a **paired radio path** can still carry Yakr’s opaque blobs. This is not transport-level P2P between phones — it is **store-and-forward over mesh nodes or gateways operated by people in the trust graph**, the same Layer 4 model as HTTPS relays with a different dial string.
+
+```text
+Meshtastic (mobile mesh cell):
+  Phone ──BLE──► mesh node A ──RF hops──► mesh node B (mailbox / gateway)
+  Optional: gateway bridges to HTTPS yakr-relay when internet returns
+
+LoRaWAN (fixed gateway):
+  Edge device ──LoRa──► paired gateway operator ──► yakr-relay or local store
+```
+
+**Design constraints (honest):**
+
+```text
+Payload MTU     — often ~200–500 bytes per frame; blobs MUST fragment
+Latency         — minutes to hours; async mailbox UX, not live TCP chat
+Bandwidth       — text-first; large attachments when HTTPS (or similar) is up
+Trust           — gateway/node operator is a paired relay; curious like any VPS
+Pairing         — QR / serial when co-located fits mesh bootstrap without internet
+```
+
+Clients SHOULD use **ordered failover**: e.g. `meshtastic` when no internet path, `https` when a gateway bridge is reachable (presence updates `reachable` without re-signing the whole profile where possible).
+
+Meshtastic’s channel encryption and LoRaWAN link keys are **orthogonal** to Yakr E2E — only the recipient decrypts message plaintext.
+
+See `docs/adr/010-offline-mesh-transports.md`.
 
 ---
 
@@ -1962,6 +2005,22 @@ This is **not** a Yakr-central relay farm — the user pays their cloud bill and
 
 See `docs/adr/009-ephemeral-cloud-relay.md` for design notes.
 
+### 26.8 Offline mesh transports (Meshtastic / LoRaWAN) — future
+
+Extend Layer 3 blob transport with **radio mesh adapters** so messaging survives **loss of the internet backbone**, not only loss of a single cloud provider:
+
+```text
+Profile lists: transport ["meshtastic", "https"] on a paired gateway operator
+Phone sends fragmented opaque blobs over BLE/serial to a Meshtastic node
+Mesh store-and-forwards; recipient polls when in range or via another hop
+Gateway MAY bridge to yakr-relay when MQTT/Starlink returns (failover)
+LoRaWAN: paired fixed gateway as last-mile to operator relay infrastructure
+```
+
+This targets off-grid cells, disaster scenarios, and censorship where **local RF** remains available but **global HTTPS** does not. Non-goals: high-bandwidth attachments over LoRa; nation-state anonymity.
+
+See `docs/adr/010-offline-mesh-transports.md`.
+
 ---
 
 ## 27. Security Principles
@@ -2021,6 +2080,7 @@ Pairing-gated relay advertisement — not “any open relay”
 Friend/social relay store-and-forward (correctness path on mobile)
 Outbound poll to fetch mail (NAT-safe receive)
 Optional direct delivery (LAN, future Tor/punch) — not required
+Future offline mesh transports (Meshtastic / LoRaWAN) over paired gateways
 Offline delivery through paired relays
 Opaque mailbox tags
 Two-hop onion-wrapped relay paths (metadata reduction)
