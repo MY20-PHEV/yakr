@@ -2,11 +2,15 @@
 
 A decentralised, social-relay, post-quantum messaging protocol.
 
+**What makes Yakr different:** Yakr is the messaging protocol where **your relay network is your pairing graph** — end-to-end encrypted mail is stored and forwarded only on mailboxes run by people you have pairwise paired with, not on a central platform or an open global relay pool. Phones that cannot accept inbound connections (cellular, NAT, iOS) **poll outbound** to those paired relays; peers discover relay URLs and TLS pins through **signed delivery profiles** in the trust graph. Production messengers and relay hosts are independent products; this repository holds the **open spec, reference implementation, and certification program**.
+
 ## Documents
 
 | Document | Description |
 |----------|-------------|
 | [whitepaper.md](whitepaper.md) | Conceptual protocol whitepaper (Draft v0.1) |
+| [CERTIFICATION.md](CERTIFICATION.md) | **Yakr Certified** conformance program (draft) |
+| [NOTICE.md](NOTICE.md) | Trademark and badge use (informational) |
 | [docs/REFERENCE_DESIGN.md](docs/REFERENCE_DESIGN.md) | Phased reference implementation plan |
 | [docs/spec/yakr-protocol-v1.md](docs/spec/yakr-protocol-v1.md) | Normative v1.0 protocol spec |
 | [docs/spec/relay-rendezvous.md](docs/spec/relay-rendezvous.md) | Group relay as pairing rendezvous (implemented) |
@@ -22,26 +26,24 @@ A decentralised, social-relay, post-quantum messaging protocol.
 
 ## Status
 
-**Phase 9 complete** — Yakr Protocol v1.0 frozen with test vectors, security analysis, and interop verifier.
+**Phase 10 complete** — Yakr Protocol v1.0, test vectors, security analysis, interop verifier, presence/TLS/failover, `yakr fetch --all`, and relay embed (see [docs/spec/phase-10-presence.md](docs/spec/phase-10-presence.md)).
 
-**Post-v1 additions:** offline 3-QR pairing, relay rendezvous pairing, relay authorization for delivery profiles, **24h ephemeral messages**, **X25519 double ratchet (v2)**, Charlie mesh stress + relay outage tests.
+**Steward model:** open spec and reference code; third parties ship messengers and relay hosting. [CERTIFICATION.md](CERTIFICATION.md) describes the **Yakr Certified** compatibility program (applications not yet open).
 
 | Document | Description |
 |----------|-------------|
-| [docs/spec/ephemeral-messages.md](docs/spec/ephemeral-messages.md) | 24h TTL policy (non-negotiable) |
-| [docs/spec/double-ratchet.md](docs/spec/double-ratchet.md) | DH double ratchet (`ratchet.version == 2`) |
-| [docs/spec/relay-failover.md](docs/spec/relay-failover.md) | Ordered relay failover + `yakr resend` |
-| [docs/spec/test-vectors-v1/](docs/spec/test-vectors-v1/) | Interop test vectors |
-| [docs/security/analysis-v1.md](docs/security/analysis-v1.md) | Threat model and mitigations |
-| [interop/README.md](interop/README.md) | Third-party client checklist |
+| [CERTIFICATION.md](CERTIFICATION.md) | Certified client/relay program and badge rules |
+| [interop/README.md](interop/README.md) | Third-party self-test checklist |
 
 ## Quick Summary
 
-Yakr delivers end-to-end encrypted messages through a user's trusted contact relay network — no central message server, no requirement that both peers be online at the same time.
+Yakr delivers end-to-end encrypted messages through **pairing-gated social relays** — friends' VPS, homelab, or org-operated mailboxes — with **no central message server** and no requirement that both peers be online at once.
 
 ```text
-Alice encrypts → friend relay stores opaque blob → offline Bob fetches later
+Alice encrypts → paired relay stores opaque blob → offline Bob polls outbound to fetch
 ```
+
+Implementers: see [interop/README.md](interop/README.md) and [CERTIFICATION.md](CERTIFICATION.md).
 
 ## Repository Structure
 
