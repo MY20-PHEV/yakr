@@ -15,6 +15,7 @@ from yakr_core.identity import Contact, Identity, export_public_bundle
 from yakr_core.invite import create_invite, invite_to_url
 from yakr_core.store import FileLocalStore
 from yakr_cli.profile_cmds import build_local_profile
+from yakr_core.profile_ack import apply_peer_profile_ack
 from yakr_cli.relay_pairing import inviter_wait_on_relay
 from yakr_testkit.mesh_client import MeshParticipant
 from yakr_core.invite import invite_from_url
@@ -161,12 +162,13 @@ def _start_relay_server(
     name: str,
     host: str = "127.0.0.1",
     port: int = 0,
+    role: str = "both",
 ) -> RelayHandle:
     store = BlobStore(relay_data_path)
     pairing_store = PairingStore(pairing_path)
     app = create_app(
         store,
-        RelayRuntime(role="both", wrap_secret=wrap_secret, name=name),
+        RelayRuntime(role=role, wrap_secret=wrap_secret, name=name),
         pairing_store=pairing_store,
     )
     keyfile, certfile = write_endpoint_tls_files(identity, relay_data_path / "tls")
@@ -356,6 +358,28 @@ def build_charlie_mesh(tmp_path: Path, *, wrap_secret: bytes | None = None) -> C
                 os.environ.pop("YAKR_RELAY_URL", None)
             else:
                 os.environ["YAKR_RELAY_URL"] = previous
+
+    alice_local = alice_store.load_local_profile()
+    if alice_local is not None:
+        for operator_store in (charlie_store, dennis_store):
+            operator_alice = operator_store.get_contact("alice")
+            if operator_alice is not None:
+                apply_peer_profile_ack(operator_alice, alice_local)
+                operator_store.save_contact(operator_alice)
+
+    charlie_local = charlie_store.load_local_profile()
+    if charlie_local is not None:
+        alice_charlie_contact = alice_store.get_contact("charlie")
+        if alice_charlie_contact is not None:
+            apply_peer_profile_ack(alice_charlie_contact, charlie_local)
+            alice_store.save_contact(alice_charlie_contact)
+
+    dennis_local = dennis_store.load_local_profile()
+    if dennis_local is not None:
+        alice_dennis_contact = alice_store.get_contact("dennis")
+        if alice_dennis_contact is not None:
+            apply_peer_profile_ack(alice_dennis_contact, dennis_local)
+            alice_store.save_contact(alice_dennis_contact)
 
     return CharlieMesh(
         charlie_relay=charlie_relay,

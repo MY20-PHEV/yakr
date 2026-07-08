@@ -69,11 +69,13 @@ Spin up isolated client identities with persistent volumes:
 
 ```bash
 ./scripts/demo_offline_delivery.sh       # Phase 1 single-hop
-./scripts/demo_two_hop_delivery.sh       # Phase 2 two-hop + receipts
+./scripts/demo_two_hop_delivery.sh       # Phase 2 onion wire demo (legacy; CLI uses single-hop)
 ./scripts/demo_invite_pairing.sh         # Phase 4 invite pairing + tickets
 ./scripts/demo_profile_delivery.sh       # Phase 5 delivery profiles + direct P2P
 ./scripts/demo_hybrid_pairing.sh         # Phase 6 hybrid PQ pairing
 ./scripts/demo_relay_group_pairing.sh    # Relay rendezvous (local Charlie)
+uv run python scripts/hybrid_homelab_stress.py   # 100-msg Alice↔Bob hybrid stress
+uv run python scripts/stress_charlie_mesh.py    # Charlie mesh stress
 ```
 
 ### Alice + Bob local, Charlie on a VPS

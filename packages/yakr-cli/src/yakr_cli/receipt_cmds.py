@@ -29,10 +29,9 @@ def _require_identity(store: FileLocalStore) -> Identity:
 
 
 def _reverse_route(route: str | None) -> str | None:
-    if route is None:
-        return None
-    entry_name, mailbox_name = route.split(",")
-    return f"{mailbox_name.strip()},{entry_name.strip()}"
+    """Single-hop receipts use the same mailbox failover path as sends."""
+    _ = route
+    return None
 
 
 def send_delivery_receipt(
@@ -49,6 +48,7 @@ def send_delivery_receipt(
         raise ValueError(f"unknown contact: {contact_name}")
 
     session = Session(identity, contact)
+    previous_send_seq = contact.next_send_seq
     receipt = session.encrypt_receipt(delivered_id)
     store.save_contact(contact)
     reverse_route = _reverse_route(route)
@@ -64,6 +64,8 @@ def send_delivery_receipt(
         store.delete_pending_receipt(contact_name, delivered_id)
         return True
     except (RuntimeError, httpx.HTTPError, ValueError) as exc:
+        contact.next_send_seq = previous_send_seq
+        store.save_contact(contact)
         logger.warning("receipt delivery to %s failed: %s", contact_name, exc)
         store.save_pending_receipt(contact_name, delivered_id, route=route)
         return False

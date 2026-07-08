@@ -55,7 +55,7 @@ After decrypting inbound `text`, the recipient sends an encrypted `receipt` inne
 
 **State rule:** `send_delivery_receipt` loads contact state, advances `next_send_seq`, and updates the send-side ratchet. The fetch loop MUST NOT overwrite that send-side state when saving receive-side updates. Implementations MUST merge send-side fields from disk (or send the receipt before the final `save_contact` for the inbound message) so each message gets a distinct receipt `seq`.
 
-Receipts use the reversed two-hop route when applicable ([phase-2-two-hop.md](./phase-2-two-hop.md)). Failed receipt POSTs are queued in `pending_receipts` and retried via `yakr receipts flush` or the next fetch.
+Receipts use the same single-hop mailbox failover path as sends. Failed receipt POSTs are queued in `pending_receipts` and retried via `yakr receipts flush` or the next fetch.
 
 ## Idempotency
 

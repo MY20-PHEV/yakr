@@ -127,7 +127,7 @@ def test_profile_update_changes_mailbox_without_relays_edit(profile_relays, tmp_
     contact.delivery_profile = initial
 
     encrypted = Session(alice, contact).encrypt_text("via mailbox a")
-    deliver_encrypted(encrypted, contact=contact, route="dennis,mailbox_a")
+    deliver_encrypted(encrypted, contact=contact, route="mailbox_a")
 
     response = httpx.get(
         f"{urls['mailbox_a']}/v1/blobs/{encrypted.mailbox_tag.tag_b64}",
@@ -148,8 +148,8 @@ def test_profile_update_changes_mailbox_without_relays_edit(profile_relays, tmp_
 
     encrypted_b = Session(alice, contact).encrypt_text("via mailbox b")
     store = FileLocalStore(tmp_path / "alice")
-    mode = deliver_encrypted(encrypted_b, contact=contact, route="auto", store=store)
-    assert "mailbox_b" in mode or mode.startswith("two-hop")
+    mode = deliver_encrypted(encrypted_b, contact=contact, route="mailbox_b", store=store)
+    assert "mailbox_b" in mode
 
     response_b = httpx.get(
         f"{urls['mailbox_b']}/v1/blobs/{encrypted_b.mailbox_tag.tag_b64}",

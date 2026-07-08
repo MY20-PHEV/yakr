@@ -139,7 +139,7 @@ JSON is allowed in Phase 1 for velocity. Phase 2 switches to canonical CBOR for 
 ```text
 Phase 0  Protocol sketch                    [complete]
 Phase 1  Single-hop offline delivery        prove store-and-forward works
-Phase 2  Two-hop onion + receipts           split entry/mailbox metadata
+Phase 2  Two-hop onion + receipts           split entry/mailbox metadata (wire format; reference client uses single-hop)
 Phase 3  Path rotation                      per-message route diversity
 Phase 4  Invites + relay authorization      real contact bootstrap
 Phase 5  Delivery profiles                  reachable-offline routing data
@@ -333,11 +333,11 @@ yakr/v0.1/mailbox-tag
 
 **Depends on:** Phase 1  
 **Protocol:** `yakr-v0.2`  
-**Status:** Complete
+**Status:** Wire format complete; **reference CLI/testkit use single-hop by default**
 
 ### Goal
 
-Split relay visibility so **no single honest relay observes both sender upload and recipient fetch** for the same message.
+Split relay visibility so **no single honest relay observes both sender upload and recipient fetch** for the same message. Optional for deployments that accept inter-relay forwarding complexity; the reference client posts directly to mailbox relays with ordered failover ([relay-failover.md](spec/relay-failover.md)).
 
 ### User-Visible Capability
 
@@ -368,7 +368,7 @@ Bob ◄──────────────────────── 
 | Expiry | Enforced at mailbox; entry forwards even if near expiry |
 | Receipts | Minimal delivery receipt: `delivered` type only |
 | Relay forwarding | `POST /v1/forward` on entry relay |
-| Receipt path | Reverse two-hop back to sender |
+| Receipt path | Single-hop mailbox failover (reference client); optional reverse two-hop in wire spec |
 
 ### Onion Packet Structure
 

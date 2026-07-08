@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import base64
 import logging
 import os
 from pathlib import Path
@@ -17,12 +16,10 @@ from yakr_core.delivery_profile import (
     verify_delivery_profile,
 )
 from yakr_core.identity import Contact, Identity
-from yakr_core.onion import build_onion_packet
 from yakr_core.presence import fresh_group_relay_urls, is_presence_fresh, resolve_operator_url
 from yakr_core.relay import RelayNode, load_relay_network
 from yakr_core.relay_ticket import issue_relay_ticket
 from yakr_core.message import OuterBlob
-from yakr_core.routing import RouteState, select_route
 from yakr_core.session import EncryptedMessage, Session
 from yakr_core.store import FileLocalStore
 
@@ -45,10 +42,21 @@ def tickets_required() -> bool:
 
 
 def parse_route(route: str) -> tuple[str, str]:
+    """Legacy two-hop route form; returns (entry_name, mailbox_name)."""
     parts = [part.strip() for part in route.split(",") if part.strip()]
     if len(parts) != 2:
         raise ValueError("route must be entry,mailbox")
     return parts[0], parts[1]
+
+
+def mailbox_name_from_route(route: str) -> str:
+    """Single-hop: use mailbox leg from legacy ``entry,mailbox`` or a lone relay name."""
+    parts = [part.strip() for part in route.split(",") if part.strip()]
+    if len(parts) == 1:
+        return parts[0]
+    if len(parts) == 2:
+        return parts[1]
+    raise ValueError("route must be mailbox or entry,mailbox")
 
 
 def load_route_nodes(route: str, *, network: dict[str, RelayNode] | None = None) -> tuple[RelayNode, RelayNode]:
@@ -105,14 +113,29 @@ def _overlay_presence_urls(
 
 
 def should_use_auto_two_hop(network: dict[str, RelayNode]) -> bool:
-    """Multiple standalone mailbox relays use send failover, not onion routing."""
-    if len(network) <= 1:
-        return False
-    if all(node.role == "both" for node in network.values()):
-        return False
-    has_entry = any(node.role in ("entry", "both") for node in network.values())
-    has_mailbox = any(node.role in ("mailbox", "both") for node in network.values())
-    return has_entry and has_mailbox
+    """Two-hop onion routing is disabled; single-hop mailbox delivery only."""
+    _ = network
+    return False
+
+
+def _peer_acked_sender_fallback_urls(
+    store: FileLocalStore,
+    contact: Contact,
+) -> list[str]:
+    """Sender fallbacks limited to relays this peer has acked via pairing or profile receipt."""
+    if contact.peer_acked_my_profile_version <= 0:
+        return []
+    local = store.load_local_profile()
+    if local is None:
+        return []
+    allowed = set(contact.peer_acked_my_relay_names)
+    if not allowed:
+        return _profile_mailbox_urls(local, store=store)
+    return [
+        resolve_operator_url(store, descriptor.name, descriptor.url)
+        for descriptor in mailbox_descriptors(local)
+        if descriptor.name in allowed
+    ]
 
 
 def _profile_mailbox_urls(
@@ -192,14 +215,14 @@ def delivery_mailbox_urls(
         network = network or (load_relay_network(relays_path()) if relays_path().exists() else None)
         if network is None:
             raise ValueError("route requires contact or relays.json network")
-        _, mailbox_name = parse_route(route)
+        mailbox_name = mailbox_name_from_route(route)
         return [network[mailbox_name].url]
 
     seen: set[str] = set()
     urls: list[str] = []
     _append_unique_urls(urls, seen, _profile_mailbox_urls(contact.delivery_profile, store=store))
     if store is not None:
-        _append_unique_urls(urls, seen, local_mailbox_urls(store))
+        _append_unique_urls(urls, seen, _peer_acked_sender_fallback_urls(store, contact))
         _append_unique_urls(urls, seen, fresh_group_relay_urls(store))
     if urls:
         return urls
@@ -355,35 +378,9 @@ def resolve_contact_route(
     route: str | None,
     message_id: str,
 ) -> str | None:
-    if route is None:
-        network = contact_relay_network(contact)
-        if network is None:
-            return None
-        if len(network) == 1:
-            only = next(iter(network.values()))
-            if only.role == "both":
-                return None
-        state = store.load_route_state(contact.name)
-        entry, mailbox, new_state = select_route(
-            network=network,
-            conversation_secret=contact.master_secret,
-            message_id=message_id,
-            state=state,
-        )
-        store.save_route_state(contact.name, new_state)
-        return f"{entry},{mailbox}"
-    if route == "auto":
-        network = contact_relay_network(contact) or load_relay_network(relays_path())
-        state = store.load_route_state(contact.name)
-        entry, mailbox, new_state = select_route(
-            network=network,
-            conversation_secret=contact.master_secret,
-            message_id=message_id,
-            state=state,
-        )
-        store.save_route_state(contact.name, new_state)
-        return f"{entry},{mailbox}"
-    return route
+    """Single-hop only: no automatic entry→mailbox onion routes."""
+    _ = (store, contact, route, message_id)
+    return None
 
 
 def send_encrypted(
@@ -396,45 +393,20 @@ def send_encrypted(
     network: dict[str, RelayNode] | None = None,
     store: FileLocalStore | None = None,
 ) -> None:
-    if route is None:
-        relay_name = os.environ.get("YAKR_RELAY_NAME", "relay")
-        payload = encrypted.outer_blob.to_relay_json()
-        payload["ticket"] = _ticket(identity, contact, relay_name, "store")
-        response = yakr_post(
-            f"{relay_url}/v1/blobs",
-            store=store,
-            contact=contact,
-            identity=identity,
-            json=payload,
-            timeout=10.0,
-        )
-        if response.status_code != 201:
-            raise RuntimeError(f"relay store failed: {response.status_code} {response.text}")
-        return
-
-    entry, mailbox = load_route_nodes(route, network=network)
-    packet = build_onion_packet(
-        entry_wrap_secret=entry.wrap_secret,
-        mailbox_wrap_secret=mailbox.wrap_secret,
-        entry_relay_url=entry.url,
-        mailbox_relay_url=mailbox.url,
-        outer=encrypted.outer_blob,
-    )
-    packet_b64 = base64.urlsafe_b64encode(packet).decode("ascii").rstrip("=")
-    store_ticket = _ticket(identity, contact, mailbox.name, "store")
+    _ = (route, network)
+    relay_name = _relay_name_for_url(relay_url, network)
+    payload = encrypted.outer_blob.to_relay_json()
+    payload["ticket"] = _ticket(identity, contact, relay_name, "store")
     response = yakr_post(
-        f"{entry.url}/v1/relay",
+        f"{relay_url.rstrip('/')}/v1/blobs",
         store=store,
         contact=contact,
         identity=identity,
-        json={
-            "packet": packet_b64,
-            "ticket": _ticket(identity, contact, entry.name, "forward") or store_ticket,
-        },
+        json=payload,
         timeout=10.0,
     )
-    if response.status_code != 202:
-        raise RuntimeError(f"relay forward failed: {response.status_code} {response.text}")
+    if response.status_code != 201:
+        raise RuntimeError(f"relay store failed: {response.status_code} {response.text}")
 
 
 def _relay_name_for_url(relay_url: str, network: dict[str, RelayNode] | None) -> str:
@@ -469,13 +441,7 @@ def deliver_encrypted(
         logger.warning("using stale delivery profile for %s", contact.name)
 
     network = delivery_relay_network(contact, store)
-    resolved_route = route
-    if resolved_route == "auto" or (
-        resolved_route is None and network is not None and should_use_auto_two_hop(network)
-    ):
-        if store is None:
-            raise ValueError("store required for automatic profile routing")
-        resolved_route = resolve_contact_route(store, contact, route or "auto", encrypted.msg_id)
+    resolved_route = route if route not in (None, "auto") else None
 
     relay_urls = delivery_mailbox_urls(contact, resolved_route, store=store)
 
@@ -485,7 +451,6 @@ def deliver_encrypted(
             send_encrypted(
                 encrypted,
                 relay_url=relay_url,
-                route=resolved_route,
                 identity=identity,
                 contact=contact,
                 network=network,
@@ -503,7 +468,8 @@ def deliver_encrypted(
                     retry_on_stale=False,
                 )
             raise
-        return f"two-hop:{resolved_route}"
+        relay_name = _relay_name_for_url(relay_url, network)
+        return f"relay:{relay_name}"
 
     errors: list[str] = []
     for relay_url in relay_urls:
@@ -560,7 +526,8 @@ def resend_pending_for_contact(
         raise ValueError(f"unknown contact: {contact_name}")
 
     resent = 0
-    for msg_id, _seq, body in list(store.list_outbound_pending(contact_name)):
+    for msg_id, pending_seq, body in list(store.list_outbound_pending(contact_name)):
+        contact.next_send_seq = pending_seq
         session = Session(identity, contact)
         encrypted = session.encrypt_text(body)
         store.save_contact(contact)
@@ -579,9 +546,10 @@ def resend_pending_for_contact(
                 store=store,
             )
         except RuntimeError:
-            store.mark_outbound_delivered(contact_name, encrypted.msg_id)
             continue
-        if store.mark_outbound_delivered(contact_name, msg_id):
+        if encrypted.msg_id != msg_id:
+            store.mark_outbound_delivered(contact_name, msg_id)
+        if store.mark_outbound_delivered(contact_name, encrypted.msg_id):
             resent += 1
     return resent
 
