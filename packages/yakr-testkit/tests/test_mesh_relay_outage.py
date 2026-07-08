@@ -37,8 +37,8 @@ def test_relay_restart_preserves_queued_blobs(charlie_mesh) -> None:
     mesh.alice.send("bob", "survives restart")
 
     mesh.stop_relay()
-    with pytest.raises((httpx.ConnectError, httpx.ReadError, OSError)):
-        httpx.get(f"{mesh.relay_url}/v1/blobs/dummy", timeout=1.0)
+    with pytest.raises((httpx.ConnectError, httpx.ReadError, OSError, httpx.HTTPError)):
+        httpx.get(f"{mesh.relay_url}/v1/blobs/dummy", timeout=1.0, verify=False)
 
     mesh.start_all_relays()
     got = mesh.bob.fetch("alice", send_receipts=True)

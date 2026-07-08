@@ -208,9 +208,13 @@ def fetch_cmd(
         is_decoy = tag.tag_b64 not in real_tag_set
         items: list[tuple[str | None, dict[str, str | int]]] = []
         if direct_hints:
-            for item in fetch_direct_blobs(tag.tag_b64, direct_hints):
+            for item in fetch_direct_blobs(
+                tag.tag_b64, direct_hints, store=store, contact=contact, identity=identity
+            ):
                 items.append((None, item))
-        for item in fetch_relay_blobs(tag.tag_b64, fetch_bases):
+        for item in fetch_relay_blobs(
+            tag.tag_b64, fetch_bases, store=store, contact=contact, identity=identity
+        ):
             items.append((None, item))
             metrics.record_fetch(len(str(item.get("ciphertext", ""))), decoy=is_decoy)
 

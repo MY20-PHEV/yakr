@@ -153,9 +153,22 @@ class MeshParticipant:
         for tag in tags:
             items: list[tuple[str | None, dict]] = []
             if direct_hints:
-                for item in fetch_direct_blobs(tag.tag_b64, direct_hints):
+                for item in fetch_direct_blobs(
+                    tag.tag_b64,
+                    direct_hints,
+                    store=self.store,
+                    contact=contact,
+                    identity=self.identity,
+                ):
                     items.append((None, item))
-            for item in fetch_relay_blobs(tag.tag_b64, fetch_bases, timeout=15.0):
+            for item in fetch_relay_blobs(
+                tag.tag_b64,
+                fetch_bases,
+                store=self.store,
+                contact=contact,
+                identity=self.identity,
+                timeout=15.0,
+            ):
                 items.append((None, item))
 
             seen: set[str] = set()

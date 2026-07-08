@@ -7,6 +7,8 @@ from pathlib import Path
 
 import httpx
 
+from yakr_core.http_client import yakr_get, yakr_post
+
 from yakr_core.delivery_profile import (
     DeliveryProfile,
     mailbox_descriptors,
@@ -248,19 +250,25 @@ def try_direct_delivery(
     encrypted: EncryptedMessage,
     hints: list[str],
     *,
+    store: FileLocalStore | None = None,
+    contact: Contact | None = None,
+    identity: Identity | None = None,
     timeout: float = DIRECT_TIMEOUT_SECS,
 ) -> bool:
     payload = encrypted.outer_blob.to_relay_json()
     for hint in hints:
         try:
-            response = httpx.post(
+            response = yakr_post(
                 f"{hint.rstrip('/')}/v1/direct/blobs",
+                store=store,
+                contact=contact,
+                identity=identity,
                 json=payload,
                 timeout=timeout,
             )
             if response.status_code in {200, 201}:
                 return True
-        except httpx.HTTPError:
+        except (httpx.HTTPError, ValueError):
             continue
     return False
 
@@ -269,11 +277,18 @@ def fetch_remote_profile(
     hints: list[str],
     signing_public: bytes,
     *,
+    store: FileLocalStore | None = None,
+    contact: Contact | None = None,
     timeout: float = DIRECT_TIMEOUT_SECS,
 ) -> DeliveryProfile | None:
     for hint in hints:
         try:
-            response = httpx.get(f"{hint.rstrip('/')}/v1/profile", timeout=timeout)
+            response = yakr_get(
+                f"{hint.rstrip('/')}/v1/profile",
+                store=store,
+                contact=contact,
+                timeout=timeout,
+            )
             if response.status_code != 200:
                 continue
             profile = DeliveryProfile.from_b64(response.json()["profile"])
@@ -297,7 +312,7 @@ def refresh_contact_profile(
         return False
     if warn_on_stale:
         logger.warning("delivery profile for %s is stale; attempting refresh", contact.name)
-    refreshed = fetch_remote_profile(list(profile.direct_hints), contact.signing_public)
+    refreshed = fetch_remote_profile(list(profile.direct_hints), contact.signing_public, store=store)
     if refreshed is None:
         return False
     contact.delivery_profile = refreshed
@@ -350,12 +365,20 @@ def send_encrypted(
     identity: Identity | None = None,
     contact: Contact | None = None,
     network: dict[str, RelayNode] | None = None,
+    store: FileLocalStore | None = None,
 ) -> None:
     if route is None:
         relay_name = os.environ.get("YAKR_RELAY_NAME", "relay")
         payload = encrypted.outer_blob.to_relay_json()
         payload["ticket"] = _ticket(identity, contact, relay_name, "store")
-        response = httpx.post(f"{relay_url}/v1/blobs", json=payload, timeout=10.0)
+        response = yakr_post(
+            f"{relay_url}/v1/blobs",
+            store=store,
+            contact=contact,
+            identity=identity,
+            json=payload,
+            timeout=10.0,
+        )
         if response.status_code != 201:
             raise RuntimeError(f"relay store failed: {response.status_code} {response.text}")
         return
@@ -370,8 +393,11 @@ def send_encrypted(
     )
     packet_b64 = base64.urlsafe_b64encode(packet).decode("ascii").rstrip("=")
     store_ticket = _ticket(identity, contact, mailbox.name, "store")
-    response = httpx.post(
+    response = yakr_post(
         f"{entry.url}/v1/relay",
+        store=store,
+        contact=contact,
+        identity=identity,
         json={
             "packet": packet_b64,
             "ticket": _ticket(identity, contact, entry.name, "forward") or store_ticket,
@@ -407,7 +433,7 @@ def deliver_encrypted(
 
     profile = contact.delivery_profile
     if allow_direct and profile is not None and profile.direct_hints:
-        if try_direct_delivery(encrypted, list(profile.direct_hints)):
+        if try_direct_delivery(encrypted, list(profile.direct_hints), store=store, contact=contact, identity=identity):
             return "direct"
 
     if profile is not None and profile_is_stale(profile):
@@ -434,6 +460,7 @@ def deliver_encrypted(
                 identity=identity,
                 contact=contact,
                 network=network,
+                store=store,
             )
         except RuntimeError:
             if store is not None and refresh_contact_profile(store, contact, warn_on_stale=True):
@@ -462,11 +489,12 @@ def deliver_encrypted(
                 identity=identity,
                 contact=contact,
                 network=network,
+                store=store,
             )
             if len(relay_urls) > 1 and relay_url != relay_urls[0]:
                 return f"relay-failover:{relay_name}"
             return "relay" if relay_name in {"relay", ""} else f"relay:{relay_name}"
-        except (RuntimeError, httpx.HTTPError) as exc:
+        except (RuntimeError, httpx.HTTPError, ValueError) as exc:
             errors.append(f"{relay_url}: {exc}")
             logger.warning("relay delivery failed for %s via %s: %s", contact.name, relay_url, exc)
         finally:
@@ -533,17 +561,23 @@ def fetch_direct_blobs(
     mailbox_tag_b64: str,
     hints: list[str],
     *,
+    store: FileLocalStore | None = None,
+    contact: Contact | None = None,
+    identity: Identity | None = None,
     timeout: float = DIRECT_TIMEOUT_SECS,
 ) -> list[dict[str, str | int]]:
     for hint in hints:
         try:
-            response = httpx.get(
+            response = yakr_get(
                 f"{hint.rstrip('/')}/v1/direct/blobs/{mailbox_tag_b64}",
+                store=store,
+                contact=contact,
+                identity=identity,
                 timeout=timeout,
             )
             if response.status_code == 200:
                 return response.json()
-        except httpx.HTTPError:
+        except (httpx.HTTPError, ValueError):
             continue
     return []
 
@@ -552,6 +586,9 @@ def fetch_relay_blobs(
     mailbox_tag_b64: str,
     fetch_bases: list[str],
     *,
+    store: FileLocalStore | None = None,
+    contact: Contact | None = None,
+    identity: Identity | None = None,
     timeout: float = 10.0,
 ) -> list[dict[str, str | int]]:
     """Poll each relay URL; skip unreachable hosts and merge unique ciphertexts."""
@@ -559,8 +596,11 @@ def fetch_relay_blobs(
     seen: set[str] = set()
     for fetch_base in fetch_bases:
         try:
-            response = httpx.get(
+            response = yakr_get(
                 f"{fetch_base.rstrip('/')}/v1/blobs/{mailbox_tag_b64}",
+                store=store,
+                contact=contact,
+                identity=identity,
                 timeout=timeout,
             )
             if response.status_code != 200:
@@ -571,6 +611,6 @@ def fetch_relay_blobs(
                     continue
                 seen.add(ciphertext)
                 items.append(item)
-        except httpx.HTTPError:
+        except (httpx.HTTPError, ValueError):
             continue
     return items

@@ -9,6 +9,7 @@ from cryptography.hazmat.primitives.asymmetric import ed25519
 
 from yakr_core.identity import Identity, b64decode, b64encode
 from yakr_core.relay import RelayNode
+from yakr_core.tls import endpoint_tls_spki_sha256
 
 PROTOCOL_V5 = "yakr-v0.5"
 DEFAULT_PROFILE_TTL_MS = 7 * 24 * 60 * 60 * 1000
@@ -21,14 +22,18 @@ class RelayDescriptor:
     role: str
     url: str
     wrap_secret: bytes
+    tls_spki_sha256: bytes = b""
 
     def to_dict(self) -> dict[str, str | bytes]:
-        return {
+        payload: dict[str, str | bytes] = {
             "name": self.name,
             "role": self.role,
             "url": self.url,
             "wrap_secret": self.wrap_secret,
         }
+        if self.tls_spki_sha256:
+            payload["tls_spki_sha256"] = self.tls_spki_sha256
+        return payload
 
     @classmethod
     def from_dict(cls, payload: dict[str, str | bytes]) -> RelayDescriptor:
@@ -37,6 +42,7 @@ class RelayDescriptor:
             role=str(payload["role"]),
             url=str(payload["url"]).rstrip("/"),
             wrap_secret=bytes(payload["wrap_secret"]),
+            tls_spki_sha256=bytes(payload.get("tls_spki_sha256", b"")),
         )
 
     def to_relay_node(self) -> RelayNode:
@@ -61,6 +67,7 @@ class DeliveryProfile:
     blob_classes: tuple[int, ...]
     receipt_policy: ReceiptPolicy
     signature: bytes
+    endpoint_tls_spki_sha256: bytes = b""
 
     def unsigned_payload(self) -> bytes:
         return cbor2.dumps(
@@ -77,6 +84,7 @@ class DeliveryProfile:
                 },
                 "blob_classes": list(self.blob_classes),
                 "receipt_policy": self.receipt_policy,
+                "endpoint_tls_spki_sha256": self.endpoint_tls_spki_sha256,
             }
         )
 
@@ -95,6 +103,7 @@ class DeliveryProfile:
                 },
                 "blob_classes": list(self.blob_classes),
                 "receipt_policy": self.receipt_policy,
+                "endpoint_tls_spki_sha256": self.endpoint_tls_spki_sha256,
                 "signature": self.signature,
             }
         )
@@ -117,6 +126,7 @@ class DeliveryProfile:
             blob_classes=tuple(int(item) for item in payload["blob_classes"]),
             receipt_policy=str(payload["receipt_policy"]),  # type: ignore[assignment]
             signature=bytes(payload["signature"]),
+            endpoint_tls_spki_sha256=bytes(payload.get("endpoint_tls_spki_sha256", b"")),
         )
 
     def to_b64(self) -> str:
@@ -155,6 +165,7 @@ def create_delivery_profile(
         },
         "blob_classes": blob_classes or [4096],
         "receipt_policy": receipt_policy,
+        "endpoint_tls_spki_sha256": endpoint_tls_spki_sha256(identity),
     }
     payload = cbor2.dumps(unsigned)
     signature = identity.signing_private.sign(payload)
@@ -170,6 +181,7 @@ def create_delivery_profile(
         blob_classes=tuple(unsigned["blob_classes"]),
         receipt_policy=receipt_policy,
         signature=bytes(signature),
+        endpoint_tls_spki_sha256=unsigned["endpoint_tls_spki_sha256"],
     )
 
 
@@ -200,3 +212,21 @@ def mailbox_descriptors(profile: DeliveryProfile) -> list[RelayDescriptor]:
 
 def entry_descriptors(profile: DeliveryProfile) -> list[RelayDescriptor]:
     return [item for item in profile.relay_descriptors if item.role in ("entry", "both")]
+
+
+def relay_descriptor_for_operator(
+    identity: Identity,
+    role: str,
+    url: str,
+    wrap_secret: bytes,
+    *,
+    name: str | None = None,
+) -> RelayDescriptor:
+    """Build a signed relay descriptor including the operator TLS SPKI pin."""
+    return RelayDescriptor(
+        name=name or identity.name,
+        role=role,
+        url=url.rstrip("/"),
+        wrap_secret=wrap_secret,
+        tls_spki_sha256=endpoint_tls_spki_sha256(identity),
+    )

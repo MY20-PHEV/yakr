@@ -13,6 +13,7 @@ A decentralised, social-relay, post-quantum messaging protocol.
 | [docs/spec/relay-authorization.md](docs/spec/relay-authorization.md) | Who may advertise which relays |
 | [docs/spec/presence-v1.md](docs/spec/presence-v1.md) | Planned v1.1 presence + group relay polling |
 | [docs/spec/presence-minimal.md](docs/spec/presence-minimal.md) | **Implemented** minimal presence (30m TTL location hints) |
+| [docs/spec/tls-endpoints.md](docs/spec/tls-endpoints.md) | **Implemented** pairing-anchored TLS (SPKI pins in profiles) |
 | [docs/spec/ephemeral-messages.md](docs/spec/ephemeral-messages.md) | 24h ephemeral message TTL |
 | [docs/spec/double-ratchet.md](docs/spec/double-ratchet.md) | X25519 double ratchet |
 | [docs/spec/mesh-testing-and-resilience.md](docs/spec/mesh-testing-and-resilience.md) | Mesh stress and relay outage test status |

@@ -18,9 +18,10 @@ Yakr now has:
 | Automatic send retry after relay outage | **`yakr resend`** (implemented) | [relay-failover.md](./relay-failover.md) |
 | Send failover across ordered relays | Implemented | [relay-failover.md](./relay-failover.md) |
 | Ephemeral relay presence (location hints) | Implemented | [presence-minimal.md](./presence-minimal.md) |
+| Pairing-anchored TLS (HTTPS required) | Implemented | [tls-endpoints.md](./tls-endpoints.md) |
 | Production receipt retry on relay down | **Partial** (testkit only) | — |
 
-**Testkit:** 92 pytest tests passing (`packages/yakr-testkit/tests/`, excluding mobile CLI integration).
+**Testkit:** 95+ pytest tests passing (`packages/yakr-testkit/tests/`, excluding mobile CLI integration).
 
 **Homelab Charlie:** `http://REDACTED_TAILSCALE_IP:8090` — redeployed with current image; demo works after wiping old v0.4 volumes (`docker compose -f docker-compose.vps-charlie.yml down -v`).
 

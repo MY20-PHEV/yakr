@@ -96,4 +96,4 @@ Global rate limiting per IP is deployment-specific and not mandated in v1. Opera
 1. Enable `require_tickets` on public relays.
 2. Run mailbox sweep (`sweep_expired`) on an interval.
 3. Prefer hybrid PQ pairing for long-lived relationships.
-4. Pin relay TLS certificates where possible (transport layer, outside this spec).
+4. Pin relay TLS certificates where possible (transport layer, outside this spec). **Implemented:** `endpoint_tls_spki_sha256` in signed delivery profiles; see `docs/spec/tls-endpoints.md`.
