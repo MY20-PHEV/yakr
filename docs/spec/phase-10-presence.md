@@ -50,7 +50,7 @@ yakr resend bob
 - [x] Queued receipts + `yakr receipts flush`
 - [ ] Full `presence-v1.md` routing (group relays, embedded relay)
 - [ ] `yakr fetch --all` without manual relay env
-- [ ] Embedded relay on mobile (`relay_enabled` + Wi‑Fi/charging gates)
+- [ ] Embedded relay when dialable (`reachable` required; LAN/IPv6 — see ADR 008)
 - [ ] Five-client testkit matching VPS trust model (no Bob↔Charlie shortcut)
 - [ ] Security analysis updated for presence metadata
 
@@ -59,4 +59,4 @@ yakr resend bob
 - [presence-minimal.md](presence-minimal.md) — implemented subset
 - [presence-v1.md](presence-v1.md) — full future design
 - [tls-endpoints.md](tls-endpoints.md)
-- [ADR 007](../adr/007-presence-and-group-relays.md)
+- [ADR 008](../adr/008-nat-reachability-and-mobile-delivery.md)

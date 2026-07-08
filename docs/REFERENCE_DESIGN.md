@@ -899,7 +899,7 @@ Phase 1–9 are complete. Current focus (Phase 10 partial):
 
 1. **Homelab** — deploy Charlie with HTTPS (`deploy_charlie_vps.sh` + `generate_operator_relay_tls.py`); use `yakr presence push` on IP change
 2. **CLI polish** — receipt queue (done); optional background `resend`/`receipts` worker
-3. **Full presence-v1** — embedded relay, `fetch --all`, group relay polling
+3. **Full presence-v1** — group relay polling, dialable embedded relay (ADR 008), `fetch --all`
 4. **Transports** — Tor dial strings with same TLS pin model
 5. **Multi-device** — see `docs/spec/multi-device.md`
 

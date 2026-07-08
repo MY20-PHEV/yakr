@@ -7,7 +7,7 @@
 
 When delivering a message (single-hop, no explicit `--route`):
 
-1. Try **direct hints** on the recipient profile (if allowed).
+1. Try **direct hints** on the recipient profile (if allowed). Best-effort only — fails on NAT’d mobile without same-LAN, IPv6, or hole punch. See [ADR 008](../adr/008-nat-reachability-and-mobile-delivery.md).
 2. Build an **ordered URL list**:
    - Recipient `relay_descriptors` with role `mailbox` or `both` (profile order).
    - Then sender's own published mailboxes (paired operators), deduplicated.
@@ -18,7 +18,9 @@ Two-hop routes (`--route entry,mailbox` or auto-selected onion path) still use a
 
 ## Fetch (unchanged)
 
-Fetch already polls **all** mailbox URLs (sender + recipient profile union). Failover on send does not duplicate blobs across relays.
+Fetch polls mailbox URLs outbound. Recipients do **not** need inbound connectivity — this is the mobile/cellular correctness path.
+
+Fetch polls **all** mailbox URLs (sender + recipient profile union). Failover on send does not duplicate blobs across relays.
 
 ## Recovery
 

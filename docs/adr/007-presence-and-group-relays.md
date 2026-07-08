@@ -16,7 +16,7 @@ Mobile-only friend groups need:
 
 1. A **reachable group relay** for store-and-forward and poll-based fetch
 2. **Ephemeral presence** so peers learn current reachability and relay willingness
-3. Optional **embedded relay** on clients when policy allows
+3. Optional **embedded relay** on clients when policy allows **and** a dialable `reachable` URL is published (LAN / IPv6 / post-punch — not cellular NAT alone)
 
 ## Decision
 
@@ -27,7 +27,7 @@ Adopt a two-layer routing model for `yakr-v1.1`:
 
 Send and fetch algorithms prefer fresh presence, then profile, then shared **group relay** URLs for polling.
 
-Every client MAY embed the relay HTTP API when `relay.active` is advertised. At least one group member (or their VPS) SHOULD run an always-reachable relay for **pairing rendezvous**, message store, and fetch polling.
+Every client MAY embed the relay HTTP API when `relay.active` is advertised **with** at least one dialable `reachable` URL (see ADR 008). At least one group member (or their VPS) SHOULD run an always-reachable relay for **pairing rendezvous**, message store, and fetch polling.
 
 **Implemented (pre-v1.1):** relay rendezvous (`/v1/pair*`) and relay authorization — peers may only advertise relays operated by paired contacts. See `docs/spec/relay-rendezvous.md` and `docs/spec/relay-authorization.md`.
 
@@ -44,7 +44,7 @@ Every client MAY embed the relay HTTP API when `relay.active` is advertised. At 
 **Negative**
 
 - More background traffic (presence refresh per contact)
-- Embedded relay on mobile is hard on Android (NAT, battery, background limits)
+- Embedded relay on mobile is hard on Android (NAT, battery, background limits); **cellular clients rely on outbound poll to friend-operator relays**, not on being inbound-reachable
 - Routing logic becomes more complex
 - Spec and test surface grows (Phase 10)
 
@@ -60,3 +60,4 @@ Every client MAY embed the relay HTTP API when `relay.active` is advertised. At 
 ## References
 
 - `docs/spec/presence-v1.md`
+- `docs/adr/008-nat-reachability-and-mobile-delivery.md`

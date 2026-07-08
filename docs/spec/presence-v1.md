@@ -21,17 +21,22 @@ This extension adds a **fast, ephemeral presence layer** on top of existing pair
 ## 2. Design goals
 
 1. **Paired peers exchange live reachability** — URLs, relay role, expiry.
-2. **Any client may act as a relay** when policy allows (Wi‑Fi, charging, user opt-in).
-3. **A contact group shares at least one reachable relay** for offline delivery and fetch polling.
+2. **Any client may act as a relay** when policy allows **and** it publishes dialable `reachable` URLs (see §6).
+3. **A contact group shares at least one reachable relay** for offline delivery and fetch polling (typically a friend’s VPS/homelab — not a NAT’d phone on cellular).
 4. **Senders adapt routes** using fresh presence first, signed profile second.
 5. **No global presence directory** — updates flow only over existing pairwise encrypted channels (or via blobs on group relays).
 
+### Mobile-first constraint
+
+Typical users are on phones behind NAT/CGNAT. **Receiving mail does not require inbound connectivity** — recipients poll shared relays outbound. **Acting as a mailbox for remote peers requires a dialable address**; embedded relay on cellular without IPv6 or hole punch is not a delivery strategy. See [ADR 008](../adr/008-nat-reachability-and-mobile-delivery.md).
+
 ## 3. Non-goals (v1.1)
 
-- NAT traversal / WebRTC (deferred)
+- Mandatory NAT hole punching (optional future optimization; relay failover remains correctness path)
 - Public relay discovery or DHT
 - Replacing signed delivery profiles
 - Guaranteed delivery latency bounds
+- Phones as internet-reachable mailboxes on cellular without dialable `reachable` URLs
 
 ## 4. Architecture overview
 
@@ -69,7 +74,7 @@ Carol's profile lists: Dennis relay
 → Dennis is the shared reachable relay for this friend group
 ```
 
-**Requirement for mobile-only groups:** at least one member (or their home VPS) runs a **group relay** — an HTTP endpoint all peers can reach for store-and-forward. Others poll it; some may also **embed** relay APIs when presence says `relay_active: true`.
+**Requirement for mobile-only groups:** at least one member (or their home VPS) runs a **group relay** — an HTTP endpoint all peers can reach for store-and-forward. Others poll it outbound. A phone MAY **embed** relay APIs only when presence includes a **dialable** `reachable` URL (same LAN, IPv6, or post-punch) — not merely because relay software is running behind NAT.
 
 Messaging does **not** require every peer to be online simultaneously. It requires:
 
@@ -125,8 +130,8 @@ text | receipt | profile | presence
 | Field | Meaning |
 |-------|---------|
 | `valid_until` | Peers MUST discard presence after this time (ms) |
-| `reachable[]` | Endpoints this device accepts **right now** |
-| `relay.active` | Device is running embedded relay HTTP API |
+| `reachable[]` | Endpoints remote peers can dial **right now** (required if `relay.active`) |
+| `relay.active` | Device is running embedded relay HTTP API **and** accepts inbound on `reachable[]` |
 | `relay.roles` | `entry`, `mailbox`, or `both` |
 | `group_relays[]` | Hints for shared poll points (may mirror profile) |
 | `capabilities` | Optional feature flags |
@@ -142,7 +147,15 @@ text | receipt | profile | presence
 
 ## 6. Embedded client relay
 
-When `relay.active: true`, the client MUST expose the same HTTP surface as `yakr-relay` (subset):
+Embedded relay is **opportunistic**, not the mobile delivery path. Remote peers can only POST blobs to your device if they can reach a URL in `reachable[]`. Behind NAT on cellular, that is usually impossible without IPv6 or hole punching — so `relay.active` MUST be `false`.
+
+When `relay.active: true`, the client MUST:
+
+1. Expose the same HTTP surface as `yakr-relay` (subset below).
+2. Include at least one dialable URL in `reachable[]` with matching `roles`.
+3. Set `relay.active: false` when policy blocks relaying **or** when no dialable URL exists.
+
+**Invalid state (MUST NOT advertise to contacts):** `relay.active: true` with empty `reachable[]`, or `reachable` URLs that are loopback-only / unroutable from the sender’s network.
 
 | Endpoint | Required when |
 |----------|----------------|
@@ -162,11 +175,11 @@ Implementations MAY enforce the same abuse limits as reference `BlobStore` (64 K
 Align with mobile `DeviceSettings`:
 
 - `relay_enabled` user preference
-- Wi‑Fi only / charging only
+- Wi‑Fi only / charging only (permission to run a listener — **not** proof of internet reachability)
 - Battery threshold
 - Foreground service or OS background execution rules
 
-When policy blocks relaying, client MUST send `relay.active: false` in the next presence update.
+When policy blocks relaying, or when no dialable `reachable` URL is available, client MUST send `relay.active: false` in the next presence update.
 
 ## 7. Group relay polling
 
@@ -176,7 +189,7 @@ When Alice sends to Bob:
 
 ```text
 1. Load Bob's freshest presence (< valid_until)
-2. If Bob.relay.active and reachable → try embedded relay / direct
+2. If Bob.relay.active and Bob.reachable has a dialable URL → try embedded relay / direct
 3. Else use Bob's signed delivery profile relay_descriptors
 4. Else use shared group_relays from presence or profile
 5. Encrypt → outer blob → POST to chosen mailbox relay
@@ -324,19 +337,19 @@ Charlie (home Wi‑Fi, charging):
   presence: relay.active=true, reachable=http://192.168.0.5:18100
   → can store blobs for friends on same LAN
 
-Alice (LTE):
-  presence: relay.active=false
-  → sends to Dennis's relay or Charlie if LAN
+Alice (LTE, behind CGNAT):
+  presence: relay.active=false, reachable=[]
+  → sends via outbound POST to Dennis/Charlie relays in profiles
 
 Bob (offline):
   → no presence; peers use profile + Dennis relay
 
 Bob (later, LTE):
-  → polls Dennis's relay every 5 min
+  → polls Dennis's relay outbound every 5 min
   → receives all pending blobs
 ```
 
-No peer needs a static public IP. Dennis (or any always-on node) is the **poll anchor**; others contribute relay capacity opportunistically via presence.
+No peer needs a static public IP for **receive**. Dennis (or any always-on, internet-reachable node) is the **poll anchor**. Charlie on home Wi‑Fi may contribute **same-LAN** mailbox capacity when `reachable` lists a local address; that does not make Charlie a relay for remote cellular peers unless IPv6 or hole punch provides a dialable URL.
 
 ## 12. Error codes (proposed)
 
@@ -351,7 +364,7 @@ YAKR_ERR_NO_GROUP_RELAY
 | Step | Deliverable |
 |------|-------------|
 | 10a | `type=presence` message + CLI push/poll |
-| 10b | Embedded relay in mobile (policy-gated) |
+| 10b | Embedded relay (policy-gated; dialable `reachable` required) |
 | 10c | Sender routing: presence → profile → group relay |
 | 10d | FetchWorker polls group relays from presence cache |
 | 10e | Testkit: five-client sim with one VPS relay |
@@ -370,4 +383,5 @@ See `docs/security/analysis-v1.md` — to be extended with presence threat notes
 - `docs/spec/yakr-protocol-v1.md` — baseline wire formats
 - `docs/spec/phase-5-profiles.md` — delivery profiles
 - `docs/spec/offline-pairing.md` — in-person bootstrap
+- `docs/adr/008-nat-reachability-and-mobile-delivery.md` — mobile NAT, relay-first delivery
 - `whitepaper.md` §3.3, §6.4, §9.3
