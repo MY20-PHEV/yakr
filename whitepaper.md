@@ -3,19 +3,21 @@
 **Version:** Draft v0.1
 **Status:** Conceptual whitepaper
 **Protocol name:** Yakr
-**Primary design goal:** Secure, decentralised, store-and-forward messaging without a central message server.
+**Primary design goal:** Secure, decentralised, store-and-forward messaging without a central *platform* message server.
+
+**Positioning (read this first):** Yakr is **end-to-end encrypted messaging over socially scoped relays** — not transport-level peer-to-peer between phones. Messages are encrypted peer-to-peer (only the recipient holds the keys). Delivery almost always passes through **mailboxes operated by people you have paired with**. That is intentional: mobile devices are rarely inbound-reachable on the public internet.
 
 ---
 
 ## 1. Abstract
 
-Yakr is a decentralised messaging protocol designed around end-to-end encryption, social relay delivery, rotating multi-hop message paths, and hybrid post-quantum cryptography.
+Yakr is a decentralised messaging protocol designed around end-to-end encryption, **pairing-gated social relays**, rotating multi-hop message paths, and hybrid post-quantum cryptography.
 
-Unlike conventional centralised messengers, Yakr does not require all messages to pass through a single provider-operated server. Unlike pure peer-to-peer messengers, Yakr does not assume that every user device is always online, directly reachable, or capable of accepting inbound network connections. Instead, Yakr uses a **friend-relay store-and-forward model**, where a user's trusted contact network can temporarily hold unreadable encrypted message blobs for offline recipients.
+Unlike conventional centralised messengers, Yakr does not require all messages to pass through a single provider-operated server. Unlike messengers that assume two devices can open a direct wire between them, Yakr does not assume that user devices are always online, inbound-reachable, or capable of accepting connections from the open internet (typical on mobile cellular and iOS background limits).
 
-Messages are encrypted so that only the intended recipient can read them. Relays do not need to know the sender, the recipient, or the message contents. To reduce metadata leakage, Yakr uses opaque mailbox tags, rotating relay paths, two-hop or multi-hop onion-wrapped delivery, padded message blobs, short expiry windows, and per-contact delivery profiles.
+Instead, Yakr uses a **friend-relay store-and-forward model**: encrypted blobs are stored on mailboxes run by **paired relay operators** in your trust graph (a friend's VPS, your own homelab, etc.). Recipients **poll outbound** to fetch mail. Relays see opaque blobs and mailbox tags — not message contents.
 
-Yakr is intended to be designed as an open protocol with a reference product implementation. Its core purpose is to offer a practical alternative to both centralised messaging infrastructure and fragile pure-P2P delivery systems.
+Yakr is an open protocol with a reference implementation. It targets users who want **decentralised infrastructure without a central platform**, not users who need a pure two-node network pipe.
 
 ---
 
@@ -37,26 +39,28 @@ This creates several problems:
 4. **Censorship risk**
    A central service presents a relatively obvious target for blocking, throttling, legal pressure, or infrastructure disruption.
 
-5. **Offline delivery problem in pure P2P systems**
-   Pure P2P systems work well when both peers are online and reachable. Mobile devices, however, are frequently asleep, behind NAT, behind carrier-grade NAT, behind corporate firewalls, or constrained by iOS/Android background limitations.
+5. **Reachability on mobile**
+   Designs that assume two phones can accept inbound connections fail on NAT, carrier-grade NAT, carrier inbound firewalls, and iOS/Android background limits. Hole punching and public IPv6 are unreliable optimizations on cellular. **Store-and-forward via reachable relays is the correctness path.**
 
-Yakr attempts to occupy the middle ground:
+Yakr occupies this space:
 
 ```text
-Not centralised:
-  No single message server is required.
+Not a central platform:
+  No single provider-operated message server is required.
 
-Not pure P2P:
-  Users do not need to be simultaneously online.
+Not wire-level P2P between phones:
+  Messages are not assumed to travel on a direct socket Alice ↔ Bob
+  across the public internet. Intermediaries (paired relays) are normal.
 
 Not blockchain-based:
   No global permanent ledger of messages is required.
 
 Not federation-first:
-  No homeserver is required for each user.
+  No homeserver account is required for each user.
 
 Instead:
-  Messages are carried opportunistically through a user's trusted social relay cloud.
+  E2E-encrypted blobs on mailboxes operated by paired contacts,
+  fetched by outbound poll — a decentralised, socially bounded delivery fabric.
 ```
 
 ---
@@ -88,44 +92,50 @@ What the message says.
 Whether a blob is a chat message, receipt, profile update, or dummy traffic.
 ```
 
-### 3.2 Direct P2P is an optimisation, not the foundation
+### 3.2 Direct delivery is optional — relays are the foundation
 
-Yakr should attempt direct peer-to-peer delivery when possible. However, it must not depend on direct P2P reachability.
+Yakr MAY attempt **direct delivery** (same LAN, Tor onion endpoint, or future hole punch) before using relays. It MUST NOT depend on direct reachability for message delivery.
 
-Direct P2P can fail because of:
+Direct delivery fails or is unavailable when:
 
 ```text
-NAT
-Carrier-grade NAT
-Firewalls
-Enterprise networks
-Hotel/campsite Wi-Fi
-Mobile network restrictions
-Device sleep
-iOS background limits
-Offline recipients
+NAT / carrier-grade NAT
+Carrier inbound firewalls (common on mobile IPv6)
+Firewalls and enterprise networks
+Device sleep and offline recipients
+iOS background limits (no persistent inbound listener)
 ```
 
-Therefore, Yakr treats direct delivery as the fastest path, while friend-relay store-and-forward is the reliability path.
+Therefore:
 
-### 3.3 Social relays are more practical than global random storage
+```text
+Correctness path:  outbound POST to paired relays → recipient outbound poll
+Optimization path: direct when dialable (usually same Wi‑Fi, sometimes Tor)
+```
 
-A public global DHT can help with discovery, but it is poorly suited as the primary storage layer for private messaging. Public writable storage invites spam, abuse, denial-of-service, and metadata leakage.
+**Do not confuse cryptographic P2P with transport P2P.** Only the recipient decrypts messages (cryptographic peer-to-peer). Packets routinely traverse **paired relay operators** (transport is not a single wire between phones). Tor-based direct still routes through the Tor network; Yakr relay delivery routes through friends you paired with.
 
-Yakr instead allows users to nominate some of their own contacts or devices as temporary relays. This creates a socially bounded storage model.
+### 3.3 Social relays — pairing-gated, not “any open relay”
+
+A public global DHT or anonymous relay pool can help discovery, but it is a poor primary mailbox for private messaging: spam, abuse, and metadata leakage.
+
+Yakr uses **socially bounded** storage with a strict rule: **you may only advertise a relay in your signed profile if you operate it yourself or you are paired with the operator** (`descriptor.name` matches a contact). You cannot point your profile at a stranger's server and claim it as your mailbox.
 
 Example:
 
 ```text
-Alice trusts Charlie, Dennis, Ellis, and Fred as temporary relays.
+Alice is paired with Charlie and Dennis (relay operators).
+Alice's signed profile lists Charlie's and Dennis's mailboxes (with wrap secrets + TLS pins).
 
-Alice sends Bob an encrypted message.
+Bob is paired with Alice only — not with Charlie.
+Bob learns Charlie's TLS pin from Alice's profile (transitive trust).
+Bob sends to Alice via Alice's advertised relays; Bob does not need a Charlie contact.
 
-The message may be routed through one or more of Alice's relays and one or more of Bob's relays.
-
-No relay can read it.
-No relay should know the full sender-recipient relationship.
+No relay reads message plaintext.
+Multi-hop onion routing reduces what any single relay learns about the path.
 ```
+
+This is a core strength: **infrastructure is socially scoped**, not “any TURN server on the internet.” Rendezvous for pairing MAY use a reachable relay URL without operator pairing; **advertising** a relay in a profile requires operator pairing.
 
 ### 3.4 The protocol should minimise global identifiers
 
@@ -169,6 +179,19 @@ If a post-quantum algorithm later has a weakness:
   the classical layer still protects against normal attackers today.
 ```
 
+### 3.6 What Yakr is and is not (honest summary)
+
+| Claim | Accurate? |
+|-------|-----------|
+| End-to-end encrypted — only contacts read messages | **Yes** |
+| No central *platform* server (WhatsApp/Signal-style) | **Yes** |
+| Decentralised — relays are operated within your social graph | **Yes** |
+| Pairing-gated relay advertisement | **Yes** |
+| Two phones always connect directly on the internet | **No** — relays are normal |
+| Phones act as public mailboxes on cellular | **No** — outbound poll to reachable relays |
+| Infrastructure-free (no intermediaries ever) | **No** — paired relays, optional Tor hops |
+| Same as BitTorrent / Hyperswarm wire P2P | **No** — different delivery model |
+
 ---
 
 ## 4. Non-Goals
@@ -194,6 +217,10 @@ Yakr is designed for private messaging and small trusted groups. Public broadcas
 ### 4.4 Not dependent on one official app
 
 The long-term goal is an open protocol with interoperable clients and relays. The first product should validate the protocol, not become the protocol.
+
+### 4.5 Not transport-level peer-to-peer messaging
+
+Yakr is **not** a protocol where two mobile handsets typically exchange packets without intermediaries. Direct sockets (LAN, Tor onion, hole punch) are optional optimizations. **Do not market Yakr as “P2P messaging” without qualification** — say **E2E messaging with pairing-gated social relays** instead.
 
 ---
 
@@ -278,21 +305,19 @@ Yakr contacts are established by invitation, not global lookup.
 
 ### 6.4 Relay
 
-A relay is a device or service willing to temporarily store or forward encrypted blobs.
+A relay is a device or service that temporarily stores or forwards **opaque encrypted blobs** for mailbox tags holders can fetch.
 
-A relay may be:
+Typical deployments:
 
 ```text
-a friend's phone
-a user's own laptop
-a user's home server
-a small VPS
-a community relay
-a public relay
-a family relay device
+a friend's VPS or homelab (paired operator)
+a user's own home server
+a user's old Android device on Wi‑Fi (only when dialable — see §17)
 ```
 
-Relays are not trusted with plaintext.
+A peer MAY **use** a relay URL for rendezvous or fetch when another contact's signed profile points there. A peer MAY **advertise** a relay in their own profile only if they operate it or are **paired with the operator** (see relay authorization in the reference spec).
+
+Relays are not trusted with plaintext. They are trusted only to the extent you chose to pair with their operator.
 
 ### 6.5 Entry Relay
 
@@ -455,7 +480,7 @@ Conceptual example:
     "lan:bonjour_service_name"
   ],
   "capabilities": [
-    "direct_p2p",
+    "optional_direct",
     "friend_relay",
     "store_forward",
     "hybrid_pq"
@@ -484,9 +509,9 @@ In a real implementation, this should be compact binary, not JSON.
 
 5. Bob's client attempts:
    - LAN discovery if nearby
-   - DHT/rendezvous discovery
-   - direct P2P hole punching
-   - temporary relay mailbox contact
+   - rendezvous relay (e.g. group relay URL on invite)
+   - optional direct / hole punch (future)
+   - pairing completion on rendezvous
 
 6. Alice and Bob perform authenticated key agreement.
 
@@ -494,7 +519,7 @@ In a real implementation, this should be compact binary, not JSON.
 
 8. The invite is marked consumed.
 
-9. Future communication uses Yakr directly.
+9. Future messaging uses E2E sessions and paired-relay store-and-forward (direct optional).
 ```
 
 ### 8.3 Bootstrap Trust
@@ -1226,49 +1251,52 @@ HKDF(master_secret, info="yakr/relay-wrap/v0")
 
 ---
 
-## 17. Direct P2P Delivery
+## 17. Direct Delivery (Optional)
 
-Yakr should try direct delivery before relay delivery when possible.
+Yakr tries **direct delivery** before relay delivery when allowed — typically a **short timeout** (e.g. 2 seconds). Direct delivery is an optimization for latency, not the correctness path.
 
-Direct options:
+Realistic direct options (in rough order of practicality for mobile):
 
 ```text
-LAN discovery
-DHT rendezvous
-UDP hole punching
-IPv6 direct
-manual endpoint hints
-Tor onion service
-WebRTC-style ICE
+Same LAN / link-local          — co-located peers, no NAT between them
+Tor onion service (.onion)     — both run Tor; still transits Tor relays
+UDP hole punching              — unreliable on cellular; deferred
+Public IPv6 endpoint           — rare on mobile; carriers often block inbound
 ```
 
-However, Yakr must not depend on direct reachability.
+Deferred or non-normative for v1:
+
+```text
+DHT rendezvous
+WebRTC-style ICE as a core dependency
+```
+
+**Mobile reality:** iPhones and typical UK cellular links cannot sustain an inbound mailbox for async chat. Backgrounded apps must not listen for `POST /v1/blobs` from the internet. **Recipients fetch via outbound poll to paired relays** (§18).
+
+Tor onion endpoints are the main credible option for **internet-wide direct** without hole punch — but traffic still flows through the Tor network (not a strict two-node wire). Tor does not remove the need for store-and-forward when the recipient is offline.
 
 ### 17.1 Direct Attempt Flow
 
 ```text
 1. Alice wants to send Bob a message.
 
-2. Alice checks Bob's latest delivery profile.
+2. Alice checks Bob's latest delivery profile and presence (if any).
 
-3. Alice attempts direct contact:
-   - LAN
-   - known endpoint
-   - DHT rendezvous
-   - hole punch
+3. Alice attempts direct contact when dialable:
+   - same LAN / direct_hints
+   - Tor .onion (future)
+   - hole punch (future)
 
-4. If direct succeeds:
+4. If direct succeeds within timeout:
    deliver immediately.
 
 5. If direct fails or times out:
-   use relay path.
+   POST to Bob's paired relay mailboxes (ordered failover).
 ```
 
 ### 17.2 Direct Delivery Privacy
 
-Direct delivery may reveal Alice and Bob's network addresses to each other, which is expected for direct communication.
-
-Users may disable direct P2P for higher privacy.
+Direct delivery may reveal network addresses to each other (or Tor paths). Users may disable direct attempts for higher privacy — relay-only delivery remains fully supported.
 
 ---
 
@@ -1579,32 +1607,32 @@ public identity surfaces
 
 Yakr does not require homeservers. Delivery is local-first and relay-assisted.
 
-### 23.3 Pure P2P Messengers
+### 23.3 Wire-level P2P messengers
 
 Example design pattern:
 
 ```text
-Alice directly connects to Bob.
-If Bob is offline, delivery waits.
+Alice opens a direct connection to Bob.
+If Bob is offline or behind NAT, delivery fails or waits.
 ```
 
-Advantages:
+Advantages when it works:
 
 ```text
-no server needed when peers are online
-simple trust model
-good direct privacy
+low latency
+no social relay setup
+addresses visible only to each other (modulo NAT/Tor/etc.)
 ```
 
-Disadvantages:
+Disadvantages on mobile:
 
 ```text
-offline delivery is hard
-NAT traversal is unreliable
-mobile background limitations
+offline async delivery is hard
+NAT / CGNAT / iOS background limits
+hole punch unreliable mobile↔mobile
 ```
 
-Yakr adds social relay store-and-forward to solve offline delivery.
+Yakr trades wire-level directness for **pairing-gated relay store-and-forward** — better fit for phones that sleep and networks that block inbound connections.
 
 ### 23.4 Relay Queue Messengers
 
@@ -1792,7 +1820,7 @@ background execution limits
 push notification dependence
 App Store policy
 no arbitrary background daemon
-limited P2P persistence
+limited inbound mailbox / background listener support
 ```
 
 iOS may need:
@@ -1841,7 +1869,7 @@ A DHT may help with:
 temporary invite rendezvous
 peer discovery
 relay discovery
-direct P2P bootstrap
+optional direct delivery bootstrap (LAN / Tor)
 ```
 
 But DHTs should not be primary message storage.
@@ -1930,7 +1958,7 @@ Batch where possible.
 
 Make relay participation explicit.
 
-Treat direct P2P as optional.
+Treat direct delivery as optional.
 
 Assume relays are curious.
 
@@ -1938,29 +1966,32 @@ Assume some relays are offline.
 
 Assume some relays collude.
 
-Assume mobile devices sleep.
+Assume mobile devices sleep and cannot accept inbound mail.
 
 Assume network conditions are hostile.
+
+Do not claim transport P2P where paired relays carry blobs.
 ```
 
 ---
 
 ## 28. Summary
 
-Yakr is a proposed decentralised messaging protocol based on the idea that messages can be securely carried by a user's trusted social relay network rather than by a central provider.
+Yakr is a decentralised messaging protocol: **end-to-end encrypted messages carried by pairing-gated social relays**, not by a central platform server.
 
 Its core properties are:
 
 ```text
-End-to-end encrypted messages
-No central message server required
-Friend/social relay store-and-forward delivery
-Direct P2P when available
-Offline delivery through relays
+End-to-end encrypted messages (only contacts read plaintext)
+No central platform message server required
+Pairing-gated relay advertisement — not “any open relay”
+Friend/social relay store-and-forward (correctness path on mobile)
+Outbound poll to fetch mail (NAT-safe receive)
+Optional direct delivery (LAN, future Tor/punch) — not required
+Offline delivery through paired relays
 Opaque mailbox tags
-Two-hop onion-wrapped relay paths
+Two-hop onion-wrapped relay paths (metadata reduction)
 Per-message path rotation
-Relay-visible metadata reduction
 Invite-based contact establishment
 No required phone numbers or global usernames
 Hybrid post-quantum cryptography
@@ -1968,8 +1999,8 @@ Local-first message history
 Open protocol direction
 ```
 
-Yakr's central insight is that a messenger does not need to choose between fragile pure P2P and centralised server delivery. A user's own social graph can become a decentralised, privacy-preserving delivery fabric.
+Yakr's central insight: you do not have to choose only between **fragile wire P2P** and **one company's servers**. A user's paired social graph can operate the delivery fabric — Charlie's homelab, Dennis's VPS — with cryptography ensuring relays never read mail.
 
-The result is not perfectly anonymous, not infrastructure-free, and not as simple as centralised messaging. But it offers a realistic and technically interesting path toward private messaging that remains useful when users are offline, behind NAT, or unwilling to rely on a single provider-operated server.
+The result is not perfectly anonymous, not infrastructure-free, and not wire-level P2P between phones on cellular. It is a realistic path toward private messaging that works when users are offline, behind NAT, and unwilling to depend on a single provider-operated server.
 
 Yakr should therefore be developed as a protocol-led product: first as a working CLI proof of concept, then as a reference implementation, then as a mobile product, and eventually as an open interoperable protocol.
