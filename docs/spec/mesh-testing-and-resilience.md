@@ -28,15 +28,17 @@ Yakr now has:
 
 ## Charlie mesh topology (test harness)
 
-The mesh stress tests use a **3-peer in-process relay** that mirrors the VPS Charlie demo with one intentional shortcut:
+The mesh stress tests mirror the **VPS trust model**:
 
 | Link | Setup |
 |------|--------|
 | Alice ↔ Bob | Invite rendezvous on Charlie relay (production path) |
-| Alice ↔ Charlie | Operator contact (`Contact.establish` + Charlie delivery profile) |
-| Bob ↔ Charlie | `Contact.establish` both ways — **test-only** so Charlie can message Bob directly |
+| Alice ↔ Charlie operator | Operator contact + Charlie delivery profile |
+| Alice ↔ Dennis operator | Operator contact + Dennis delivery profile |
+| Bob ↔ relay operators | **None** — Bob learns Charlie/Dennis TLS pins from Alice's signed profile |
+| Charlie ↔ Dennis operators | **None** — not paired with each other |
 
-In the real VPS demo, Bob has **no** Charlie contact; he routes via Alice's advertised relay in her delivery profile.
+Messaging is Alice ↔ Bob and Alice ↔ Charlie (operator as peer). There is no Bob ↔ Charlie shortcut.
 
 ### Running tests
 
@@ -52,7 +54,19 @@ uv run pytest packages/yakr-testkit/tests/test_mesh_relay_outage.py -v
 
 # Standalone runner (local in-process relay)
 uv run python scripts/stress_charlie_mesh.py
+
+# Homelab (real CHARLIE_URL + DENNIS_URL, operator homes must match deployed TLS)
+export CHARLIE_URL=https://YOUR_VPS:8090
+export DENNIS_URL=https://YOUR_VPS:8091
+export CHARLIE_OPERATOR_HOME=/path/to/charlie-operator
+export DENNIS_OPERATOR_HOME=/path/to/dennis-operator
+uv run pytest packages/yakr-testkit/tests/test_homelab_mesh.py -m homelab -v
+
+# Homelab full stress (110 messages)
+uv run python scripts/stress_charlie_mesh.py --live
 ```
+
+Homelab failover test additionally needs `CHARLIE_VPS_HOST` (or `VPS_HOST`) for `docker stop yakr-charlie` via SSH.
 
 ### Key modules
 
@@ -132,6 +146,6 @@ For operators and future send-retry worker design:
 - [x] Minimal presence v1 (`type=presence`, `yakr presence push`, routing prefers cache)
 - [x] Pairing-anchored TLS + homelab HTTPS deploy path
 - [x] CLI receipt flush resilience (`yakr receipts flush`, `pending_receipts` store)
-- [ ] Live homelab stress (`stress_charlie_mesh.py --live` wired to `CHARLIE_URL`)
-- [ ] Drop Bob↔Charlie test shortcut if stress should match VPS trust model exactly
+- [x] Live homelab tests (`test_homelab_mesh.py -m homelab`, `stress_charlie_mesh.py --live`)
+- [x] VPS trust model in testkit (no Bob↔Charlie operator shortcut)
 - [ ] Multi-device identity ([multi-device.md](./multi-device.md) — spec only)

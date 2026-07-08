@@ -55,7 +55,9 @@ def test_bob_resolves_dennis_tls_pin_from_alice_profile_only(tmp_path: Path) -> 
 
     mesh = build_charlie_mesh(tmp_path)
     try:
-        assert mesh.bob.store.get_contact("dennis") is None
+        from yakr_testkit.homelab_mesh import assert_vps_trust_model
+
+        assert_vps_trust_model(mesh)
         alice = mesh.bob.store.get_contact("alice")
         assert alice is not None and alice.delivery_profile is not None
         dennis_url = mesh.dennis_relay.relay_url
@@ -71,6 +73,25 @@ def test_bob_resolves_dennis_tls_pin_from_alice_profile_only(tmp_path: Path) -> 
             contact=alice,
         )
         assert pin == mesh.dennis_relay.tls_spki_sha256
+    finally:
+        mesh.stop()
+
+
+def test_bob_resolves_charlie_tls_pin_from_alice_profile_only(tmp_path: Path) -> None:
+    """Bob need not pair with Charlie operator to verify Charlie relay TLS."""
+    from yakr_core.http_client import resolve_tls_pin_for_url
+
+    mesh = build_charlie_mesh(tmp_path)
+    try:
+        alice = mesh.bob.store.get_contact("alice")
+        assert alice is not None and alice.delivery_profile is not None
+        charlie_url = mesh.charlie_relay.relay_url
+        pin = resolve_tls_pin_for_url(
+            f"{charlie_url}/healthz",
+            store=mesh.bob.store,
+            contact=alice,
+        )
+        assert pin == mesh.charlie_relay.tls_spki_sha256
     finally:
         mesh.stop()
 

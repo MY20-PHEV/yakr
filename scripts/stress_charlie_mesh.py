@@ -4,15 +4,18 @@
 Local in-process relay (default):
   uv run python scripts/stress_charlie_mesh.py
 
-Against homelab Charlie (fresh docker identities):
-  docker compose -f docker-compose.vps-charlie.yml down -v
-  export CHARLIE_URL=http://100.125.109.114:8090
-  docker compose -f docker-compose.vps-charlie.yml run --rm setup-vps-charlie
+Against homelab Charlie + Dennis (VPS trust model, no Bob↔Charlie shortcut):
+  export CHARLIE_URL=https://YOUR_VPS:8090
+  export DENNIS_URL=https://YOUR_VPS:8091
+  export CHARLIE_OPERATOR_HOME=/path/to/charlie-operator   # must match deployed TLS certs
+  export DENNIS_OPERATOR_HOME=/path/to/dennis-operator
+  export CHARLIE_WRAP_SECRET=...
+  export DENNIS_WRAP_SECRET=...
   uv run python scripts/stress_charlie_mesh.py --live
 
-Live mode uses subprocess yakr in docker for setup then runs Python mesh in-process
-with stores under /tmp or reuses docker volumes via compose exec — simpler to use
-local mesh against CHARLIE_URL with freshly built mesh in temp dir.
+Failover test (optional):
+  export CHARLIE_VPS_HOST=user@YOUR_VPS
+  uv run pytest packages/yakr-testkit/tests/test_homelab_mesh.py -m homelab -v
 """
 
 from __future__ import annotations
@@ -47,22 +50,24 @@ def main() -> None:
     parser.add_argument(
         "--live",
         action="store_true",
-        help="Use CHARLIE_URL from environment (homelab); does not start local relay",
+        help="Use CHARLIE_URL + DENNIS_URL homelab relays (VPS trust model)",
     )
     args = parser.parse_args()
 
     if args.live:
-        charlie_url = os.environ.get("CHARLIE_URL", "").rstrip("/")
-        if not charlie_url:
-            print("CHARLIE_URL required for --live", file=sys.stderr)
-            sys.exit(1)
-        print(f"Live mode not fully wired — use pytest against local relay or extend setup.")
-        print(f"Recommended: uv run pytest packages/yakr-testkit/tests/test_mesh_stress.py -v")
-        sys.exit(0)
+        from yakr_testkit.homelab_mesh import build_homelab_mesh, homelab_env_configured
 
-    tmp = Path(tempfile.mkdtemp(prefix="yakr-mesh-stress-"))
-    print(f"Mesh stress workspace: {tmp}")
-    mesh = build_charlie_mesh(tmp, wrap_secret=secrets.token_bytes(32))
+        if not homelab_env_configured():
+            print("CHARLIE_URL and DENNIS_URL required for --live", file=sys.stderr)
+            sys.exit(1)
+        tmp = Path(tempfile.mkdtemp(prefix="yakr-homelab-stress-"))
+        print(f"Homelab stress workspace: {tmp}")
+        mesh = build_homelab_mesh(tmp)
+    else:
+        tmp = Path(tempfile.mkdtemp(prefix="yakr-mesh-stress-"))
+        print(f"Mesh stress workspace: {tmp}")
+        mesh = build_charlie_mesh(tmp, wrap_secret=secrets.token_bytes(32))
+
     try:
         result = run_mesh_stress(mesh)
         print(f"Sent: {result['total_sent']} messages")

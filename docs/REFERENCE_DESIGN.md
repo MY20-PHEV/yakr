@@ -795,7 +795,7 @@ Peers exchange **live reachability** without re-signing profiles; relays fail ov
 - [x] Relay authorization for delivery profile advertisement
 - [x] VPS Charlie demo (Alice/Bob Docker + remote relay)
 - [ ] Full `presence-v1.md` (group relays, embedded client relay, `fetch --all`)
-- [ ] Five-peer testkit matching VPS trust model exactly (no Bob↔Charlie shortcut)
+- [x] Five-peer testkit matching VPS trust model (no Bob↔Charlie operator shortcut)
 - [ ] Embedded relay (`yakr relay embed`) on CLI/mobile
 
 ---

@@ -19,3 +19,6 @@ dev-dependencies = [
 testpaths = ["packages"]
 pythonpath = ["packages/yakr-core/src", "packages/yakr-relay/src", "packages/yakr-cli/src", "packages/yakr-mobile/src", "packages/yakr-testkit/src"]
 asyncio_mode = "auto"
+markers = [
+    "homelab: integration tests against real CHARLIE_URL + DENNIS_URL relays",
+]
