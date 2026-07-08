@@ -63,6 +63,45 @@ UDP hole punching MAY be added later as a **latency optimization** when both pee
 
 Recipients do not need inbound connectivity to **receive** — only outbound poll to shared relays.
 
+## iOS and cellular constraints
+
+This section records platform and carrier facts that bound what “direct” and “embedded relay” can mean for a typical UK mobile user (iPhone on LTE/5G, sometimes home Wi‑Fi).
+
+### Cellular IPv6 (UK and similar)
+
+Many UK carriers assign IPv6 on mobile data (e.g. EE on current plans; Three in many configurations; others vary). **Having an IPv6 address is not the same as being an internet-reachable server.**
+
+| Factor | Effect on Yakr |
+|--------|----------------|
+| Carrier inbound firewall | Some operators block unsolicited inbound on mobile data even when the handset has global IPv6 — P2P cannot rely on “v6 fixes NAT.” |
+| 464XLAT / CLAT | IPv4 traffic is translated; the v6 assignment is not “home broadband dual-stack” semantics. |
+| Privacy / rotating addresses | IPv6 on handsets may change; `reachable` must be fresh via presence, not a static profile hint. |
+| Outbound-only default | Phones are designed as clients; carriers expect outbound connections, not public listeners. |
+
+**Normative:** implementations MAY attempt direct delivery to a contact’s IPv6 `reachable` URL when presence is fresh and dialability is verified. They MUST NOT treat “cellular has IPv6” as sufficient for `relay.active: true` or as a replacement for friend-operator relays.
+
+### iOS listener and background execution
+
+Apple does not forbid binding a listening socket while the app is **foreground**, but iOS does not support a phone acting as a **persistent mailbox** for async messaging:
+
+1. **Background suspension** — shortly after leaving the foreground, the app is suspended. [TN2277](https://developer.apple.com/library/archive/technotes/tn2277/_index.html) requires **closing listening sockets in background** and reopening in foreground; otherwise peers connect to a deaf socket.
+2. **No general inbound wake** — there is no supported API to resume the app because a remote peer opened a TCP/UDP connection to the device (unlike push or outbound background URLSession).
+3. **Async delivery model** — Yakr recipients are usually offline or backgrounded when messages arrive; an iPhone cannot reliably accept `POST /v1/blobs` from the internet in that state.
+
+**Normative:** iOS (and similarly constrained Android background policies) MUST use **outbound poll** to friend-operator relays as the receive path. Embedded relay on iPhone is limited to **foreground + dialable `reachable`** (typically same LAN) or future explicit user opt-in foreground service — not background cellular mailbox duty.
+
+### Practical matrix (iPhone-first)
+
+| Scenario | Direct / embedded relay | Correctness path |
+|----------|-------------------------|------------------|
+| App backgrounded, cellular | No inbound listener | Poll relays |
+| App backgrounded, home Wi‑Fi | No inbound listener | Poll relays |
+| App foreground, same LAN as peer | LAN `reachable` / `direct_hints` may work | Relay if direct fails |
+| App foreground, cellular IPv6 | Rare; carrier may block inbound | Relay |
+| Either peer offline (async) | N/A | Store on relay; poll later |
+
+This is why Yakr is **decentralized E2E messaging with social relays**, not transport-level P2P between phones across the public internet.
+
 ## Consequences
 
 **Positive**
@@ -74,7 +113,7 @@ Recipients do not need inbound connectivity to **receive** — only outbound pol
 **Negative**
 
 - Groups without at least one reachable relay operator (VPS/homelab) cannot complete remote pairing or store-and-forward across the internet
-- Direct P2P latency benefits require future punch or IPv6 work
+- Direct latency benefits are limited to same-LAN, rare foreground+reachable cases, or future punch — not default iPhone cellular use
 
 ## References
 
