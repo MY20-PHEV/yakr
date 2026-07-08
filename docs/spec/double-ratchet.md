@@ -71,6 +71,10 @@ yakr/v1.0/double-ratchet-ck   # chain step
 
 Re-decrypting the same `(dh_public, message_n)` raises duplicate detection; `Session` maps this to `YAKR_ERR_DUPLICATE_SEQ`.
 
+## Application `seq` vs ratchet order
+
+The ratchet MAY decrypt a future wire message before earlier ones (using `skipped_keys`). Application logic MUST still accept only `inner.seq == last_recv_seq + 1`. If the ratchet decrypt succeeds but `seq` is not next, implementations MUST roll back receive ratchet state and surface `YAKR_ERR_DUPLICATE_SEQ` so the fetch loop can retry after lower `seq` blobs. See [fetch-algorithm.md](./fetch-algorithm.md).
+
 ## Initiator rule
 
 Lexicographically smaller contact name is the ratchet initiator when using `Contact.establish` (tests and `contact-add`). Invite pairing uses inviter/joiner roles.

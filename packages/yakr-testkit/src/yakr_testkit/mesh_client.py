@@ -172,59 +172,74 @@ class MeshParticipant:
                 items.append((None, item))
 
             seen: set[str] = set()
+            queue: list[dict] = []
             for _fetch_base, item in items:
                 ciphertext = str(item.get("ciphertext", ""))
                 if ciphertext in seen:
                     continue
                 seen.add(ciphertext)
-                outer = OuterBlob.from_relay_json(item)
-                try:
-                    inner = session.decrypt_outer(outer)
-                except DuplicateSeqError:
-                    continue
-                except YakrError:
-                    continue
+                queue.append(item)
+            queue.sort(key=lambda blob: int(blob.get("stored_at", 0)))
 
-                if inner.type == "profile" and inner.body:
-                    profile = DeliveryProfile.from_b64(inner.body)
-                    verify_delivery_profile(profile, contact.signing_public)
-                    contact.delivery_profile = profile
-                    self.store.save_contact(contact)
-                    continue
-
-                from yakr_core.presence import apply_presence_message
-
-                presence = apply_presence_message(self.store, contact, inner)
-                if presence is not None:
-                    self.store.save_contact(contact)
-                    continue
-
-                if inner.type == "receipt" and inner.message_id:
-                    self.store.mark_outbound_delivered(peer, inner.message_id)
-                    continue
-
-                if inner.type != "text":
-                    continue
-
-                if save_local:
-                    self.store.save_inbound_message(peer, inner, identity=self.identity)
-                self.store.save_contact(contact)
-                received.append(
-                    ReceivedMessage(
-                        sender=peer,
-                        body=inner.body,
-                        seq=inner.seq,
-                        valid_until=inner.valid_until,
-                    )
-                )
-
-                if send_receipts:
+            pending = list(queue)
+            while pending:
+                progressed = False
+                still_pending: list[dict] = []
+                for item in pending:
+                    outer = OuterBlob.from_relay_json(item)
                     try:
-                        self._send_receipt(session, contact, outer)
-                    except BaseException:
+                        inner = session.decrypt_outer(outer)
+                    except DuplicateSeqError:
+                        still_pending.append(item)
+                        continue
+                    except YakrError:
+                        continue
+                    progressed = True
+
+                    if inner.type == "profile" and inner.body:
+                        profile = DeliveryProfile.from_b64(inner.body)
+                        verify_delivery_profile(profile, contact.signing_public)
+                        contact.delivery_profile = profile
+                        self.store.save_contact(contact)
+                        continue
+
+                    from yakr_core.presence import apply_presence_message
+
+                    presence = apply_presence_message(self.store, contact, inner)
+                    if presence is not None:
+                        self.store.save_contact(contact)
+                        continue
+
+                    if inner.type == "receipt" and inner.message_id:
+                        self.store.mark_outbound_delivered(peer, inner.message_id)
+                        self.store.save_contact(contact)
+                        continue
+
+                    if inner.type != "text":
+                        continue
+
+                    if save_local:
+                        self.store.save_inbound_message(peer, inner, identity=self.identity)
+                    self.store.save_contact(contact)
+                    received.append(
+                        ReceivedMessage(
+                            sender=peer,
+                            body=inner.body,
+                            seq=inner.seq,
+                            valid_until=inner.valid_until,
+                        )
+                    )
+
+                    if send_receipts:
+                        try:
+                            self._send_receipt(session, contact, outer)
+                        except BaseException:
+                            self._unreceipted.append((peer, outer))
+                    else:
                         self._unreceipted.append((peer, outer))
-                else:
-                    self._unreceipted.append((peer, outer))
+                if not progressed:
+                    break
+                pending = still_pending
 
         return received
 

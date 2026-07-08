@@ -779,6 +779,7 @@ Peers exchange **live reachability** without re-signing profiles; relays fail ov
 | Minimal presence (`type=presence`, 30m TTL) | [presence-minimal.md](spec/presence-minimal.md) |
 | Pairing-anchored TLS + per-relay `tls_spki_sha256` | [tls-endpoints.md](spec/tls-endpoints.md) |
 | Ordered send failover + `yakr resend` | [relay-failover.md](spec/relay-failover.md) |
+| Fetch ordering + receipt state | [fetch-algorithm.md](spec/fetch-algorithm.md) |
 | Queued delivery receipts + `yakr receipts flush` | CLI + SQLite `pending_receipts` |
 | Charlie+Dennis mesh stress/outage tests | [mesh-testing-and-resilience.md](spec/mesh-testing-and-resilience.md) |
 | VPS Charlie homelab (HTTPS deploy path) | [demo-vps-charlie.md](demo-vps-charlie.md) |
@@ -813,6 +814,7 @@ YAKR_ERR_RELAY_OFFLINE
 YAKR_ERR_RELAY_UNAUTHORIZED
 YAKR_ERR_BLOB_EXPIRED
 YAKR_ERR_DECRYPT_FAILED
+YAKR_ERR_DUPLICATE_SEQ
 YAKR_ERR_PROFILE_STALE
 YAKR_ERR_ROUTE_EXHAUSTED
 YAKR_ERR_INVITE_EXPIRED

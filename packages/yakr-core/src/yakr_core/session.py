@@ -14,6 +14,7 @@ from yakr_core.identity import Contact, Identity
 from yakr_core.mailbox import MailboxTag, MailboxTagDeriver
 from yakr_core.message import InnerMessage, OuterBlob, message_id
 from yakr_core.privacy import decode_padded_plaintext, pad_plaintext
+from yakr_core.ratchet import RatchetState
 
 
 @dataclass
@@ -160,6 +161,12 @@ class Session:
 
     def decrypt_outer(self, outer: OuterBlob) -> InnerMessage:
         mode = self.contact.privacy_mode
+        ratchet_before = self.contact.ratchet.to_dict()
+        last_recv_before = self.contact.last_recv_seq
+
+        def _rollback() -> None:
+            self.contact.ratchet = RatchetState.from_dict(ratchet_before)
+
         try:
             padded = self.contact.ratchet.decrypt(outer.ciphertext)
         except ValueError as exc:
@@ -171,15 +178,24 @@ class Session:
         try:
             plaintext = decode_padded_plaintext(padded, mode)
         except ValueError as exc:
+            _rollback()
             raise DecryptError("invalid padded plaintext") from exc
         inner = InnerMessage.from_bytes(plaintext)
         if inner.conversation_id != self.contact.conversation_id:
+            _rollback()
             raise DecryptError("conversation mismatch")
-        if inner.seq <= self.contact.last_recv_seq:
+        if inner.seq <= last_recv_before:
+            _rollback()
             raise DuplicateSeqError(f"duplicate seq {inner.seq}")
+        if inner.seq != last_recv_before + 1:
+            _rollback()
+            raise DuplicateSeqError(
+                f"out-of-order seq {inner.seq}, expected {last_recv_before + 1}"
+            )
         try:
             enforce_message_ttl(inner.valid_until)
         except MessageExpiredError:
+            _rollback()
             raise
         self.contact.last_recv_seq = inner.seq
         return inner

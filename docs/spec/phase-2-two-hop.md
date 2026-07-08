@@ -36,6 +36,8 @@ Mailbox relay decrypts and stores the opaque blob via the Phase 1 blob store.
 Delivery receipts are encrypted inner messages of type `receipt`. The recipient
 returns them over the reversed two-hop route (`mailbox,entry`).
 
+Each inbound `text` message MUST produce a distinct receipt `seq`. Fetch implementations MUST follow [fetch-algorithm.md](./fetch-algorithm.md) so send-side ratchet state is not overwritten when persisting receive-side state.
+
 ## Exit Criteria
 
 - [x] Entry relay forwards without storing mailbox tags

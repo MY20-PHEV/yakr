@@ -184,6 +184,17 @@ class MobileStore:
     def list_outbound_pending(self, contact_name: str) -> list[tuple[str, int, str]]:
         return self.file_store.list_outbound_pending(contact_name)
 
+    def list_sent_messages(self, contact_name: str) -> list[tuple[int, str]]:
+        return self.file_store.list_sent_messages(contact_name)
+
+    def list_inbound_messages_timed(
+        self, contact_name: str, identity: Identity
+    ) -> list[tuple[int, str, int]]:
+        return self.file_store.list_inbound_messages_timed(contact_name, identity)
+
+    def list_sent_messages_timed(self, contact_name: str) -> list[tuple[int, str, int]]:
+        return self.file_store.list_sent_messages_timed(contact_name)
+
     def save_local_profile(self, profile: DeliveryProfile) -> None:
         self.file_store.save_local_profile(profile)
 

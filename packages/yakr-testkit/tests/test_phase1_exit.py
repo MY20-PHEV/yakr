@@ -57,6 +57,26 @@ def test_duplicate_seq_rejected() -> None:
         bob_session.decrypt_outer(encrypted.outer_blob)
 
 
+def test_out_of_order_inner_seq_buffered() -> None:
+    alice = Identity.generate("alice")
+    bob = Identity.generate("bob")
+    alice_contact = Contact.establish(alice, "bob", export_public_bundle(bob))
+    bob_contact = Contact.establish(bob, "alice", export_public_bundle(alice))
+
+    alice_session = Session(alice, alice_contact)
+    first = alice_session.encrypt_text("one")
+    second = alice_session.encrypt_text("two")
+    third = alice_session.encrypt_text("three")
+
+    bob_session = Session(bob, bob_contact)
+    with pytest.raises(DuplicateSeqError):
+        bob_session.decrypt_outer(third.outer_blob)
+    bob_session.decrypt_outer(first.outer_blob)
+    bob_session.decrypt_outer(second.outer_blob)
+    inner = bob_session.decrypt_outer(third.outer_blob)
+    assert inner.body == "three"
+
+
 def test_relay_payload_has_no_plaintext(relay_server: str) -> None:
     alice = Identity.generate("alice")
     bob = Identity.generate("bob")
