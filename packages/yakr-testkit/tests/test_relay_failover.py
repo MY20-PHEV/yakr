@@ -11,6 +11,7 @@ import uvicorn
 
 from yakr_core.delivery_profile import RelayDescriptor, create_delivery_profile
 from yakr_core.identity import Contact, Identity, export_public_bundle
+from yakr_core.profile_ack import apply_peer_profile_ack
 from yakr_core.session import Session
 from yakr_core.store import FileLocalStore
 from yakr_cli.network import deliver_encrypted, delivery_mailbox_urls
@@ -60,15 +61,16 @@ def test_delivery_mailbox_urls_prefers_recipient_then_sender(tmp_path: Path) -> 
         ],
     )
     alice_store = FileLocalStore(tmp_path / "alice")
-    alice_store.save_local_profile(
-        create_delivery_profile(
-            alice,
-            relay_descriptors=[
-                RelayDescriptor("alice-a", "both", "http://alice-a", secrets.token_bytes(32)),
-                RelayDescriptor("alice-b", "both", "http://alice-b", secrets.token_bytes(32)),
-            ],
-        )
+    alice_profile = create_delivery_profile(
+        alice,
+        relay_descriptors=[
+            RelayDescriptor("alice-a", "both", "http://alice-a", secrets.token_bytes(32)),
+            RelayDescriptor("alice-b", "both", "http://alice-b", secrets.token_bytes(32)),
+        ],
     )
+    alice_store.save_local_profile(alice_profile)
+    apply_peer_profile_ack(contact, alice_profile)
+    alice_store.save_contact(contact)
 
     urls = delivery_mailbox_urls(contact, None, store=alice_store)
     assert urls == ["http://bob-relay", "http://alice-a", "http://alice-b"]
@@ -80,27 +82,30 @@ def test_deliver_failover_to_secondary_relay(dual_mailbox_relays, tmp_path: Path
     bob = Identity.generate("bob")
     contact = Contact.establish(alice, "bob", export_public_bundle(bob))
     alice_store = FileLocalStore(tmp_path / "alice")
-    alice_store.save_local_profile(
-        create_delivery_profile(
-            alice,
-            relay_descriptors=[
-                RelayDescriptor("primary", "both", urls["primary"], secrets_map["primary"]),
-                RelayDescriptor("secondary", "both", urls["secondary"], secrets_map["secondary"]),
-            ],
-        )
+    alice_profile = create_delivery_profile(
+        alice,
+        relay_descriptors=[
+            RelayDescriptor("primary", "both", urls["primary"], secrets_map["primary"]),
+            RelayDescriptor("secondary", "both", urls["secondary"], secrets_map["secondary"]),
+        ],
     )
+    alice_store.save_local_profile(alice_profile)
+    apply_peer_profile_ack(contact, alice_profile)
+    alice_store.save_contact(contact)
 
     # Primary relay offline — delivery should land on secondary.
     dead_primary = "http://127.0.0.1:1"
-    alice_store.save_local_profile(
-        create_delivery_profile(
-            alice,
-            relay_descriptors=[
-                RelayDescriptor("primary", "both", dead_primary, secrets_map["primary"]),
-                RelayDescriptor("secondary", "both", urls["secondary"], secrets_map["secondary"]),
-            ],
-        )
+    alice_profile_dead = create_delivery_profile(
+        alice,
+        relay_descriptors=[
+            RelayDescriptor("primary", "both", dead_primary, secrets_map["primary"]),
+            RelayDescriptor("secondary", "both", urls["secondary"], secrets_map["secondary"]),
+        ],
+        version=2,
     )
+    alice_store.save_local_profile(alice_profile_dead)
+    apply_peer_profile_ack(contact, alice_profile_dead)
+    alice_store.save_contact(contact)
 
     encrypted = Session(alice, contact).encrypt_text("failover please")
     mode = deliver_encrypted(encrypted, contact=contact, identity=alice, store=alice_store)
@@ -124,15 +129,16 @@ def test_deliver_uses_primary_when_healthy(dual_mailbox_relays, tmp_path: Path) 
     bob = Identity.generate("bob")
     contact = Contact.establish(alice, "bob", export_public_bundle(bob))
     alice_store = FileLocalStore(tmp_path / "alice")
-    alice_store.save_local_profile(
-        create_delivery_profile(
-            alice,
-            relay_descriptors=[
-                RelayDescriptor("primary", "both", urls["primary"], secrets_map["primary"]),
-                RelayDescriptor("secondary", "both", urls["secondary"], secrets_map["secondary"]),
-            ],
-        )
+    alice_profile = create_delivery_profile(
+        alice,
+        relay_descriptors=[
+            RelayDescriptor("primary", "both", urls["primary"], secrets_map["primary"]),
+            RelayDescriptor("secondary", "both", urls["secondary"], secrets_map["secondary"]),
+        ],
     )
+    alice_store.save_local_profile(alice_profile)
+    apply_peer_profile_ack(contact, alice_profile)
+    alice_store.save_contact(contact)
 
     encrypted = Session(alice, contact).encrypt_text("primary path")
     mode = deliver_encrypted(encrypted, contact=contact, identity=alice, store=alice_store)

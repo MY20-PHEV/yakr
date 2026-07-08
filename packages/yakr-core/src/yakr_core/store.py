@@ -67,6 +67,21 @@ class LocalStore(Protocol):
 
     def delete_pending_receipt(self, contact_name: str, delivered_id: str) -> bool: ...
 
+    def save_profile_ack_pending(
+        self,
+        contact_name: str,
+        msg_id: str,
+        *,
+        profile_version: int,
+        relay_names: tuple[str, ...],
+    ) -> None: ...
+
+    def take_profile_ack_pending(
+        self,
+        contact_name: str,
+        msg_id: str,
+    ) -> tuple[int, tuple[str, ...]] | None: ...
+
 
 @dataclass
 class FileLocalStore:
@@ -200,6 +215,17 @@ class FileLocalStore:
                 route TEXT,
                 created_at INTEGER NOT NULL,
                 PRIMARY KEY (contact_name, delivered_id)
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS profile_ack_pending (
+                contact_name TEXT NOT NULL,
+                msg_id TEXT NOT NULL,
+                profile_version INTEGER NOT NULL,
+                relay_names TEXT NOT NULL,
+                PRIMARY KEY (contact_name, msg_id)
             )
             """
         )
@@ -534,3 +560,47 @@ class FileLocalStore:
             )
             conn.commit()
             return cursor.rowcount > 0
+
+    def save_profile_ack_pending(
+        self,
+        contact_name: str,
+        msg_id: str,
+        *,
+        profile_version: int,
+        relay_names: tuple[str, ...],
+    ) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO profile_ack_pending
+                (contact_name, msg_id, profile_version, relay_names)
+                VALUES (?, ?, ?, ?)
+                """,
+                (contact_name, msg_id, profile_version, ",".join(relay_names)),
+            )
+            conn.commit()
+
+    def take_profile_ack_pending(
+        self,
+        contact_name: str,
+        msg_id: str,
+    ) -> tuple[int, tuple[str, ...]] | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                """
+                SELECT profile_version, relay_names
+                FROM profile_ack_pending
+                WHERE contact_name = ? AND msg_id = ?
+                """,
+                (contact_name, msg_id),
+            ).fetchone()
+            if row is None:
+                return None
+            conn.execute(
+                "DELETE FROM profile_ack_pending WHERE contact_name = ? AND msg_id = ?",
+                (contact_name, msg_id),
+            )
+            conn.commit()
+        version = int(row[0])
+        names = tuple(part.strip() for part in str(row[1]).split(",") if part.strip())
+        return version, names

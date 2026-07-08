@@ -21,7 +21,7 @@ from yakr_core.relay_authorization import (
     authorized_publish_relays,
     self_relay_descriptor,
 )
-from yakr_core.session import Session
+from yakr_core.profile_ack import relay_names_from_profile
 from yakr_core.store import FileLocalStore
 from yakr_cli.network import deliver_encrypted
 from yakr_cli.presence_cmds import publish_own_presence, relay_locations_changed
@@ -174,6 +174,12 @@ def profile_push(
     session = Session(identity, contact)
     encrypted = session.encrypt_profile(profile)
     store.save_contact(contact)
+    store.save_profile_ack_pending(
+        contact_name,
+        encrypted.msg_id,
+        profile_version=profile.version,
+        relay_names=relay_names_from_profile(profile),
+    )
     deliver_encrypted(
         encrypted,
         contact=contact,

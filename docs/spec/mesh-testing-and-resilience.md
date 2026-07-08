@@ -66,6 +66,36 @@ uv run pytest packages/yakr-testkit/tests/test_homelab_mesh.py -m homelab -v
 uv run python scripts/stress_charlie_mesh.py --live
 ```
 
+### Hybrid homelab stress (Alice ↔ Bob, 100 messages)
+
+Exercises **Charlie + Dennis single-hop failover**, random burst sends, and concurrent **fetch-all** polling every 1–3s. Success requires matching chat histories in send order and zero pending receipts. Sender fallbacks use only relays the peer has acknowledged (pairing or profile push + receipt).
+
+| Peer | Role | Simulated | Live |
+|------|------|-----------|------|
+| Alice | Client | Local tmp home | Local tmp home |
+| Charlie | Relay (`both`) | In-process | `CHARLIE_URL` or local container |
+| Bob | Client | Local tmp home | Local tmp home |
+| Dennis | Relay (`both`) | In-process | `DENNIS_URL` (homelab container) |
+
+Trust model: Alice paired with Charlie + Dennis; Bob paired with Dennis only (learns Charlie via Alice profile).
+
+```bash
+# Simulated (CI / no homelab) — single-hop failover across Charlie + Dennis
+uv run pytest packages/yakr-testkit/tests/test_hybrid_homelab_mesh.py::test_hybrid_alice_bob_random_stress_simulated -v
+uv run python scripts/hybrid_homelab_stress.py --seed 42
+
+# Live homelab — single-hop failover (requires deployed Dennis + operator homes)
+export DENNIS_URL=https://YOUR_HOMELAB:8091
+export DENNIS_OPERATOR_HOME=~/.yakr/dennis
+export DENNIS_WRAP_SECRET=...
+# optional local Charlie container instead of in-process relay:
+export CHARLIE_URL=https://127.0.0.1:8090
+export CHARLIE_OPERATOR_HOME=~/.yakr/charlie
+export CHARLIE_WRAP_SECRET=...
+uv run python scripts/hybrid_homelab_stress.py --live
+uv run pytest packages/yakr-testkit/tests/test_hybrid_homelab_mesh.py -m homelab -v
+```
+
 Homelab failover test additionally needs `CHARLIE_VPS_HOST` (or `VPS_HOST`) for `docker stop yakr-charlie` via SSH.
 
 ### Key modules
@@ -147,5 +177,7 @@ For operators and future send-retry worker design:
 - [x] Pairing-anchored TLS + homelab HTTPS deploy path
 - [x] CLI receipt flush resilience (`yakr receipts flush`, `pending_receipts` store)
 - [x] Live homelab tests (`test_homelab_mesh.py -m homelab`, `stress_charlie_mesh.py --live`)
+- [x] Hybrid homelab Alice↔Bob stress (`hybrid_homelab_stress.py`, `test_hybrid_homelab_mesh.py`)
+- [x] Single-hop default + profile-ack sender fallback gate
 - [x] VPS trust model in testkit (no Bob↔Charlie operator shortcut)
 - [ ] Multi-device identity ([multi-device.md](./multi-device.md) — spec only)

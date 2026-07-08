@@ -145,7 +145,8 @@ Bob learns Charlie's TLS pin from Alice's profile (transitive trust).
 Bob sends to Alice via Alice's advertised relays; Bob does not need a Charlie contact.
 
 No relay reads message plaintext.
-Multi-hop onion routing reduces what any single relay learns about the path.
+Recipients poll every mailbox they know about; senders must not store mail on
+relays the recipient has not yet learned via pairing or an acknowledged profile push.
 ```
 
 This is a core strength: **infrastructure is socially scoped**, not “any TURN server on the internet.” Rendezvous for pairing MAY use a reachable relay URL without operator pairing; **advertising** a relay in a profile requires operator pairing.
@@ -252,7 +253,8 @@ Layer 3: Blob Transport
   Opaque encrypted packets, mailbox tags, receipts, expiry.
 
 Layer 4: Relay Mesh
-  Friend relays, two-hop routing, path rotation, store-and-forward.
+  Friend relays, single-hop store-and-forward, profile-ordered failover.
+  (Optional future: two-hop onion paths for metadata reduction.)
 
 Layer 5: App Semantics
   Chat messages, attachments, read receipts, groups, profiles.
@@ -265,24 +267,21 @@ Alice wants to send Bob a message.
 
 1. Alice encrypts the message for Bob.
 
-2. Alice wraps it in an opaque blob.
+2. Alice wraps it in an opaque blob with a mailbox tag.
 
-3. Alice selects a fresh route:
-   Alice-side entry relay → Bob-side mailbox relay.
+3. Alice posts the blob to a reachable mailbox relay:
+   first Bob's advertised mailboxes (from his signed profile),
+   then Alice's own operator mailboxes as sender fallback —
+   but only relays Bob has already acknowledged in her profile.
 
-4. Alice onion-wraps the relay instructions.
+4. The mailbox relay stores the opaque blob under the tag.
 
-5. Alice sends the packet to the entry relay.
+5. Bob later polls mailbox URLs from his profile union (Alice's relays,
+   his own, and the trust graph) using the same session-derived tags.
 
-6. Entry relay forwards to the mailbox relay.
+6. Bob decrypts the blob locally.
 
-7. Mailbox relay stores the opaque blob under an opaque mailbox tag.
-
-8. Bob later fetches from his mailbox relay.
-
-9. Bob decrypts the blob locally.
-
-10. Bob sends a receipt back using a similarly private path.
+7. Bob sends a delivery receipt back over the same single-hop path.
 ```
 
 ---
@@ -886,11 +885,13 @@ Relay only for 24-hour expiry messages.
 
 ---
 
-## 13. Two-Hop Delivery
+## 13. Two-Hop Delivery (optional)
 
-Yakr's default privacy-preserving store-and-forward route should require at least two relays where possible.
+The **reference client v1** uses **single-hop** mailbox `POST /v1/blobs` with
+ordered failover (§18). The wire format and relay roles below remain in the
+protocol for deployments that want stronger metadata separation.
 
-Example route:
+Yakr MAY use a two-relay route where operators and clients opt in:
 
 ```text
 Alice
@@ -1352,45 +1353,37 @@ Offline delivery is Yakr's central feature.
 ```text
 1. Alice encrypts message for Bob.
 
-2. Alice selects an entry relay and mailbox relay.
+2. Alice builds an ordered mailbox URL list:
+   Bob's profile mailboxes first, then Alice's acknowledged sender fallbacks.
 
-3. Alice sends onion-wrapped packet to entry relay.
+3. Alice POSTs the opaque blob to the first healthy mailbox relay.
 
-4. Entry relay forwards to mailbox relay.
+4. Alice keeps a local pending copy until receipt.
 
-5. Mailbox relay stores blob under opaque mailbox tag.
+5. Bob calculates mailbox tags for missed epochs.
 
-6. Alice keeps a local pending copy until receipt.
+6. Bob polls mailbox URLs from profiles and the trust graph.
+
+7. Bob fetches matching blobs, decrypts locally, and sends a receipt.
+
+8. Alice fetches the receipt and clears pending.
 ```
 
-### 18.2 Bob Comes Online Later
+### 18.2 Profile updates and new relays
+
+If Alice adds a new relay operator (Eve) to her published profile, she MUST push
+the updated profile to Bob and receive a delivery receipt before using Eve as a
+sender fallback for Bob. Pairing exchanges an initial profile snapshot; later
+changes use `profile push` or an encrypted `type=profile` message on fetch.
+
+### 18.3 After delivery
 
 ```text
-1. Bob calculates mailbox tags for missed epochs.
+1. Alice marks the message delivered when the receipt arrives.
 
-2. Bob contacts mailbox relays from his profile.
+2. Alice stops retrying.
 
-3. Bob fetches matching blobs or recent buckets.
-
-4. Bob attempts local decryption.
-
-5. Bob verifies sender/authentication inside decrypted content.
-
-6. Bob stores the message locally.
-
-7. Bob sends receipt back through Yakr.
-```
-
-### 18.3 Alice Receives Receipt
-
-```text
-1. Alice fetches receipt.
-
-2. Alice marks message as delivered.
-
-3. Alice stops retrying.
-
-4. Relays may delete the delivered blob.
+3. Relays may delete the delivered blob after TTL.
 ```
 
 ---
@@ -1716,8 +1709,9 @@ QR/link invites
 text messages
 delivery receipts
 friend relay opt-in
-two-hop delivery
-path rotation
+single-hop mailbox delivery (default reference path)
+profile push before new sender-fallback relays
+path rotation (optional / future)
 Android first if practical
 desktop/CLI prototype before mobile
 ```
@@ -1792,7 +1786,7 @@ Bob comes online.
 Bob retrieves and decrypts message.
 ```
 
-### Phase 2: Two-Hop Onion Relay
+### Phase 2: Two-Hop Onion Relay (wire format; optional in reference client)
 
 Add:
 
@@ -1804,6 +1798,9 @@ relay-local storage
 expiry
 receipts
 ```
+
+Reference CLI v1 delivers single-hop only; onion packets are retained for
+interop tests and future metadata-hardening builds.
 
 ### Phase 3: Path Rotation
 
@@ -2083,8 +2080,9 @@ Optional direct delivery (LAN, future Tor/punch) — not required
 Future offline mesh transports (Meshtastic / LoRaWAN) over paired gateways
 Offline delivery through paired relays
 Opaque mailbox tags
-Two-hop onion-wrapped relay paths (metadata reduction)
-Per-message path rotation
+Single-hop mailbox POST + outbound poll (reference client default)
+Optional two-hop onion paths (wire format retained; not used by reference client v1)
+Per-message path rotation (optional)
 Invite-based contact establishment
 No required phone numbers or global usernames
 Hybrid post-quantum cryptography

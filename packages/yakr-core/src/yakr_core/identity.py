@@ -146,6 +146,8 @@ class Contact:
     transcript_hash: bytes | None = None
     ratchet: RatchetState | None = None
     delivery_profile: DeliveryProfile | None = None
+    peer_acked_my_profile_version: int = 0
+    peer_acked_my_relay_names: tuple[str, ...] = ()
     hybrid_pq: bool = False
     session_started_at: int = 0
     privacy_mode: PrivacyMode = "fast"
@@ -192,6 +194,10 @@ class Contact:
             payload["ratchet"] = json.dumps(self.ratchet.to_dict())
         if self.delivery_profile is not None:
             payload["delivery_profile"] = self.delivery_profile.to_b64()
+        if self.peer_acked_my_profile_version:
+            payload["peer_acked_my_profile_version"] = self.peer_acked_my_profile_version
+        if self.peer_acked_my_relay_names:
+            payload["peer_acked_my_relay_names"] = ",".join(self.peer_acked_my_relay_names)
         if self.hybrid_pq:
             payload["hybrid_pq"] = 1
         if self.session_started_at:
@@ -211,6 +217,12 @@ class Contact:
         delivery_profile = None
         if "delivery_profile" in payload:
             delivery_profile = DeliveryProfile.from_b64(str(payload["delivery_profile"]))
+        peer_acked_my_relay_names: tuple[str, ...] = ()
+        if "peer_acked_my_relay_names" in payload:
+            raw = str(payload["peer_acked_my_relay_names"]).strip()
+            peer_acked_my_relay_names = tuple(
+                part.strip() for part in raw.split(",") if part.strip()
+            )
         contact_id = b64decode(str(payload["contact_id"])) if "contact_id" in payload else None
         transcript_hash = (
             b64decode(str(payload["transcript_hash"])) if "transcript_hash" in payload else None
@@ -227,6 +239,8 @@ class Contact:
             transcript_hash=transcript_hash,
             ratchet=ratchet,
             delivery_profile=delivery_profile,
+            peer_acked_my_profile_version=int(payload.get("peer_acked_my_profile_version", 0)),
+            peer_acked_my_relay_names=peer_acked_my_relay_names,
             hybrid_pq=bool(int(payload.get("hybrid_pq", 0))),
             session_started_at=int(payload.get("session_started_at", 0)),
             privacy_mode=str(payload.get("privacy_mode", "fast")),  # type: ignore[arg-type]

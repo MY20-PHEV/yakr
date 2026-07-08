@@ -3,7 +3,7 @@ from __future__ import annotations
 from rich.console import Console
 
 from yakr_core.crypto import derive_mailbox_secret
-from yakr_core.delivery_profile import DeliveryProfile, verify_delivery_profile
+from yakr_core.profile_ack import record_profile_ack_on_receipt, relay_names_from_profile
 from yakr_core.errors import ContactNotFoundError, DuplicateSeqError, YakrError
 from yakr_core.identity import Contact, Identity
 from yakr_core.message import OuterBlob, message_id
@@ -144,6 +144,7 @@ def fetch_contact_inbound(
                 if inner.type == "receipt" and inner.message_id:
                     if store.mark_outbound_delivered(contact_name, inner.message_id) and not quiet:
                         console.print(f"[green]Delivery receipt for {inner.message_id[:12]}…[/green]")
+                    record_profile_ack_on_receipt(store, contact, contact_name, inner.message_id)
                     store.save_contact(contact)
                     continue
 

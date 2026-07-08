@@ -1,7 +1,12 @@
 # Phase 2 — Two-Hop Onion Relay
 
 **Protocol:** `yakr-v0.2`  
-**Status:** Implemented
+**Status:** Implemented (wire format); **not used by reference client v1**
+
+The reference CLI and testkit default to **single-hop** `POST /v1/blobs` delivery
+with ordered mailbox failover. Two-hop onion packets remain in the spec and
+test vectors for optional metadata-hardening deployments; see
+[relay-failover.md](./relay-failover.md).
 
 ## Goal
 
@@ -33,8 +38,10 @@ Mailbox relay decrypts and stores the opaque blob via the Phase 1 blob store.
 
 ## Receipts
 
-Delivery receipts are encrypted inner messages of type `receipt`. The recipient
-returns them over the reversed two-hop route (`mailbox,entry`).
+Delivery receipts are encrypted inner messages of type `receipt`. In **two-hop**
+deployments the recipient MAY return them over the reversed route
+(`mailbox,entry`). The **reference client** uses the same single-hop mailbox
+failover path as sends ([relay-failover.md](./relay-failover.md)).
 
 Each inbound `text` message MUST produce a distinct receipt `seq`. Fetch implementations MUST follow [fetch-algorithm.md](./fetch-algorithm.md) so send-side ratchet state is not overwritten when persisting receive-side state.
 

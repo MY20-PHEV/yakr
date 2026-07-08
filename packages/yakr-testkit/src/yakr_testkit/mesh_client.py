@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import threading
 from dataclasses import dataclass, field
 
 import httpx
@@ -47,8 +48,13 @@ class MeshParticipant:
     relay_url: str
     sent: list[SentMessage] = field(default_factory=list)
     _unreceipted: list[tuple[str, OuterBlob]] = field(default_factory=list)
+    _send_lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
     def send(self, recipient: str, body: str) -> SentMessage:
+        with self._send_lock:
+            return self._send_unlocked(recipient, body)
+
+    def _send_unlocked(self, recipient: str, body: str) -> SentMessage:
         contact = self.store.get_contact(recipient)
         if contact is None:
             raise ValueError(f"{self.name} has no contact {recipient}")
@@ -212,6 +218,9 @@ class MeshParticipant:
 
                     if inner.type == "receipt" and inner.message_id:
                         self.store.mark_outbound_delivered(peer, inner.message_id)
+                        from yakr_core.profile_ack import record_profile_ack_on_receipt
+
+                        record_profile_ack_on_receipt(self.store, contact, peer, inner.message_id)
                         self.store.save_contact(contact)
                         continue
 
@@ -264,6 +273,7 @@ class MeshParticipant:
         return sent
 
     def _send_receipt(self, session: Session, contact, outer: OuterBlob) -> None:
+        previous_send_seq = contact.next_send_seq
         receipt = session.encrypt_receipt(message_id(outer.ciphertext))
         self.store.save_contact(contact)
         previous = os.environ.get("YAKR_RELAY_URL")
@@ -276,6 +286,10 @@ class MeshParticipant:
                 store=self.store,
                 allow_direct=False,
             )
+        except BaseException:
+            contact.next_send_seq = previous_send_seq
+            self.store.save_contact(contact)
+            raise
         finally:
             if previous is None:
                 os.environ.pop("YAKR_RELAY_URL", None)
@@ -295,3 +309,24 @@ class MeshParticipant:
         for peer in self.store.list_contacts():
             self.fetch(peer, send_receipts=False, save_local=False)
         return self.pending_count()
+
+    def fetch_all(
+        self,
+        *,
+        send_receipts: bool = True,
+        save_local: bool = True,
+    ) -> dict[str, list[ReceivedMessage]]:
+        """Fetch every paired contact (messages + receipts)."""
+        from yakr_cli.receipt_cmds import flush_pending_receipts
+
+        flush_pending_receipts(self.store, self.identity)
+        received: dict[str, list[ReceivedMessage]] = {}
+        for peer in self.store.list_contacts():
+            messages = self.fetch(
+                peer,
+                send_receipts=send_receipts,
+                save_local=save_local,
+            )
+            if messages:
+                received[peer] = messages
+        return received

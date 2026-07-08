@@ -46,7 +46,7 @@ Clients **reject decrypt/display** when `now > valid_until` (`YAKR_ERR_MESSAGE_E
 
 ## Delivery receipts
 
-Recipients send a delivery receipt after successfully decrypting text (single-hop and two-hop). Senders clear `outbound_pending` on receipt.
+Recipients send a delivery receipt after successfully decrypting text (single-hop by default; optional two-hop wire path). Senders clear `outbound_pending` on receipt.
 
 Receipts are inner messages of type `receipt` and share the contact `seq` counter with `text`. Fetch MUST persist ratchet state after processing each receipt and MUST NOT clobber send-side state when saving receive-side updates after sending receipts. See [fetch-algorithm.md](./fetch-algorithm.md).
 

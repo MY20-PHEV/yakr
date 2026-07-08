@@ -10,6 +10,7 @@ from cryptography.hazmat.primitives.asymmetric import x25519
 
 from yakr_core.crypto import hkdf_derive, x25519_shared_secret
 from yakr_core.delivery_profile import DeliveryProfile, verify_delivery_profile
+from yakr_core.profile_ack import apply_peer_profile_ack_from_bytes
 from yakr_core.hybrid_pq import derive_hybrid_master, kem_decapsulate, kem_encapsulate
 from yakr_core.identity import Contact, Identity, b64decode, b64encode, conversation_id_for
 from yakr_core.invite import InviteBundle, invite_supports_hybrid
@@ -384,6 +385,7 @@ def inviter_complete_pairing(
         hybrid_pq=hybrid,
         session_started_at=now,
     )
+    apply_peer_profile_ack_from_bytes(contact, inviter_profile, identity.signing_public_bytes)
     response = PairingResponse(
         inviter_ephemeral_public=inviter_ephemeral_public,
         transcript_hash=transcript_hash,
@@ -414,7 +416,7 @@ def joiner_complete_pairing(
         pq_secret=pq_secret,
     )
     now = int(time.time() * 1000)
-    return Contact(
+    contact = Contact(
         name=invite.inviter_name,
         signing_public=invite.signing_public,
         agreement_public=invite.agreement_public,
@@ -430,3 +432,5 @@ def joiner_complete_pairing(
         hybrid_pq=hybrid,
         session_started_at=now,
     )
+    apply_peer_profile_ack_from_bytes(contact, request.joiner_profile, identity.signing_public_bytes)
+    return contact
