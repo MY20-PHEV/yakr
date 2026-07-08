@@ -902,6 +902,7 @@ Phase 1–9 are complete. Current focus (Phase 10 partial):
 3. **Full presence-v1** — group relay polling, dialable embedded relay (ADR 008), `fetch --all`
 4. **Transports** — Tor dial strings with same TLS pin model
 5. **Multi-device** — see `docs/spec/multi-device.md`
+6. **Ephemeral cloud relay** (future) — one-click deploy/teardown of containerized `yakr-relay` in user's AWS/GCP account with profile baked in ([ADR 009](adr/009-ephemeral-cloud-relay.md))
 
 ---
 
