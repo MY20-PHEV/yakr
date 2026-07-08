@@ -82,8 +82,36 @@ Global rate limiting per IP is deployment-specific and not mandated in v1. Opera
 2. **Profile staleness** — clients must refresh signed profiles; stale profile error is intentional.
 3. **No MLS-style group messaging** in v1 — pairwise sessions only.
 4. **Classical-only invites** remain vulnerable to future quantum break of recorded pairing transcripts; use hybrid invites when PQ libraries are available.
+5. **Presence metadata** — encrypted `type=presence` inner messages reduce exposure, but relays still observe poll timing, blob sizes, and which mailbox tags are requested. Fresh presence URLs in the cache are advisory; clients fall back to signed profile `relay_descriptors` when presence expires. Embedded relays MUST only set `relay.active=true` when a dialable `reachable` URL is verified (ADR 008).
 
-## 8. Review Checklist
+## 8. Presence and Relay Reachability (Phase 10)
+
+### 8.1 Threat
+
+A network or relay observer may learn:
+
+- When a client polls (`GET /v1/blobs/{tag}`)
+- Which relay URLs are contacted (including group relays from the trust graph)
+- Approximate poll frequency (mitigated by privacy modes and decoy tags)
+
+Presence payloads carried as E2E inner messages protect **operator location hints** from relay plaintext inspection, but a curious relay still sees **when** polls happen after presence-driven URL changes.
+
+### 8.2 Mitigations
+
+| Control | Effect |
+|---------|--------|
+| Short presence TTL (30 min) | Limits stale route abuse window |
+| Signed profile fallback | Wrap secrets cannot change via presence alone |
+| Pairing-gated relay advertisement | Random relays cannot be injected without profile update |
+| `relay_active=false` when not dialable | Prevents false embedded-relay advertisements on NAT/cellular |
+| Trust-graph poll set | `yakr fetch --all` polls authorized relays only (profiles + cached presence from paired operators) |
+| Decoy mailbox tags (Balanced/High) | Reduces tag correlation confidence |
+
+### 8.3 Residual risk
+
+Presence does not provide anonymity against a global observer correlating poll times across relays. High-risk users should combine relay placement, Tor transport (future), and operational discipline.
+
+## 9. Review Checklist
 
 - [x] Threat model states relay as honest-but-curious at best
 - [x] PQ upgrade path documented (hybrid + rekey policy)
@@ -91,7 +119,7 @@ Global rate limiting per IP is deployment-specific and not mandated in v1. Opera
 - [x] Error codes map to explicit failure modes
 - [x] Versioning rules prevent silent downgrade (protocol string checks on invites/profiles)
 
-## 9. Recommendations for Deployments
+## 10. Recommendations for Deployments
 
 1. Enable `require_tickets` on public relays.
 2. Run mailbox sweep (`sweep_expired`) on an interval.

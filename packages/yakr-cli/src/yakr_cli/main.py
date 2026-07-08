@@ -16,16 +16,13 @@ from yakr_core.delivery_profile import DeliveryProfile, verify_delivery_profile
 from yakr_core.errors import ContactNotFoundError, YakrError
 from yakr_core.identity import Contact, Identity, export_public_bundle
 from yakr_core.message import OuterBlob, message_id
-from yakr_core.presence import apply_presence_message
 from yakr_core.session import Session
 from yakr_core.store import FileLocalStore
 from yakr_cli.invite_cmds import invite_app
+from yakr_cli.fetch_cmds import fetch_all_contacts, fetch_contact_inbound
 from yakr_cli.network import (
     deliver_encrypted,
     delivery_mailbox_urls,
-    fetch_direct_blobs,
-    fetch_mailbox_urls,
-    fetch_relay_blobs,
     resend_pending_for_contact,
     resolve_contact_route,
 )
@@ -34,7 +31,8 @@ from yakr_cli.privacy_cmds import privacy_app
 
 from yakr_cli.profile_cmds import profile_app
 from yakr_cli.presence_cmds import presence_app
-from yakr_cli.receipt_cmds import flush_pending_receipts, receipts_app, send_delivery_receipt
+from yakr_cli.receipt_cmds import receipts_app
+from yakr_cli.relay_embed_cmds import relay_ops_app
 
 app = typer.Typer(no_args_is_help=True, help="Yakr reference client")
 app.add_typer(invite_app, name="invite")
@@ -42,6 +40,7 @@ app.add_typer(profile_app, name="profile")
 app.add_typer(presence_app, name="presence")
 app.add_typer(receipts_app, name="receipts")
 app.add_typer(privacy_app, name="privacy")
+app.add_typer(relay_ops_app, name="relay")
 console = Console()
 
 
@@ -178,117 +177,32 @@ def send_cmd(
 
 @app.command("fetch")
 def fetch_cmd(
-    contact_name: str = typer.Argument(..., help="Contact to fetch messages from"),
+    contact_name: str | None = typer.Argument(
+        None,
+        help="Contact to fetch messages from (omit with --all)",
+    ),
+    all_contacts: bool = typer.Option(False, "--all", help="Fetch from all paired contacts"),
     route: str | None = typer.Option(None, "--route", help="Two-hop route for delivery receipts"),
 ) -> None:
-    """Fetch and decrypt messages from the relay."""
+    """Fetch and decrypt messages from relay mailboxes."""
     store = _store()
     identity = _require_identity(store)
-    contact = store.get_contact(contact_name)
-    if contact is None:
-        raise ContactNotFoundError(f"unknown contact: {contact_name}")
 
-    session = Session(identity, contact)
+    if all_contacts:
+        fetch_all_contacts(store, identity, route=route)
+        return
+
+    if contact_name is None:
+        console.print("[red]Provide a contact name or use --all[/red]")
+        raise typer.Exit(code=1)
+
     store.sweep_expired_messages()
     store.sweep_expired_outbound()
-    flushed = flush_pending_receipts(store, identity, contact_name=contact_name, route=route)
-    if flushed:
-        console.print(f"[green]Flushed {flushed} queued delivery receipt(s)[/green]")
-    deriver = session.mailbox_deriver(outbound=False)
-    mailbox_secret = derive_mailbox_secret(contact.master_secret, session.recv_direction)
-    tags = fetch_tags_for_mode(
-        deriver,
-        session.recv_direction,
-        contact.privacy_mode,
-        mailbox_secret=mailbox_secret,
-    )
-    real_tag_set = {tag.tag_b64 for tag in deriver.candidate_epochs(session.recv_direction)}
-    resolved_route = _resolve_route(store, contact, route, "fetch") if route else None
-    fetch_bases = fetch_mailbox_urls(contact, resolved_route, store=store)
-    direct_hints = list(contact.delivery_profile.direct_hints) if contact.delivery_profile else []
-
-    fetched = 0
-    metrics = store.load_privacy_metrics()
-    for tag in tags:
-        is_decoy = tag.tag_b64 not in real_tag_set
-        items: list[tuple[str | None, dict[str, str | int]]] = []
-        if direct_hints:
-            for item in fetch_direct_blobs(
-                tag.tag_b64, direct_hints, store=store, contact=contact, identity=identity
-            ):
-                items.append((None, item))
-        for item in fetch_relay_blobs(
-            tag.tag_b64, fetch_bases, store=store, contact=contact, identity=identity
-        ):
-            items.append((None, item))
-            metrics.record_fetch(len(str(item.get("ciphertext", ""))), decoy=is_decoy)
-
-        seen: set[str] = set()
-        for fetch_base, item in items:
-            ciphertext = str(item.get("ciphertext", ""))
-            if ciphertext in seen:
-                continue
-            seen.add(ciphertext)
-            outer = OuterBlob.from_relay_json(item)
-            try:
-                inner = session.decrypt_outer(outer)
-            except YakrError:
-                continue
-
-            if inner.type == "profile" and inner.body:
-                profile = DeliveryProfile.from_b64(inner.body)
-                verify_delivery_profile(profile, contact.signing_public)
-                contact.delivery_profile = profile
-                store.save_contact(contact)
-                console.print(
-                    f"[green]Updated delivery profile for {contact_name} "
-                    f"(v{profile.version})[/green]"
-                )
-                continue
-
-            presence = None
-            try:
-                presence = apply_presence_message(store, contact, inner)
-            except YakrError:
-                pass
-            if presence is not None:
-                store.save_contact(contact)
-                console.print(
-                    f"[green]Updated presence for {presence.operator_name} "
-                    f"→ {presence.reachable_url}[/green]"
-                )
-                continue
-
-            if inner.type == "receipt" and inner.message_id:
-                if store.mark_outbound_delivered(contact_name, inner.message_id):
-                    console.print(f"[green]Delivery receipt for {inner.message_id[:12]}…[/green]")
-                continue
-
-            if inner.type != "text":
-                continue
-
-            store.save_inbound_message(contact_name, inner, identity=identity)
-            store.save_contact(contact)
-            console.print(f"[cyan]{contact_name}[/cyan]: {inner.body}")
-            fetched += 1
-
-            delivered_id = message_id(outer.ciphertext)
-            if not send_delivery_receipt(
-                store,
-                identity,
-                contact_name,
-                delivered_id,
-                route=resolved_route,
-            ):
-                console.print(
-                    f"[yellow]Receipt for {delivered_id[:12]}… queued (relay unreachable)[/yellow]"
-                )
-
-    store.save_privacy_metrics(metrics)
-    if fetched == 0:
+    count = fetch_contact_inbound(store, identity, contact_name, route=route)
+    if count == 0:
         console.print(f"[yellow]No new messages from {contact_name}[/yellow]")
     else:
-        console.print(f"[green]Fetched {fetched} message(s)[/green]")
+        console.print(f"[green]Fetched {count} message(s)[/green]")
 
 
 @app.command("pending")

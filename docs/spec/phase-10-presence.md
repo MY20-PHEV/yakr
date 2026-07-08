@@ -1,7 +1,7 @@
 # Phase 10 — Presence, TLS, and Relay Resilience
 
 **Protocol:** `yakr-v1.0` + extensions  
-**Status:** Partial (see exit criteria below)  
+**Status:** Complete (ADR 009 cloud deploy deferred to future work)  
 **Depends on:** Phase 9
 
 ## Goal
@@ -18,9 +18,9 @@ Enable reliable friend-group messaging with:
 docs/spec/presence-minimal.md       implemented
 docs/spec/tls-endpoints.md          implemented
 docs/spec/relay-failover.md         implemented
-docs/spec/presence-v1.md            full design (deferred)
-packages/yakr-core/                 presence, TLS pins, receipt queue store
-packages/yakr-cli/                  presence, receipts flush, resend
+docs/spec/presence-v1.md            routing subset implemented (group relay poll, embed)
+packages/yakr-core/                 presence, TLS pins, receipt queue store, reachability
+packages/yakr-cli/                  fetch --all, relay embed, presence, receipts flush, resend
 packages/yakr-testkit/              Charlie+Dennis mesh, TLS, outage tests
 docs/demo-vps-charlie.md            HTTPS homelab workflow
 ```
@@ -36,9 +36,12 @@ CHARLIE_TLS_DIR=~/.yakr/charlie/relay-tls ./scripts/deploy_charlie_vps.sh
 yakr profile publish    # or yakr presence push
 
 # Recovery after outage
-yakr fetch bob
+yakr fetch --all
 yakr receipts flush
 yakr resend bob
+
+# LAN embedded relay (foreground; dialable URL only)
+yakr relay embed --host 0.0.0.0 --port 8090
 ```
 
 ## Exit criteria
@@ -48,11 +51,11 @@ yakr resend bob
 - [x] TLS SPKI pins on profiles and relay descriptors
 - [x] Send failover + `yakr resend`
 - [x] Queued receipts + `yakr receipts flush`
-- [ ] Full `presence-v1.md` routing (group relays, embedded relay)
-- [ ] `yakr fetch --all` without manual relay env
-- [ ] Embedded relay when dialable (`reachable` required; LAN/IPv6 — see ADR 008)
-- [ ] Five-client testkit matching VPS trust model (no Bob↔Charlie shortcut)
-- [ ] Security analysis updated for presence metadata
+- [x] Full `presence-v1.md` routing (group relays via presence cache + trust graph poll)
+- [x] `yakr fetch --all` without manual relay env
+- [x] Embedded relay when dialable (`yakr relay embed`; ADR 008 reachable + relay_active gating)
+- [x] Five-client testkit matching VPS trust model (no Bob↔Charlie shortcut)
+- [x] Security analysis updated for presence metadata
 - [ ] Ephemeral cloud relay deploy (`yakr relay deploy` / ADR 009)
 
 ## Spec
