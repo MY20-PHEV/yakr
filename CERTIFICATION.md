@@ -1,10 +1,12 @@
-# Yakr Certification Program
+# Yakr Protocol Certification Program
 
 **Status:** Draft (program not yet accepting applications)  
 **Protocol baseline:** `yakr-v1.0`  
-**Companion:** [interop/README.md](interop/README.md)
+**Companion:** [interop/README.md](interop/README.md) · [NOTICE.md](NOTICE.md)
 
-Yakr is an **open protocol**. The reference Python implementation demonstrates correctness; **production messengers and relay operators are expected to be independent products**. Certification is how implementers show conformance and how users find compatible software — without a central Yakr messaging platform.
+**Yakr Protocol** is an **open messaging protocol** (public name; short form **Yakr** in wire tags and packages). The reference Python implementation demonstrates correctness; **production messengers and relay operators are expected to be independent products**. Certification is how implementers show conformance and how users find compatible software — without a central Yakr messaging platform.
+
+Formal badge name: **Yakr Protocol Certified** (short: **Yakr Certified**).
 
 ---
 
@@ -97,7 +99,7 @@ Self-test success does not grant trademark use.
 
 ## Badge and trademark
 
-The **Yakr** name and **Yakr Certified** badge are controlled by the project steward (trademark registration in progress / planned — check [NOTICE.md](NOTICE.md) when published).
+The **Yakr Protocol** name and **Yakr Protocol Certified** badge are controlled by the project steward — see [NOTICE.md](NOTICE.md) for UK search summary, independence disclaimers, and trademark status.
 
 **Allowed without certification:**
 

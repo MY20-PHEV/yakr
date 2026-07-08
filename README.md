@@ -1,16 +1,18 @@
-# Yakr
+# Yakr Protocol
 
-A decentralised, social-relay, post-quantum messaging protocol.
+A decentralised, social-relay, post-quantum messaging protocol — from *yakking* (talking), without a central platform.
 
-**What makes Yakr different:** Yakr is the messaging protocol where **your relay network is your pairing graph** — end-to-end encrypted mail is stored and forwarded only on mailboxes run by people you have pairwise paired with, not on a central platform or an open global relay pool. Phones that cannot accept inbound connections (cellular, NAT, iOS) **poll outbound** to those paired relays; peers discover relay URLs and TLS pins through **signed delivery profiles** in the trust graph. Production messengers and relay hosts are independent products; this repository holds the **open spec, reference implementation, and certification program**.
+**What makes Yakr Protocol different:** **Your relay network is your pairing graph.** End-to-end encrypted mail is stored and forwarded only on mailboxes run by people you have pairwise paired with, not on a central operator or an open global relay pool. Phones that cannot accept inbound connections (cellular, NAT, iOS) **poll outbound** to those paired relays; peers discover relay URLs and TLS pins through **signed delivery profiles** in the trust graph. Production messengers and relay hosts are independent products; this repository holds the **open spec, reference implementation, and certification program**.
+
+Not affiliated with unrelated sound-alike businesses — see [NOTICE.md](NOTICE.md).
 
 ## Documents
 
 | Document | Description |
 |----------|-------------|
 | [whitepaper.md](whitepaper.md) | Conceptual protocol whitepaper (Draft v0.1) |
-| [CERTIFICATION.md](CERTIFICATION.md) | **Yakr Certified** conformance program (draft) |
-| [NOTICE.md](NOTICE.md) | Trademark and badge use (informational) |
+| [CERTIFICATION.md](CERTIFICATION.md) | **Yakr Protocol Certified** conformance program (draft) |
+| [NOTICE.md](NOTICE.md) | Name, UK IPO search summary, independence disclaimers |
 | [docs/REFERENCE_DESIGN.md](docs/REFERENCE_DESIGN.md) | Phased reference implementation plan |
 | [docs/spec/yakr-protocol-v1.md](docs/spec/yakr-protocol-v1.md) | Normative v1.0 protocol spec |
 | [docs/spec/relay-rendezvous.md](docs/spec/relay-rendezvous.md) | Group relay as pairing rendezvous (implemented) |
@@ -28,7 +30,7 @@ A decentralised, social-relay, post-quantum messaging protocol.
 
 **Phase 10 complete** — Yakr Protocol v1.0, test vectors, security analysis, interop verifier, presence/TLS/failover, `yakr fetch --all`, and relay embed (see [docs/spec/phase-10-presence.md](docs/spec/phase-10-presence.md)).
 
-**Steward model:** open spec and reference code; third parties ship messengers and relay hosting. [CERTIFICATION.md](CERTIFICATION.md) describes the **Yakr Certified** compatibility program (applications not yet open).
+**Steward model:** open spec and reference code; third parties ship messengers and relay hosting. [CERTIFICATION.md](CERTIFICATION.md) describes the **Yakr Protocol Certified** program (applications not yet open).
 
 | Document | Description |
 |----------|-------------|
@@ -37,7 +39,7 @@ A decentralised, social-relay, post-quantum messaging protocol.
 
 ## Quick Summary
 
-Yakr delivers end-to-end encrypted messages through **pairing-gated social relays** — friends' VPS, homelab, or org-operated mailboxes — with **no central message server** and no requirement that both peers be online at once.
+**Yakr Protocol** delivers end-to-end encrypted messages through **pairing-gated social relays** — friends' VPS, homelab, or org-operated mailboxes — with **no central message server** and no requirement that both peers be online at once.
 
 ```text
 Alice encrypts → paired relay stores opaque blob → offline Bob polls outbound to fetch

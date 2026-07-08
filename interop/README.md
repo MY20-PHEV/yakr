@@ -1,4 +1,4 @@
-# Yakr v1.0 Interoperability
+# Yakr Protocol v1.0 Interoperability
 
 Third-party clients can verify conformance against the reference implementation using **only**:
 
