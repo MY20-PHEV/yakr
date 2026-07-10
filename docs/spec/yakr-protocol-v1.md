@@ -200,7 +200,8 @@ Base path `/v1`.
 |--------|------|------|----------|
 | GET | `/healthz` | — | `{"status":"ok"}` |
 | POST | `/v1/blobs` | `{mailbox_tag, expires_at, ciphertext, ticket?}` | 201 |
-| GET | `/v1/blobs/{mailbox_tag}` | — | `[{...}]` |
+| POST | `/v1/fetch` | `{mailbox_tags: [base64url, ...], ticket?}` | 200 — **preferred** (tags not in URL) |
+| GET | `/v1/blobs/{mailbox_tag}` | — | 200 — **legacy v1** (tag in URL path) |
 | POST | `/v1/relay` | `{packet, ticket?}` | 202 (entry relay) |
 | POST | `/v1/ingest` | `{inner, ticket?}` | 201 (mailbox relay) |
 

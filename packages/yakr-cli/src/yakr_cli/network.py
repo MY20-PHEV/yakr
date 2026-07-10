@@ -1,11 +1,18 @@
 from __future__ import annotations
 
+import json
 import logging
 import os
 from pathlib import Path
 
 import httpx
 
+from yakr_core.capability_client import (
+    capabilities_enabled,
+    capability_headers_for_request,
+    ensure_capability_session,
+    relay_name_for_url,
+)
 from yakr_core.http_client import yakr_get, yakr_post
 
 from yakr_core.delivery_profile import (
@@ -418,17 +425,45 @@ def send_encrypted(
     store: FileLocalStore | None = None,
 ) -> None:
     _ = (route, network)
-    relay_name = _relay_name_for_url(relay_url, network)
+    relay_name = relay_name_for_url(relay_url, network)
     payload = encrypted.outer_blob.to_relay_json()
-    payload["ticket"] = _ticket(identity, contact, relay_name, "store")
-    response = yakr_post(
-        f"{relay_url.rstrip('/')}/v1/blobs",
-        store=store,
-        contact=contact,
-        identity=identity,
-        json=payload,
-        timeout=10.0,
-    )
+    headers: dict[str, str] = {}
+    if capabilities_enabled() and identity is not None and contact is not None and store is not None:
+        session = ensure_capability_session(
+            relay_url,
+            relay_name,
+            identity=identity,
+            contact=contact,
+            store=store,
+            permissions=("post",),
+        )
+        body = json.dumps(payload).encode("utf-8")
+        headers = capability_headers_for_request(
+            session,
+            method="POST",
+            path="/v1/blobs",
+            body=body,
+        )
+        headers["Content-Type"] = "application/json"
+        response = yakr_post(
+            f"{relay_url.rstrip('/')}/v1/blobs",
+            store=store,
+            contact=contact,
+            identity=identity,
+            content=body,
+            headers=headers,
+            timeout=10.0,
+        )
+    else:
+        payload["ticket"] = _ticket(identity, contact, relay_name, "store")
+        response = yakr_post(
+            f"{relay_url.rstrip('/')}/v1/blobs",
+            store=store,
+            contact=contact,
+            identity=identity,
+            json=payload,
+            timeout=10.0,
+        )
     if response.status_code != 201:
         raise RuntimeError(f"relay store failed: {response.status_code} {response.text}")
 
@@ -642,15 +677,44 @@ def fetch_relay_blobs(
     """Poll each relay URL; skip unreachable hosts and merge unique ciphertexts."""
     items: list[dict[str, str | int]] = []
     seen: set[str] = set()
+    use_capabilities = capabilities_enabled() and identity is not None and contact is not None and store is not None
     for fetch_base in fetch_bases:
         try:
-            response = yakr_get(
-                f"{fetch_base.rstrip('/')}/v1/blobs/{mailbox_tag_b64}",
-                store=store,
-                contact=contact,
-                identity=identity,
-                timeout=timeout,
-            )
+            if use_capabilities:
+                relay_name = relay_name_for_url(fetch_base)
+                session = ensure_capability_session(
+                    fetch_base,
+                    relay_name,
+                    identity=identity,
+                    contact=contact,
+                    store=store,
+                    permissions=("fetch",),
+                )
+                body = json.dumps({"mailbox_tags": [mailbox_tag_b64]}).encode("utf-8")
+                headers = capability_headers_for_request(
+                    session,
+                    method="POST",
+                    path="/v1/fetch",
+                    body=body,
+                )
+                headers["Content-Type"] = "application/json"
+                response = yakr_post(
+                    f"{fetch_base.rstrip('/')}/v1/fetch",
+                    store=store,
+                    contact=contact,
+                    identity=identity,
+                    content=body,
+                    headers=headers,
+                    timeout=timeout,
+                )
+            else:
+                response = yakr_get(
+                    f"{fetch_base.rstrip('/')}/v1/blobs/{mailbox_tag_b64}",
+                    store=store,
+                    contact=contact,
+                    identity=identity,
+                    timeout=timeout,
+                )
             if response.status_code != 200:
                 continue
             for item in response.json():

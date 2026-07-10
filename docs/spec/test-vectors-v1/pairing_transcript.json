@@ -1,7 +1,8 @@
 [
   {
     "name": "classical-pairing-v1",
-    "description": "Deterministic classical pairing transcript and master secret (no PQ)",
+    "description": "Deterministic classical pairing transcript and master secret (protocol-bound, no PQ)",
+    "invite_protocol": "yakr-v0.4",
     "invite_secret_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
     "invite_signing_public_hex": "0a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20212223242526272829",
     "invite_agreement_public_hex": "07a37cbc142093c8b755dc1b10e86cb426374ad16aa853ed0bdfc0b2b86d1c7c",
@@ -13,9 +14,9 @@
     "inviter_ephemeral_private_hex": "0405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20212223",
     "joiner_agreement_private_hex": "02030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021",
     "joiner_ephemeral_private_hex": "030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122",
-    "expected_transcript_hash_hex": "8e90b2a021a4dbd0af511084158784b064a517f0ba7a3fd87f44894964a771f3",
+    "expected_transcript_hash_hex": "c67e196ca81748026f8e3226ca853e9a9f74cc43143ea91e579f7cceff8f5992",
     "expected_identity_shared_hex": "ea38b11e2d0c40fe1a3e1cd51a238c7ed08487c2d7812740b5002d3f2c1f795f",
     "expected_ephemeral_shared_hex": "cbcb19d4935781294f3bbaae8e49a33d9964da214892441b0ea3749959c4f940",
-    "expected_master_secret_hex": "0ecc64233ac9a836e961b333d35041ff2d0f913041d1614d4b940e9821ec12c3"
+    "expected_master_secret_hex": "99079118d2a9bd7e4f4aef3a44ac7e846e1a7f0b22b6bb6d097e23bf8671dd28"
   }
 ]
