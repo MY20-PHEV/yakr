@@ -7,6 +7,7 @@ import typer
 from rich.console import Console
 
 from yakr_core.identity import Identity
+from yakr_core.ratchet import RatchetState
 from yakr_core.session import Session
 from yakr_core.store import FileLocalStore
 from yakr_cli.network import deliver_encrypted
@@ -14,6 +15,18 @@ from yakr_cli.network import deliver_encrypted
 console = Console()
 logger = logging.getLogger(__name__)
 receipts_app = typer.Typer(help="Delivery receipt queue and flush")
+
+
+def _ratchet_snapshot(contact) -> tuple[dict, int]:
+    if contact.ratchet is None:
+        raise ValueError("contact missing ratchet state")
+    return contact.ratchet.to_dict(), contact.next_send_seq
+
+
+def _restore_ratchet_snapshot(contact, snapshot: tuple[dict, int]) -> None:
+    ratchet_dict, send_seq = snapshot
+    contact.ratchet = RatchetState.from_dict(ratchet_dict)
+    contact.next_send_seq = send_seq
 
 
 def _store() -> FileLocalStore:
@@ -48,9 +61,9 @@ def send_delivery_receipt(
         raise ValueError(f"unknown contact: {contact_name}")
 
     session = Session(identity, contact)
-    previous_send_seq = contact.next_send_seq
+    snapshot = _ratchet_snapshot(contact)
     receipt = session.encrypt_receipt(delivered_id)
-    store.save_contact(contact)
+    store.atomic_persist_contact(contact)
     reverse_route = _reverse_route(route)
     try:
         deliver_encrypted(
@@ -64,8 +77,8 @@ def send_delivery_receipt(
         store.delete_pending_receipt(contact_name, delivered_id)
         return True
     except (RuntimeError, httpx.HTTPError, ValueError) as exc:
-        contact.next_send_seq = previous_send_seq
-        store.save_contact(contact)
+        _restore_ratchet_snapshot(contact, snapshot)
+        store.atomic_persist_contact(contact)
         logger.warning("receipt delivery to %s failed: %s", contact_name, exc)
         store.save_pending_receipt(contact_name, delivered_id, route=route)
         return False

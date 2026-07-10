@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import threading
 import time
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Iterator, Protocol
 
 from yakr_core.delivery_profile import DeliveryProfile
 from yakr_core.ephemeral import MESSAGE_TTL_MS
@@ -57,6 +59,10 @@ class LocalStore(Protocol):
         identity: Identity,
     ) -> None: ...
 
+    def atomic_persist_contact(self, contact: Contact) -> None: ...
+
+    def fetch_lock(self) -> Iterator[None]: ...
+
     def load_outbound_outer(self, contact_name: str, msg_id: str) -> "OuterBlob | None": ...
 
     def mark_outbound_delivered(self, contact_name: str, msg_id: str) -> bool: ...
@@ -107,6 +113,13 @@ class LocalStore(Protocol):
 class FileLocalStore:
     root: Path
     test_fault: str | None = field(default=None, repr=False, compare=False)
+    _fetch_lock: threading.Lock = field(default_factory=threading.Lock, repr=False, compare=False)
+
+    @contextmanager
+    def fetch_lock(self) -> Iterator[None]:
+        """Serialize fetch for this YAKR_HOME (one in-flight fetch at a time)."""
+        with self._fetch_lock:
+            yield
 
     @property
     def identity_path(self) -> Path:
@@ -468,6 +481,17 @@ class FileLocalStore:
                     """,
                     (contact.name, inner.seq, inner.valid_until, now, wrapped),
                 )
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+        self._sync_contact_json(contact)
+
+    def atomic_persist_contact(self, contact: Contact) -> None:
+        with self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            try:
+                self._save_contact_conn(conn, contact)
                 conn.commit()
             except Exception:
                 conn.rollback()
