@@ -186,6 +186,13 @@ class MobileStore:
         self.file_store.atomic_commit_receive_text(contact, inner, identity=identity)
         self.put_blob(f"contact:{contact.name}", json.dumps(contact.to_dict()).encode("utf-8"))
 
+    def atomic_persist_contact(self, contact: Contact) -> None:
+        self.file_store.atomic_persist_contact(contact)
+        self.put_blob(f"contact:{contact.name}", json.dumps(contact.to_dict()).encode("utf-8"))
+
+    def fetch_lock(self):
+        return self.file_store.fetch_lock()
+
     def load_outbound_outer(self, contact_name: str, msg_id: str):
         return self.file_store.load_outbound_outer(contact_name, msg_id)
 

@@ -9,6 +9,8 @@ Fetch polls mailbox relays for opaque blobs, decrypts them, persists ratchet sta
 
 **Triggers:** Periodic poll worker (baseline), app foreground, network change, and optionally silent platform wake ([platform-wake-v1.md](./platform-wake-v1.md)). All triggers run the same algorithm below; wake does not change decrypt or receipt rules.
 
+Implementations MUST hold `store.fetch_lock()` for the duration of a contact fetch so concurrent polls reload contact state and do not double-apply the same `seq`.
+
 Because multiple blobs can accumulate per tag and `GET /v1/blobs/{tag}` returns them in **arbitrary order** (typically by relay `stored_at`, which need not match application `seq`), clients MUST implement the algorithm below. A naive single-pass decrypt loop drops messages and receipts when a higher `seq` is processed before a lower one.
 
 ## Fetch poll scope

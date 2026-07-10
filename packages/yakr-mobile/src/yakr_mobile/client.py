@@ -195,114 +195,118 @@ class YakrMobileClient:
 
         identity = self._require_identity()
         contact = self._require_contact(contact_name)
-        session = Session(identity, contact)
-        self.store.sweep_expired_messages()
-        self.store.sweep_expired_outbound()
-        deriver = session.mailbox_deriver(outbound=False)
-        mailbox_secret = derive_mailbox_secret(contact.master_secret, session.recv_direction)
-        tags = fetch_tags_for_mode(
-            deriver,
-            session.recv_direction,
-            contact.privacy_mode,
-            mailbox_secret=mailbox_secret,
-        )
-        real_tags = {tag.tag_b64 for tag in deriver.candidate_epochs(session.recv_direction)}
-        resolved_route = resolve_contact_route(self.store.file_store, contact, None, "fetch")
-        previous = os.environ.get("YAKR_RELAY_URL")
-        os.environ["YAKR_RELAY_URL"] = self.relay_url
-        try:
-            fetch_bases = fetch_mailbox_urls(contact, resolved_route, store=self.store.file_store)
-        finally:
-            if previous is None:
-                os.environ.pop("YAKR_RELAY_URL", None)
-            else:
-                os.environ["YAKR_RELAY_URL"] = previous
-        direct_hints = list(contact.delivery_profile.direct_hints) if contact.delivery_profile else []
+        with self.store.fetch_lock():
+            contact = self.store.get_contact(contact_name)
+            if contact is None:
+                raise ContactNotFoundError(f"unknown contact: {contact_name}")
+            session = Session(identity, contact)
+            self.store.sweep_expired_messages()
+            self.store.sweep_expired_outbound()
+            deriver = session.mailbox_deriver(outbound=False)
+            mailbox_secret = derive_mailbox_secret(contact.master_secret, session.recv_direction)
+            tags = fetch_tags_for_mode(
+                deriver,
+                session.recv_direction,
+                contact.privacy_mode,
+                mailbox_secret=mailbox_secret,
+            )
+            real_tags = {tag.tag_b64 for tag in deriver.candidate_epochs(session.recv_direction)}
+            resolved_route = resolve_contact_route(self.store.file_store, contact, None, "fetch")
+            previous = os.environ.get("YAKR_RELAY_URL")
+            os.environ["YAKR_RELAY_URL"] = self.relay_url
+            try:
+                fetch_bases = fetch_mailbox_urls(contact, resolved_route, store=self.store.file_store)
+            finally:
+                if previous is None:
+                    os.environ.pop("YAKR_RELAY_URL", None)
+                else:
+                    os.environ["YAKR_RELAY_URL"] = previous
+            direct_hints = list(contact.delivery_profile.direct_hints) if contact.delivery_profile else []
 
-        messages: list[str] = []
-        metrics = self.store.load_privacy_metrics()
-        for tag in tags:
-            is_decoy = tag.tag_b64 not in real_tags
-            items: list[tuple[str | None, dict]] = []
-            if direct_hints:
-                for item in fetch_direct_blobs(tag.tag_b64, direct_hints):
-                    items.append((None, item))
-            for fetch_base in fetch_bases:
-                response = httpx.get(f"{fetch_base}/v1/blobs/{tag.tag_b64}", timeout=10.0)
-                if response.status_code != 200:
-                    raise YakrError(f"relay fetch failed: {response.status_code}")
-                for item in response.json():
-                    items.append((fetch_base, item))
-                metrics.record_fetch(len(response.content), decoy=is_decoy)
+            messages: list[str] = []
+            metrics = self.store.load_privacy_metrics()
+            for tag in tags:
+                is_decoy = tag.tag_b64 not in real_tags
+                items: list[tuple[str | None, dict]] = []
+                if direct_hints:
+                    for item in fetch_direct_blobs(tag.tag_b64, direct_hints):
+                        items.append((None, item))
+                for fetch_base in fetch_bases:
+                    response = httpx.get(f"{fetch_base}/v1/blobs/{tag.tag_b64}", timeout=10.0)
+                    if response.status_code != 200:
+                        raise YakrError(f"relay fetch failed: {response.status_code}")
+                    for item in response.json():
+                        items.append((fetch_base, item))
+                    metrics.record_fetch(len(response.content), decoy=is_decoy)
 
-            seen: set[str] = set()
-            queue: list[dict] = []
-            for fetch_base, item in items:
-                ciphertext = str(item.get("ciphertext", ""))
-                if ciphertext in seen:
-                    continue
-                seen.add(ciphertext)
-                queue.append(item)
-            queue.sort(key=lambda blob: int(blob.get("stored_at", 0)))
-
-            pending = list(queue)
-            while pending:
-                progressed = False
-                still_pending: list[dict] = []
-                for item in pending:
-                    outer = OuterBlob.from_relay_json(item)
-                    try:
-                        inner = session.decrypt_outer(outer)
-                    except DuplicateSeqError:
-                        still_pending.append(item)
+                seen: set[str] = set()
+                queue: list[dict] = []
+                for fetch_base, item in items:
+                    ciphertext = str(item.get("ciphertext", ""))
+                    if ciphertext in seen:
                         continue
-                    except YakrError:
-                        continue
-                    progressed = True
+                    seen.add(ciphertext)
+                    queue.append(item)
+                queue.sort(key=lambda blob: int(blob.get("stored_at", 0)))
 
-                    if inner.type == "profile" and inner.body:
-                        profile = DeliveryProfile.from_b64(inner.body)
-                        verify_delivery_profile(profile, contact.signing_public)
-                        contact.delivery_profile = profile
+                pending = list(queue)
+                while pending:
+                    progressed = False
+                    still_pending: list[dict] = []
+                    for item in pending:
+                        outer = OuterBlob.from_relay_json(item)
+                        try:
+                            inner = session.decrypt_outer(outer)
+                        except DuplicateSeqError:
+                            still_pending.append(item)
+                            continue
+                        except YakrError:
+                            continue
+                        progressed = True
+
+                        if inner.type == "profile" and inner.body:
+                            profile = DeliveryProfile.from_b64(inner.body)
+                            verify_delivery_profile(profile, contact.signing_public)
+                            contact.delivery_profile = profile
+                            self.store.save_contact(contact)
+                            continue
+                        if inner.type == "receipt":
+                            if inner.message_id:
+                                self.store.mark_outbound_delivered(contact_name, inner.message_id)
+                            self.store.save_contact(contact)
+                            continue
+                        if inner.type != "text":
+                            continue
+                        self.store.atomic_commit_receive_text(contact, inner, identity=identity)
+                        messages.append(inner.body)
+                        receipt = session.encrypt_receipt(message_id(outer.ciphertext))
                         self.store.save_contact(contact)
-                        continue
-                    if inner.type == "receipt":
-                        if inner.message_id:
-                            self.store.mark_outbound_delivered(contact_name, inner.message_id)
-                        self.store.save_contact(contact)
-                        continue
-                    if inner.type != "text":
-                        continue
-                    self.store.atomic_commit_receive_text(contact, inner, identity=identity)
-                    messages.append(inner.body)
-                    receipt = session.encrypt_receipt(message_id(outer.ciphertext))
-                    self.store.save_contact(contact)
-                    previous = os.environ.get("YAKR_RELAY_URL")
-                    os.environ["YAKR_RELAY_URL"] = self.relay_url
-                    try:
-                        deliver_encrypted(
-                            receipt,
-                            contact=contact,
-                            identity=identity,
-                            store=self.store.file_store,
-                            allow_direct=False,
-                        )
-                    finally:
-                        if previous is None:
-                            os.environ.pop("YAKR_RELAY_URL", None)
-                        else:
-                            os.environ["YAKR_RELAY_URL"] = previous
-                if not progressed:
-                    break
-                pending = still_pending
+                        previous = os.environ.get("YAKR_RELAY_URL")
+                        os.environ["YAKR_RELAY_URL"] = self.relay_url
+                        try:
+                            deliver_encrypted(
+                                receipt,
+                                contact=contact,
+                                identity=identity,
+                                store=self.store.file_store,
+                                allow_direct=False,
+                            )
+                        finally:
+                            if previous is None:
+                                os.environ.pop("YAKR_RELAY_URL", None)
+                            else:
+                                os.environ["YAKR_RELAY_URL"] = previous
+                    if not progressed:
+                        break
+                    pending = still_pending
 
-        self.store.save_privacy_metrics(metrics)
-        self.store.save_worker_state("last_fetch_at", str(int(time.time())))
-        self.store.save_worker_state(
-            "last_fetch_contacts",
-            json.dumps(self._update_last_fetch_contacts(contact_name)),
-        )
-        return FetchResult(contact_name=contact_name, messages=messages, fetched_count=len(messages))
+            self.store.save_privacy_metrics(metrics)
+            self.store.save_worker_state("last_fetch_at", str(int(time.time())))
+            self.store.save_worker_state(
+                "last_fetch_contacts",
+                json.dumps(self._update_last_fetch_contacts(contact_name)),
+            )
+            return FetchResult(contact_name=contact_name, messages=messages, fetched_count=len(messages))
 
     def resume_state(self) -> dict[str, object]:
         return {
