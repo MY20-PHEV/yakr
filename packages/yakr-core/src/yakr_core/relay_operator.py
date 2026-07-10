@@ -250,3 +250,60 @@ def create_relay_operator(
         descriptor=descriptor,
         owner_contact=owner_operator,
     )
+
+
+def refresh_operator_public_url(
+    operator_home: Path,
+    owner_store: FileLocalStore,
+    public_url: str,
+) -> RelayDescriptor:
+    """Update manifest and profiles after the relay is listening at ``public_url``."""
+    public_url = public_url.rstrip("/")
+    manifest = load_relay_operator_manifest(operator_home)
+    operator_store = FileLocalStore(operator_home)
+    operator = operator_store.load_identity()
+    if operator is None:
+        raise ValueError("operator identity missing")
+
+    descriptor = relay_descriptor_for_operator(
+        operator,
+        "both",
+        public_url,
+        manifest.wrap_secret,
+    )
+    operator_profile = create_delivery_profile(
+        operator,
+        relay_descriptors=[descriptor],
+        version=(operator_store.load_local_profile().version + 1)
+        if operator_store.load_local_profile()
+        else 1,
+    )
+    operator_store.save_local_profile(operator_profile)
+
+    owner_contact = owner_store.get_contact(manifest.operator_name)
+    if owner_contact is not None:
+        owner_contact.delivery_profile = operator_profile
+        owner_store.save_contact(owner_contact)
+
+    operator_owner = operator_store.get_contact(manifest.owner_name)
+    if operator_owner is not None:
+        apply_peer_profile_ack(operator_owner, operator_profile)
+        operator_store.save_contact(operator_owner)
+
+    updated_manifest = RelayOperatorManifest(
+        version=manifest.version,
+        operator_name=manifest.operator_name,
+        owner_name=manifest.owner_name,
+        public_url=public_url,
+        host_port=manifest.host_port,
+        wrap_secret=manifest.wrap_secret,
+        operator_home=manifest.operator_home,
+        created_at=manifest.created_at,
+    )
+    manifest_path(operator_home).write_text(
+        json.dumps(updated_manifest.to_dict(), indent=2),
+        encoding="utf-8",
+    )
+    _write_relay_env(operator_home, updated_manifest)
+    _write_deploy_compose(operator_home, updated_manifest)
+    return descriptor
