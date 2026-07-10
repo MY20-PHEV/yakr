@@ -8,7 +8,20 @@ Not affiliated with unrelated sound-alike businesses — see [NOTICE.md](NOTICE.
 
 **Web:** [yakr.co.uk](https://yakr.co.uk) (registered; DNS pending) · Merch: [yakr.store](https://yakr.store) (future) · **Source:** [github.com/MY20-PHEV/yakr](https://github.com/MY20-PHEV/yakr)
 
-> **Project maturity:** Reference implementation phases are largely complete; **protocol stability is draft** and **security maturity is experimental** (no external audit; not recommended for production). See [docs/SECURITY_BACKLOG.md](docs/SECURITY_BACKLOG.md).
+> **Project maturity:** Reference implementation phases are largely complete; **protocol stability is draft** and **security maturity is experimental** (no external audit; not recommended for production). See [docs/SECURITY_BACKLOG.md](docs/SECURITY_BACKLOG.md) and [SECURITY.md](SECURITY.md).
+
+## Document precedence
+
+When documents disagree, use this order (highest first):
+
+1. [docs/spec/yakr-protocol-v1.md](docs/spec/yakr-protocol-v1.md) — normative v1.0 wire protocol
+2. Normative extension specifications under `docs/spec/` (fetch algorithm, delivery state machine, TLS, etc.)
+3. Published errata (when issued)
+4. Frozen test vectors under `docs/spec/test-vectors-v1/`
+5. [docs/REFERENCE_DESIGN.md](docs/REFERENCE_DESIGN.md) — phased implementation plan
+6. [whitepaper.md](whitepaper.md) and implementation history / ADRs
+
+The whitepaper explains intent; the normative spec determines interoperability.
 
 ## Documents
 
@@ -28,7 +41,9 @@ Not affiliated with unrelated sound-alike businesses — see [NOTICE.md](NOTICE.
 | [docs/spec/fetch-algorithm.md](docs/spec/fetch-algorithm.md) | **Normative** fetch ordering, receipts, and contact state |
 | [docs/spec/delivery-state-machine.md](docs/spec/delivery-state-machine.md) | Delivery/receipt state machine (P0 draft) |
 | [docs/SECURITY_BACKLOG.md](docs/SECURITY_BACKLOG.md) | Security hardening backlog (P0–P3) |
+| [docs/target-audience.md](docs/target-audience.md) | Target audience and positioning (draft) |
 | [docs/reviews/external-critique-2026-07-10.md](docs/reviews/external-critique-2026-07-10.md) | External protocol review (reference) |
+| [docs/reviews/github-follow-up-critique-2026-07-10.md](docs/reviews/github-follow-up-critique-2026-07-10.md) | Follow-up review after GitHub publication |
 | [docs/spec/double-ratchet.md](docs/spec/double-ratchet.md) | X25519 double ratchet |
 | [docs/spec/mesh-testing-and-resilience.md](docs/spec/mesh-testing-and-resilience.md) | Mesh stress and relay outage test status |
 | [docs/html/index.html](docs/html/index.html) | Visual protocol guide (HTML + flowcharts) |
@@ -187,4 +202,10 @@ yakr invite accept "yakr://invite/..." --name alice
 
 ## License
 
-TBD
+| Material | Licence |
+|----------|---------|
+| Reference implementation (`packages/`, `rust/`, `apps/`, etc.) | [Apache-2.0](LICENSE) |
+| Specifications and documentation (`docs/`, `whitepaper.md`) | [CC BY 4.0](docs/DOCUMENTATION-LICENSE.md) |
+
+See [NOTICE.md](NOTICE.md) for naming and independence disclaimers.
+
