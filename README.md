@@ -28,6 +28,7 @@ Not affiliated with unrelated sound-alike businesses — see [NOTICE.md](NOTICE.
 | [docs/spec/mesh-testing-and-resilience.md](docs/spec/mesh-testing-and-resilience.md) | Mesh stress and relay outage test status |
 | [docs/html/index.html](docs/html/index.html) | Visual protocol guide (HTML + flowcharts) |
 | [docs/demo-vps-charlie.md](docs/demo-vps-charlie.md) | Alice/Bob local + Charlie on VPS demo |
+| [docs/homelab-relay.md](docs/homelab-relay.md) | **Homelab relay runbook** — 8090 at home, Tailscale, or VPS |
 
 ## Status
 
@@ -49,6 +50,22 @@ Alice encrypts → paired relay stores opaque blob → offline Bob polls outboun
 ```
 
 Implementers: see [interop/README.md](interop/README.md) and [CERTIFICATION.md](CERTIFICATION.md).
+
+## Relay-less peers (first-class)
+
+**You do not need to run a relay to use Yakr.** Many users are phone-only:
+
+```text
+Bob pairs with Alice (and maybe Geoff). He never runs yakr-relay or port-forwards at home.
+
+Bob → Alice:  POST to relays in Alice's signed profile (e.g. her homelab :8090)
+Alice → Bob:  POST to Bob's mailboxes, or her paired relay as sender fallback
+Bob fetch:    yakr fetch alice  — polls Bob's mailboxes + Alice's profile relays only
+```
+
+Bob learns relay URLs and TLS pins from **contacts' signed profiles** (transitive trust). He does not pair with every operator in the cell. When Bob invites **Geoff**, and Geoff advertises his own relay, Bob talks to both without ever operating infra.
+
+**Someone in the cell** usually opts in as **relay operator** (homelab `:8090`, Tailscale, or a small VPS) — see [docs/homelab-relay.md](docs/homelab-relay.md). That is a separate role from “second device”; v1 is one messaging client per identity.
 
 ## Repository Structure
 

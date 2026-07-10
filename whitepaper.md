@@ -143,11 +143,15 @@ Alice's signed profile lists Charlie's and Dennis's mailboxes (with wrap secrets
 Bob is paired with Alice only — not with Charlie.
 Bob learns Charlie's TLS pin from Alice's profile (transitive trust).
 Bob sends to Alice via Alice's advertised relays; Bob does not need a Charlie contact.
+Bob does not need his own relay, home port forward, or operator pairing with Charlie.
 
 No relay reads message plaintext.
-Recipients poll every mailbox they know about; senders must not store mail on
-relays the recipient has not yet learned via pairing or an acknowledged profile push.
+Recipients poll their own mailboxes plus the sender's profile relays (per contact);
+senders must not store mail on relays the recipient has not yet learned via pairing
+or an acknowledged profile push.
 ```
+
+**Relay-less peers are first-class:** organic growth means new contacts bring their own profile relays; the cell adds infrastructure only when someone chooses to operate it (homelab high port, Tailscale, or VPS — not home 443). See [docs/homelab-relay.md](docs/homelab-relay.md).
 
 This is a core strength: **infrastructure is socially scoped**, not “any TURN server on the internet.” Rendezvous for pairing MAY use a reachable relay URL without operator pairing; **advertising** a relay in a profile requires operator pairing.
 

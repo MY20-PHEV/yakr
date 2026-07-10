@@ -901,7 +901,7 @@ Track unresolved items here; close with ADRs in `docs/adr/`.
 
 Phase 1–9 are complete. Phase 10 is complete except future ADR work. Current focus:
 
-1. **Homelab** — deploy Charlie with HTTPS (`deploy_charlie_vps.sh` + `generate_operator_relay_tls.py`); use `yakr presence push` on IP change
+1. **Homelab** — deploy Charlie with HTTPS (`deploy_charlie_vps.sh` + `generate_operator_relay_tls.py`); prefer **8090** or Tailscale over home **443** ([homelab-relay.md](homelab-relay.md)); use `yakr presence push` on IP change
 2. **CLI polish** — optional background `resend`/`receipts` worker
 3. **Transports** — Tor dial strings with same TLS pin model; Meshtastic/LoRaWAN mesh adapters ([ADR 010](adr/010-offline-mesh-transports.md))
 4. **Ephemeral cloud relay** (future) — one-click deploy/teardown of containerized `yakr-relay` in user's AWS/GCP account with profile baked in ([ADR 009](adr/009-ephemeral-cloud-relay.md))
