@@ -56,7 +56,7 @@ On relay host / port change:
 1. `yakr profile publish` (updates signed profile; auto fan-out presence when URLs change)
 2. Or `yakr presence push` to fan out current location immediately
 
-Recipients learn on **fetch** (mailbox poll), not inbound push — NAT-safe. Phones on cellular do not become inbound-reachable mailboxes; friend-operator relays remain the correctness path. See [ADR 008](../adr/008-nat-reachability-and-mobile-delivery.md).
+Recipients learn on **fetch** (mailbox poll), not inbound push — NAT-safe. Phones on cellular do not become inbound-reachable mailboxes; friend-operator relays remain the correctness path. See [ADR 008](../adr/008-nat-reachability-and-mobile-delivery.md). Optional silent platform wake (opt-in) may trigger fetch sooner without changing the relay store-and-forward model — [ADR 011](../adr/011-optional-platform-wake.md).
 
 ## Charlie → Dennis → Alice
 
