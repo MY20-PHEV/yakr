@@ -3,7 +3,7 @@
 **Status:** Reference (not normative)  
 **Source:** Independent review following whitepaper + reference design review  
 **Audience:** Project maintainers; informs P0–P3 backlog prioritisation  
-**Follow-up:** [SECURITY_BACKLOG.md](../SECURITY_BACKLOG.md), [delivery-state-machine.md](../spec/delivery-state-machine.md)
+**Follow-up:** [SECURITY_BACKLOG.md](../SECURITY_BACKLOG.md), [delivery-state-machine.md](../spec/delivery-state-machine.md), [github-follow-up-critique-2026-07-10.md](./github-follow-up-critique-2026-07-10.md)
 
 ---
 
