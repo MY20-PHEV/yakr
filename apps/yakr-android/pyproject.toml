@@ -2,7 +2,7 @@
 project_name = "Yakr"
 bundle = "sh.yakr"
 version = "0.1.0"
-url = "https://github.com/yakr/yakr"
+url = "https://github.com/MY20-PHEV/yakr"
 license.file = "LICENSE"
 author = "Yakr Contributors"
 author_email = "dev@yakr.sh"
