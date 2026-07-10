@@ -80,7 +80,7 @@ Bob learns relay URLs and TLS pins from **contacts' signed profiles** (transitiv
 
 ## Repository Structure
 
-Python monorepo (uv workspace):
+Python monorepo (uv workspace) plus an independent Rust crypto reference:
 
 ```text
 packages/yakr-core/     protocol and crypto library
@@ -89,6 +89,7 @@ packages/yakr-cli/      command-line reference client (Typer)
 packages/yakr-testkit/  test harness and demos (pytest)
 packages/yakr-mobile/   Android/mobile reference client
 apps/yakr-android/      BeeWare Briefcase APK shell
+rust/yakr-crypto/       Rust crypto primitives (interop vectors; second reference)
 ```
 
 ## Docker Demos (recommended)
