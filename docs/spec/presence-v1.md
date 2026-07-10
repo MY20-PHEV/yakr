@@ -68,7 +68,7 @@ A **contact group** is not a new global object. It emerges from overlapping deli
 
 ```text
 Alice's profile lists: Dennis relay, Charlie relay
-Bob's profile lists:   Dennis relay, Ellis relay
+Bob's profile lists:   Dennis relay, Eve relay
 Carol's profile lists: Dennis relay
 
 → Dennis is the shared reachable relay for this friend group
