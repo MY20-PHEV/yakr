@@ -180,4 +180,4 @@ For operators and future send-retry worker design:
 - [x] Hybrid homelab Alice↔Bob stress (`hybrid_homelab_stress.py`, `test_hybrid_homelab_mesh.py`)
 - [x] Single-hop default + profile-ack sender fallback gate
 - [x] VPS trust model in testkit (no Bob↔Charlie operator shortcut)
-- [ ] Multi-device identity ([multi-device.md](./multi-device.md) — spec only)
+- [ ] Multi-device identity — **deferred** ([multi-device.md](./multi-device.md); v1 = one client per identity)

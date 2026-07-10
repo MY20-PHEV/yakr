@@ -1,8 +1,16 @@
 # Multi-Device Identity
 
-**Status:** Spec / future work (not implemented in reference clients)
+**Status:** Future / research only — **not a v1 product goal**
 
-## The Question
+## v1 product stance
+
+Yakr v1 targets **one active messaging client per identity** (usually a phone). Peers who need always-on mailboxes use **relay operators** — self-operated homelab/VPS or a paired friend’s relay — which is a **different role** from “second device logged in as Alice.”
+
+Do not treat multi-device sync (Signal-style linked phone + laptop) as a launch requirement. The reference client assumes **one `YAKR_HOME` = one identity** in tests and demos. Copying key material to two machines is unsupported for normal users.
+
+See whitepaper §4.6 and §26.6.
+
+## The Question (if implemented later)
 
 Alice has Yakr on her phone and her laptop. How are both clients linked to one identity (Alice) without server accounts or passwords?
 
@@ -78,4 +86,4 @@ Phase 9+ stretch:
 3. **Profile v2** — `devices: [{device_id, agreement_public, mailbox_hint}]` signed by identity root.
 4. **Client sync** — optional encrypted P2P or user-operated relay channel for history transfer (not cloud backup).
 
-Until then, treat **one `YAKR_HOME` = one device = one identity** in tests and demos.
+Until then, treat **one `YAKR_HOME` = one device = one identity** in tests and demos. Relay operators (Charlie, homelab VPS) are infrastructure contacts, not multi-device workarounds.
