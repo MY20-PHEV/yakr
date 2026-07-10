@@ -1,7 +1,7 @@
 # Security and Protocol Hardening Backlog
 
 **Status:** Living document  
-**Source:** [External review 2026-07-10](reviews/external-critique-2026-07-10.md)  
+**Source:** [External review 2026-07-10](reviews/external-critique-2026-07-10.md), [GitHub follow-up 2026-07-10](reviews/github-follow-up-critique-2026-07-10.md)  
 **Purpose:** Track P0–P3 work before new transports or features
 
 ## Maturity labels (project-wide)
@@ -28,14 +28,14 @@
 | P0-6 | Concurrent fetch serialization policy | `FileLocalStore.fetch_lock()` | **Implemented** (CLI, mesh, mobile) |
 | P0-7 | Stale receipt handling normative test | `test_fetch_hardening.py`, `test_receipt_apply.py` | **Implemented** |
 | P0-8 | Profile rollback / replay protection audit | [profile-replay-policy.md](spec/profile-replay-policy.md) | **Implemented** |
-| P0-9 | TLS pin rotation + relay key compromise recovery | [tls-endpoints.md](spec/tls-endpoints.md) | Open |
+| P0-9 | TLS pin rotation + relay key compromise recovery | [tls-pin-lifecycle.md](spec/tls-pin-lifecycle.md) | **Draft spec** |
 
 ## P1 — Identity and authorisation privacy
 
 | ID | Item | Notes | Status |
 |----|------|-------|--------|
-| P1-1 | Replace stable `contact_id` in relay tickets | [ADR 012](adr/012-relay-capability-tokens.md), [relay-capability-v1.md](spec/relay-capability-v1.md) | **Design** |
-| P1-2 | Per-relay pseudonymous capability tokens | ADR 012 | **Design** |
+| P1-1 | Replace stable `contact_id` in relay tickets | [ADR 012](adr/012-relay-capability-tokens.md), [relay-capability-v1.md](spec/relay-capability-v1.md) | **Design** (trust anchor defined; impl blocked until grant store) |
+| P1-2 | Per-relay pseudonymous capability tokens | ADR 012 + rotation via `capability_generation` | **Design** |
 | P1-3 | Separate operator identity from relay client capability | | Design |
 | P1-4 | Relay-observer privacy table | [security/analysis-v1.md](security/analysis-v1.md) §8.5 | Draft |
 | P1-5 | `POST /v1/fetch` (tags in body, not URL path) | Reduces infra log leakage | Design (`yakr-v1.1`) |
@@ -46,9 +46,9 @@
 | ID | Item | Status |
 |----|------|--------|
 | P2-1 | Independent session / ratchet review | Not started |
-| P2-2 | Complete pairing transcript construction doc | Partial in pairing specs |
-| P2-3 | PQ downgrade prevention (no silent classical after hybrid) | Open |
-| P2-4 | Protocol version downgrade policy | Open |
+| P2-2 | Complete pairing transcript construction doc | [pairing-transcript-v1.md](spec/pairing-transcript-v1.md) — **Draft** |
+| P2-3 | PQ downgrade prevention (no silent classical after hybrid) | Open — gap G2 in pairing transcript |
+| P2-4 | Protocol version downgrade policy | Open — gap G1 in pairing transcript |
 | P2-5 | Skipped-key limits + DoS bounds | [double-ratchet.md](spec/double-ratchet.md) — verify |
 | P2-6 | Malicious-input test vectors + CBOR fuzz | Open |
 | P2-7 | Label ratchet "experimental, not audited" in docs | Open |
@@ -75,6 +75,10 @@
 | Maturity banner in README / CERTIFICATION | Done |
 | Soften relay identity prose in whitepaper §3.1 | Done |
 | Save external critique | [reviews/external-critique-2026-07-10.md](reviews/external-critique-2026-07-10.md) |
+| Save GitHub follow-up critique | [reviews/github-follow-up-critique-2026-07-10.md](reviews/github-follow-up-critique-2026-07-10.md) |
+| Apache-2.0 code licence + CC BY docs | [LICENSE](../LICENSE), [DOCUMENTATION-LICENSE.md](DOCUMENTATION-LICENSE.md) |
+| Document precedence in README | Done |
+| SECURITY.md vulnerability reporting | [SECURITY.md](../SECURITY.md) |
 
 ---
 
