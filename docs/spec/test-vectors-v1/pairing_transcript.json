@@ -1,0 +1,21 @@
+[
+  {
+    "name": "classical-pairing-v1",
+    "description": "Deterministic classical pairing transcript and master secret (no PQ)",
+    "invite_secret_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "invite_signing_public_hex": "0a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20212223242526272829",
+    "invite_agreement_public_hex": "07a37cbc142093c8b755dc1b10e86cb426374ad16aa853ed0bdfc0b2b86d1c7c",
+    "joiner_signing_public_hex": "1415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f30313233",
+    "joiner_agreement_public_hex": "ab9f2628c325c141e9fb2430f106850f62930bc3f0b12df39a9b84a49c7c1d12",
+    "joiner_ephemeral_public_hex": "909705b0e7d1817db56cdcb89ba2fabad3e9a01b2c23bc73e3ec9d9a2ff9b827",
+    "inviter_ephemeral_public_hex": "66b76a4535f74c6f464c8f2395cb051864d00279ac88c3fc793fa00352e2ea5a",
+    "inviter_agreement_private_hex": "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20",
+    "inviter_ephemeral_private_hex": "0405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20212223",
+    "joiner_agreement_private_hex": "02030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021",
+    "joiner_ephemeral_private_hex": "030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122",
+    "expected_transcript_hash_hex": "8e90b2a021a4dbd0af511084158784b064a517f0ba7a3fd87f44894964a771f3",
+    "expected_identity_shared_hex": "ea38b11e2d0c40fe1a3e1cd51a238c7ed08487c2d7812740b5002d3f2c1f795f",
+    "expected_ephemeral_shared_hex": "cbcb19d4935781294f3bbaae8e49a33d9964da214892441b0ea3749959c4f940",
+    "expected_master_secret_hex": "0ecc64233ac9a836e961b333d35041ff2d0f913041d1614d4b940e9821ec12c3"
+  }
+]

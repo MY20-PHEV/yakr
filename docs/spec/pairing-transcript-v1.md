@@ -181,7 +181,7 @@ Profiles are **not** included in `transcript_hash`. Security relies on:
 
 ## Exit criteria
 
-- [ ] Cross-language test vector: invite + request + response → `transcript_hash` + `master_secret`
+- [x] Cross-language test vector: invite + request + response → `transcript_hash` + `master_secret` ([pairing_transcript.json](./test-vectors-v1/pairing_transcript.json))
 - [ ] Documented PQ downgrade policy implemented or rejected with rationale
 - [ ] External review sign-off or documented findings
 
