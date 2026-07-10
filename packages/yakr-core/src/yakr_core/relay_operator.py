@@ -9,6 +9,8 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
+from cryptography.hazmat.primitives.asymmetric import ed25519
+
 from yakr_core.delivery_profile import (
     DeliveryProfile,
     RelayDescriptor,
@@ -81,6 +83,45 @@ def manifest_path(operator_home: Path) -> Path:
     return operator_home / "manifest.json"
 
 
+def relay_issuance_key_path(operator_home: Path) -> Path:
+    return operator_home / "relay-issuance" / "issuance.key"
+
+
+def relay_issuance_public_path(operator_home: Path) -> Path:
+    return operator_home / "relay-issuance" / "issuance.pub"
+
+
+def write_relay_issuance_keys(operator_home: Path) -> tuple[ed25519.Ed25519PrivateKey, bytes]:
+    """Generate and persist relay capability issuance keys for homelab deploy."""
+    issuance_dir = operator_home / "relay-issuance"
+    issuance_dir.mkdir(parents=True, exist_ok=True)
+    private_key = ed25519.Ed25519PrivateKey.generate()
+    public_bytes = private_key.public_key().public_bytes_raw()
+    relay_issuance_key_path(operator_home).write_bytes(private_key.private_bytes_raw())
+    relay_issuance_public_path(operator_home).write_bytes(public_bytes)
+    return private_key, public_bytes
+
+
+def load_relay_issuance_private(operator_home: Path) -> bytes:
+    path = relay_issuance_key_path(operator_home)
+    if not path.exists():
+        raise FileNotFoundError(f"relay issuance private key not found: {path}")
+    raw = path.read_bytes()
+    if len(raw) != 32:
+        raise ValueError("relay issuance private key must be 32 bytes")
+    return raw
+
+
+def load_relay_issuance_public(operator_home: Path) -> bytes:
+    path = relay_issuance_public_path(operator_home)
+    if not path.exists():
+        raise FileNotFoundError(f"relay issuance public key not found: {path}")
+    raw = path.read_bytes()
+    if len(raw) != 32:
+        raise ValueError("relay issuance public key must be 32 bytes")
+    return raw
+
+
 def load_relay_operator_manifest(operator_home: Path) -> RelayOperatorManifest:
     path = manifest_path(operator_home)
     if not path.exists():
@@ -114,6 +155,7 @@ def _write_deploy_compose(operator_home: Path, manifest: RelayOperatorManifest) 
     deploy_dir = operator_home / "deploy"
     deploy_dir.mkdir(parents=True, exist_ok=True)
     compose_path = deploy_dir / "docker-compose.yml"
+    issuance_private = relay_issuance_key_path(operator_home)
     compose_path.write_text(
         f"""services:
   relay:
@@ -125,6 +167,7 @@ def _write_deploy_compose(operator_home: Path, manifest: RelayOperatorManifest) 
     volumes:
       - {manifest.operator_name}-data:/data
       - ../relay-tls:/tls:ro
+      - ../relay-issuance:/relay-issuance:ro
     command:
       - yakr-relay
       - serve
@@ -134,6 +177,9 @@ def _write_deploy_compose(operator_home: Path, manifest: RelayOperatorManifest) 
       - --role=both
       - --name={manifest.operator_name}
       - --wrap-secret={b64encode(manifest.wrap_secret)}
+      - --require-capabilities
+      - --relay-issuance-private-key=/relay-issuance/issuance.key
+      - --relay-tls-spki-sha256=/tls/spki_sha256.hex
       - --ssl-keyfile=/tls/endpoint.key.pem
       - --ssl-certfile=/tls/endpoint.cert.pem
 
@@ -201,6 +247,7 @@ def create_relay_operator(
     write_endpoint_tls_files(operator, operator_home / "relay-tls")
     spki_path = operator_home / "relay-tls" / "spki_sha256.hex"
     spki_path.write_text(endpoint_tls_spki_sha256(operator).hex() + "\n", encoding="utf-8")
+    write_relay_issuance_keys(operator_home)
 
     public_url = public_url.rstrip("/")
     descriptor = relay_descriptor_for_operator(
@@ -243,6 +290,19 @@ def create_relay_operator(
     )
     _write_relay_env(operator_home, manifest)
     _write_deploy_compose(operator_home, manifest)
+
+    try:
+        from yakr_core.capability_client import bootstrap_operator_capabilities
+
+        bootstrap_operator_capabilities(
+            owner_store,
+            owner,
+            operator_name,
+            relay_url=public_url,
+            explicit_pin=endpoint_tls_spki_sha256(operator),
+        )
+    except (RuntimeError, ValueError, OSError):
+        pass
 
     return RelayOperatorBundle(
         manifest=manifest,

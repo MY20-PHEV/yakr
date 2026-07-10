@@ -30,7 +30,12 @@ def test_create_relay_operator_pairs_with_owner(tmp_path: Path) -> None:
     assert bundle.operator_home.exists()
     assert (bundle.operator_home / "identity.json").exists()
     assert (bundle.operator_home / "relay-tls" / "endpoint.cert.pem").exists()
+    assert (bundle.operator_home / "relay-issuance" / "issuance.key").exists()
+    assert (bundle.operator_home / "relay-issuance" / "issuance.pub").exists()
     assert (bundle.operator_home / "deploy" / "docker-compose.yml").exists()
+    compose = (bundle.operator_home / "deploy" / "docker-compose.yml").read_text(encoding="utf-8")
+    assert "--require-capabilities" in compose
+    assert "--relay-issuance-private-key" in compose
 
     manifest = load_relay_operator_manifest(bundle.operator_home)
     assert manifest.operator_name == "alice-ops"

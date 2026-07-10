@@ -25,6 +25,7 @@ relay_ops_app = typer.Typer(help="Relay operator commands")
 relay_ops_app.command("create")(relay_create_cmds.relay_create)
 relay_ops_app.command("deploy")(relay_create_cmds.relay_deploy)
 relay_ops_app.command("status")(relay_create_cmds.relay_status)
+relay_ops_app.command("capability-bootstrap")(relay_create_cmds.relay_capability_bootstrap)
 
 
 def _store():

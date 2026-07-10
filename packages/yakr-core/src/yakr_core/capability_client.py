@@ -19,7 +19,7 @@ from yakr_core.capability_grant import (
 )
 from yakr_core.http_client import endpoint_base_url, resolve_tls_pin_for_url, yakr_post
 from yakr_core.identity import Contact, Identity, b64decode, b64encode
-from yakr_core.relay_ticket import issue_relay_ticket
+from yakr_core.delivery_profile import mailbox_descriptors
 from yakr_core.store import FileLocalStore
 
 DEFAULT_CAPABILITY_PERMISSIONS = ("post", "fetch")
@@ -189,3 +189,77 @@ def relay_name_for_url(
             if endpoint_base_url(node.url) == normalized:
                 return node.name
     return os.environ.get("YAKR_RELAY_NAME", default)
+
+
+def provision_contact_relay_capabilities(
+    store: FileLocalStore,
+    identity: Identity,
+    contact: Contact,
+    *,
+    relay_url: str | None = None,
+    relay_name: str | None = None,
+) -> CapabilitySession | None:
+    """Issue and persist capability grants for one paired relay operator contact."""
+    if contact.delivery_profile is None:
+        return None
+    descriptors = mailbox_descriptors(contact.delivery_profile)
+    if not descriptors:
+        return None
+    descriptor = descriptors[0]
+    target_url = (relay_url or descriptor.url).rstrip("/")
+    target_name = relay_name or descriptor.name
+    try:
+        return issue_capability_from_relay(
+            target_url,
+            target_name,
+            identity=identity,
+            contact=contact,
+            store=store,
+        )
+    except (RuntimeError, ValueError, OSError):
+        return None
+
+
+def try_provision_pairing_capabilities(
+    store: FileLocalStore,
+    identity: Identity,
+    contact: Contact,
+) -> list[CapabilitySession]:
+    """Best-effort capability bootstrap for relay operators learned during pairing."""
+    sessions: list[CapabilitySession] = []
+    if contact.delivery_profile is None:
+        return sessions
+    for descriptor in mailbox_descriptors(contact.delivery_profile):
+        session = provision_contact_relay_capabilities(
+            store,
+            identity,
+            contact,
+            relay_url=descriptor.url,
+            relay_name=descriptor.name,
+        )
+        if session is not None:
+            sessions.append(session)
+    return sessions
+
+
+def bootstrap_operator_capabilities(
+    owner_store: FileLocalStore,
+    identity: Identity,
+    operator_name: str,
+    *,
+    relay_url: str,
+    explicit_pin: bytes | None = None,
+) -> CapabilitySession | None:
+    """Bootstrap capability grants after operator pairing when the relay is reachable."""
+    contact = owner_store.get_contact(operator_name)
+    if contact is None:
+        raise ValueError(f"unknown operator contact: {operator_name}")
+    if explicit_pin is not None:
+        _ = explicit_pin
+    return provision_contact_relay_capabilities(
+        owner_store,
+        identity,
+        contact,
+        relay_url=relay_url,
+        relay_name=operator_name,
+    )

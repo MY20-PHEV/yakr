@@ -49,6 +49,11 @@ def tickets_required() -> bool:
     return os.environ.get("YAKR_REQUIRE_TICKETS", "").lower() in {"1", "true", "yes"}
 
 
+def legacy_get_fetch() -> bool:
+    """Opt-in legacy fetch that puts mailbox tags in the URL path."""
+    return os.environ.get("YAKR_LEGACY_GET_FETCH", "").lower() in {"1", "true", "yes"}
+
+
 def parse_route(route: str) -> tuple[str, str]:
     """Legacy two-hop route form; returns (entry_name, mailbox_name)."""
     parts = [part.strip() for part in route.split(",") if part.strip()]
@@ -680,24 +685,40 @@ def fetch_relay_blobs(
     use_capabilities = capabilities_enabled() and identity is not None and contact is not None and store is not None
     for fetch_base in fetch_bases:
         try:
-            if use_capabilities:
-                relay_name = relay_name_for_url(fetch_base)
-                session = ensure_capability_session(
-                    fetch_base,
-                    relay_name,
-                    identity=identity,
-                    contact=contact,
+            relay_name = relay_name_for_url(fetch_base)
+            if legacy_get_fetch():
+                response = yakr_get(
+                    f"{fetch_base.rstrip('/')}/v1/blobs/{mailbox_tag_b64}",
                     store=store,
-                    permissions=("fetch",),
+                    contact=contact,
+                    identity=identity,
+                    timeout=timeout,
                 )
-                body = json.dumps({"mailbox_tags": [mailbox_tag_b64]}).encode("utf-8")
-                headers = capability_headers_for_request(
-                    session,
-                    method="POST",
-                    path="/v1/fetch",
-                    body=body,
-                )
-                headers["Content-Type"] = "application/json"
+            else:
+                fetch_payload: dict[str, str | list[str]] = {"mailbox_tags": [mailbox_tag_b64]}
+                if not use_capabilities and tickets_required() and identity is not None and contact is not None:
+                    ticket = _ticket(identity, contact, relay_name, "fetch")
+                    if ticket is not None:
+                        fetch_payload["ticket"] = ticket
+                body = json.dumps(fetch_payload).encode("utf-8")
+                headers: dict[str, str] = {"Content-Type": "application/json"}
+                if use_capabilities:
+                    session = ensure_capability_session(
+                        fetch_base,
+                        relay_name,
+                        identity=identity,
+                        contact=contact,
+                        store=store,
+                        permissions=("fetch",),
+                    )
+                    headers.update(
+                        capability_headers_for_request(
+                            session,
+                            method="POST",
+                            path="/v1/fetch",
+                            body=body,
+                        )
+                    )
                 response = yakr_post(
                     f"{fetch_base.rstrip('/')}/v1/fetch",
                     store=store,
@@ -705,14 +726,6 @@ def fetch_relay_blobs(
                     identity=identity,
                     content=body,
                     headers=headers,
-                    timeout=timeout,
-                )
-            else:
-                response = yakr_get(
-                    f"{fetch_base.rstrip('/')}/v1/blobs/{mailbox_tag_b64}",
-                    store=store,
-                    contact=contact,
-                    identity=identity,
                     timeout=timeout,
                 )
             if response.status_code != 200:

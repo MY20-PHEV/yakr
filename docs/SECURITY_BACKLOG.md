@@ -28,7 +28,7 @@
 | P0-6 | Concurrent fetch serialization policy | `FileLocalStore.fetch_lock()` | **Implemented** (CLI, mesh, mobile) |
 | P0-7 | Stale receipt handling normative test | `test_fetch_hardening.py`, `test_receipt_apply.py` | **Implemented** |
 | P0-8 | Profile rollback / replay protection audit | [profile-replay-policy.md](spec/profile-replay-policy.md) | **Implemented** |
-| P0-9 | TLS pin rotation + relay key compromise recovery | [tls-pin-lifecycle.md](spec/tls-pin-lifecycle.md) | **Draft spec** |
+| P0-9 | TLS pin rotation + relay key compromise recovery | [tls-pin-lifecycle.md](spec/tls-pin-lifecycle.md) | **Partial** (spec + rotation test) |
 
 ## P1 — Identity and authorisation privacy
 
@@ -38,7 +38,7 @@
 | P1-2 | Per-relay pseudonymous capability tokens | ADR 012 + `derive_capability_material` | **Partial** |
 | P1-3 | Separate operator identity from relay client capability | | Design |
 | P1-4 | Relay-observer privacy table | [security/analysis-v1.md](security/analysis-v1.md) §8.5 | Draft |
-| P1-5 | `POST /v1/fetch` (tags in body, not URL path) | Reduces infra log leakage | **Partial** (`POST /v1/fetch`; GET legacy) |
+| P1-5 | `POST /v1/fetch` (tags in body, not URL path) | Reduces infra log leakage | **Done** (default; `YAKR_LEGACY_GET_FETCH=1` for GET) |
 | P1-6 | Capability / wake token revocation lifecycle | [platform-wake-v1.md](spec/platform-wake-v1.md) | Partial spec |
 
 ## P2 — Cryptographic protocol review
@@ -51,7 +51,7 @@
 | P2-4 | Protocol version downgrade policy | **Done** — `invite.protocol` in transcript |
 | P2-5 | Skipped-key limits + DoS bounds | [double-ratchet.md](spec/double-ratchet.md) — verify |
 | P2-6 | Malicious-input test vectors + CBOR fuzz | Open |
-| P2-7 | Label ratchet "experimental, not audited" in docs | Open |
+| P2-7 | Label ratchet "experimental, not audited" in docs | **Done** — `double-ratchet.md` |
 
 ## P3 — Real mobile evidence
 

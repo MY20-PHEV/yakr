@@ -189,6 +189,7 @@ class YakrMobileClient:
         from yakr_cli.network import (
             fetch_direct_blobs,
             fetch_mailbox_urls,
+            fetch_relay_blobs,
             resolve_contact_route,
         )
         from yakr_cli.receipt_cmds import send_delivery_receipt
@@ -233,12 +234,15 @@ class YakrMobileClient:
                     for item in fetch_direct_blobs(tag.tag_b64, direct_hints):
                         items.append((None, item))
                 for fetch_base in fetch_bases:
-                    response = httpx.get(f"{fetch_base}/v1/blobs/{tag.tag_b64}", timeout=10.0)
-                    if response.status_code != 200:
-                        raise YakrError(f"relay fetch failed: {response.status_code}")
-                    for item in response.json():
+                    for item in fetch_relay_blobs(
+                        tag.tag_b64,
+                        [fetch_base],
+                        store=self.store.file_store,
+                        contact=contact,
+                        identity=identity,
+                    ):
                         items.append((fetch_base, item))
-                    metrics.record_fetch(len(response.content), decoy=is_decoy)
+                    metrics.record_fetch(0, decoy=is_decoy)
 
                 seen: set[str] = set()
                 queue: list[dict] = []

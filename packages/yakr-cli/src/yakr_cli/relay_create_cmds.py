@@ -8,6 +8,7 @@ import httpx
 import typer
 from rich.console import Console
 
+from yakr_core.capability_client import bootstrap_operator_capabilities
 from yakr_core.http_client import yakr_get
 from yakr_core.identity import b64encode
 from yakr_core.relay_authorization import authorized_publish_relays
@@ -138,7 +139,61 @@ def relay_status(
         )
         if response.status_code == 200:
             console.print("[green]Health: ok[/green]")
+            identity = _require_identity(store)
+            session = bootstrap_operator_capabilities(
+                store,
+                identity,
+                operator_name,
+                relay_url=manifest.public_url,
+                explicit_pin=endpoint_tls_spki_sha256(operator),
+            )
+            if session is not None:
+                console.print("[green]Capability grant: active[/green]")
+            else:
+                console.print(
+                    "[dim]Capability grant: not provisioned "
+                    f"(run `yakr relay capability-bootstrap {operator_name}`)[/dim]"
+                )
         else:
             console.print(f"[yellow]Health: HTTP {response.status_code}[/yellow]")
     except (httpx.HTTPError, OSError) as exc:
         console.print(f"[yellow]Health: unreachable ({exc})[/yellow]")
+
+
+def relay_capability_bootstrap(
+    operator_name: str = typer.Argument(..., help="Relay operator created with `yakr relay create`"),
+) -> None:
+    """Issue relay capability grants for a paired operator relay."""
+    store = _store()
+    identity = _require_identity(store)
+    operator_home = relay_operator_home(store.root, operator_name)
+    try:
+        manifest = load_relay_operator_manifest(operator_home)
+    except FileNotFoundError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
+
+    operator_store = FileLocalStore(operator_home)
+    operator = operator_store.load_identity()
+    if operator is None:
+        console.print("[red]operator identity missing[/red]")
+        raise typer.Exit(code=1)
+
+    try:
+        session = bootstrap_operator_capabilities(
+            store,
+            identity,
+            operator_name,
+            relay_url=manifest.public_url,
+            explicit_pin=endpoint_tls_spki_sha256(operator),
+        )
+    except ValueError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
+    if session is None:
+        console.print(
+            "[yellow]Capability bootstrap failed — is the relay up and reachable "
+            f"at {manifest.public_url}?[/yellow]"
+        )
+        raise typer.Exit(code=1)
+    console.print(f"[green]Capability grant active for {operator_name}[/green]")

@@ -179,6 +179,9 @@ def invite_accept(
     contact = joiner_complete_pairing(identity, bundle, request, secrets, pairing_response)
     contact.name = name or bundle.inviter_name
     store.save_contact(contact)
+    from yakr_core.capability_client import try_provision_pairing_capabilities
+
+    try_provision_pairing_capabilities(store, identity, contact)
     console.print(f"[green]Paired with {contact.name}[/green]")
 
 
