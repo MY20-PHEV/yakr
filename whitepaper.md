@@ -236,6 +236,12 @@ The long-term goal is an open protocol with interoperable clients and relays. Th
 
 Yakr is **not** a protocol where two mobile handsets typically exchange packets without intermediaries. Direct sockets (LAN, Tor onion, hole punch) are optional optimizations. **Do not market Yakr as “P2P messaging” without qualification** — say **E2E messaging with pairing-gated social relays** instead.
 
+### 4.6 Not multi-device chat sync (v1 product)
+
+The first product targets **one active messaging client per identity** — typically a phone. Always-on reachability comes from **relay operators** (your homelab, a friend’s VPS, a tailnet node), which are a **separate role** from “second phone or laptop signed in as the same person.”
+
+Linked iPad + phone + desktop with live shared inboxes (Signal-style) is **out of v1 scope**. Copying `YAKR_HOME` to two machines is a dev convenience, not the user model. Optional one-way history export to a secondary device may be added later without full ratchet sync.
+
 ---
 
 ## 5. System Overview
@@ -1728,6 +1734,7 @@ bots
 large media libraries
 cloud backup
 multi-account business features
+multi-device identity sync (one phone = one identity; relays are separate infra)
 ```
 
 ### 24.3 Reference Implementation
@@ -1970,9 +1977,11 @@ user-owned always-on relay device
 
 ### 26.6 How should multi-device sync work?
 
-Multi-device support requires careful key management.
+Multi-device support requires careful key management. **v1 reference clients do not implement it** — see §4.6.
 
-Options:
+The intended model is one active client per identity plus socially operated relays for store-and-forward. A homelab VPS or friend’s relay is **operator infrastructure**, not a second chat endpoint for the same person.
+
+If added later, options include:
 
 ```text
 each device is an independent recipient

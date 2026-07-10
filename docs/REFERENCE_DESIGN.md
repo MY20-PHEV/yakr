@@ -876,7 +876,7 @@ Track unresolved items here; close with ADRs in `docs/adr/`.
 | OD-03 | Push strategy on mobile | 8 | Polling only |
 | OD-04 | Public DHT for invite rendezvous | 9+ | Defer; LAN + manual relay |
 | OD-05 | Attachment chunking design | 9+ | Out of v1 scope |
-| OD-06 | Multi-device model | 9+ | Primary device signs secondary enrollment |
+| OD-06 | Multi-device model | 9+ | **Deferred** — v1 is one active client per identity; relay operator is a separate role ([multi-device.md](spec/multi-device.md)) |
 | OD-07 | Public relay incentives | 9+ | Community relay docs only |
 
 ---
@@ -904,9 +904,10 @@ Phase 1–9 are complete. Phase 10 is complete except future ADR work. Current f
 1. **Homelab** — deploy Charlie with HTTPS (`deploy_charlie_vps.sh` + `generate_operator_relay_tls.py`); use `yakr presence push` on IP change
 2. **CLI polish** — optional background `resend`/`receipts` worker
 3. **Transports** — Tor dial strings with same TLS pin model; Meshtastic/LoRaWAN mesh adapters ([ADR 010](adr/010-offline-mesh-transports.md))
-4. **Multi-device** — see `docs/spec/multi-device.md`
-5. **Ephemeral cloud relay** (future) — one-click deploy/teardown of containerized `yakr-relay` in user's AWS/GCP account with profile baked in ([ADR 009](adr/009-ephemeral-cloud-relay.md))
-6. **Offline mesh** (future) — Meshtastic gateway bridge + blob fragmentation; LoRaWAN paired gateway ([ADR 010](adr/010-offline-mesh-transports.md))
+4. **Ephemeral cloud relay** (future) — one-click deploy/teardown of containerized `yakr-relay` in user's AWS/GCP account with profile baked in ([ADR 009](adr/009-ephemeral-cloud-relay.md))
+5. **Offline mesh** (future) — Meshtastic gateway bridge + blob fragmentation; LoRaWAN paired gateway ([ADR 010](adr/010-offline-mesh-transports.md))
+
+**Explicit non-goal (v1):** multi-device identity sync (same person on phone + laptop with live shared inbox). One `YAKR_HOME` = one messaging identity. Always-on delivery uses **relay operators**, not a second signed-in client. See [multi-device.md](spec/multi-device.md) for future notes only.
 
 ---
 
