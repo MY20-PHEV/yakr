@@ -34,7 +34,7 @@ cargo test -p yakr-crypto
 
 - [x] **Hybrid KEX** — `hybrid_kex.json` master matches §3.4 derivation (`rust/yakr-crypto`)
 - [x] **Mailbox tag** — `mailbox_tag.json` tag matches §3.6 (`rust/yakr-crypto`)
-- [ ] **Inner message** — `inner_message.json` parses as canonical sorted JSON
+- [x] **Inner message** — `inner_message.json` parses as canonical sorted JSON (`rust/yakr-crypto`)
 
 ### Signed artifacts
 
