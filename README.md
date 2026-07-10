@@ -6,7 +6,7 @@ A decentralised, social-relay, post-quantum messaging protocol — from *yakking
 
 Not affiliated with unrelated sound-alike businesses — see [NOTICE.md](NOTICE.md).
 
-**Web:** [yakr.co.uk](https://yakr.co.uk) (registered; DNS pending) · Merch: [yakr.store](https://yakr.store) (future)
+**Web:** [yakr.co.uk](https://yakr.co.uk) (registered; DNS pending) · Merch: [yakr.store](https://yakr.store) (future) · **Source:** [github.com/MY20-PHEV/yakr](https://github.com/MY20-PHEV/yakr)
 
 > **Project maturity:** Reference implementation phases are largely complete; **protocol stability is draft** and **security maturity is experimental** (no external audit; not recommended for production). See [docs/SECURITY_BACKLOG.md](docs/SECURITY_BACKLOG.md).
 
