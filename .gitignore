@@ -24,3 +24,6 @@ data/
 
 # Docker
 *.log
+
+# Rust
+rust/target/
