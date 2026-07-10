@@ -61,12 +61,33 @@ pub fn build_pairing_request(
     ))
 }
 
+pub fn validate_pairing_request_for_invite(
+    invite: &InviteBundle,
+    request: &PairingRequest,
+) -> Result<(), String> {
+    if request.invite_secret != invite.invite_secret {
+        return Err("pairing invite secret mismatch".into());
+    }
+    if invite_supports_hybrid(invite) {
+        if request.kem_ciphertext.is_empty() {
+            return Err("hybrid invite requires kem ciphertext".into());
+        }
+        return Ok(());
+    }
+    if !request.kem_ciphertext.is_empty() {
+        return Err("unexpected kem ciphertext on classical invite".into());
+    }
+    Ok(())
+}
+
 pub fn pairing_transcript(
     invite: &InviteBundle,
     request: &PairingRequest,
     inviter_ephemeral_public: &[u8; 32],
-) -> [u8; 32] {
+) -> Result<[u8; 32], String> {
+    validate_pairing_request_for_invite(invite, request)?;
     let mut parts: Vec<&[u8]> = vec![
+        invite.protocol.as_bytes(),
         &invite.invite_secret,
         &invite.signing_public,
         &invite.agreement_public,
@@ -75,7 +96,7 @@ pub fn pairing_transcript(
         &request.joiner_ephemeral_public,
         inviter_ephemeral_public,
     ];
-    if !request.kem_ciphertext.is_empty() {
+    if invite_supports_hybrid(invite) {
         parts.push(&request.kem_ciphertext);
     }
     let mut hasher = Sha256::new();
@@ -85,7 +106,7 @@ pub fn pairing_transcript(
         }
         hasher.update(part);
     }
-    hasher.finalize().into()
+    Ok(hasher.finalize().into())
 }
 
 fn derive_pair_master(
@@ -111,7 +132,7 @@ pub fn inviter_complete_pairing(
 ) -> Result<(PairingResponse, Contact), String> {
     let inviter_ephemeral_public =
         x25519_dalek::PublicKey::from(&StaticSecret::from(inviter_ephemeral_private)).to_bytes();
-    let transcript_hash = pairing_transcript(invite, request, &inviter_ephemeral_public);
+    let transcript_hash = pairing_transcript(invite, request, &inviter_ephemeral_public)?;
     let mut hybrid = false;
     let pq_secret = if invite_supports_hybrid(invite) {
         if request.kem_ciphertext.is_empty() {
@@ -175,6 +196,7 @@ mod tests {
     #[derive(serde::Deserialize)]
     struct PairingTranscriptVector {
         name: String,
+        invite_protocol: Option<String>,
         invite_secret_hex: String,
         invite_signing_public_hex: String,
         invite_agreement_public_hex: String,
@@ -208,7 +230,10 @@ mod tests {
 
         for vector in vectors {
             let invite = crate::invite::InviteBundle {
-                protocol: "yakr-v0.4".into(),
+                protocol: vector
+                    .invite_protocol
+                    .clone()
+                    .unwrap_or_else(|| "yakr-v0.4".into()),
                 inviter_name: "alice".into(),
                 signing_public: hex::decode(&vector.invite_signing_public_hex).unwrap().try_into().unwrap(),
                 agreement_public: hex::decode(&vector.invite_agreement_public_hex).unwrap().try_into().unwrap(),
@@ -230,7 +255,8 @@ mod tests {
             let inviter_ephemeral_public: [u8; 32] =
                 hex::decode(&vector.inviter_ephemeral_public_hex).unwrap().try_into().unwrap();
 
-            let transcript = pairing_transcript(&invite, &request, &inviter_ephemeral_public);
+            let transcript = pairing_transcript(&invite, &request, &inviter_ephemeral_public)
+                .expect("pairing transcript");
             assert_eq!(
                 hex::encode(transcript),
                 vector.expected_transcript_hash_hex,
@@ -283,7 +309,7 @@ pub fn joiner_complete_pairing(
     secrets: &PairingSecrets,
     response: &PairingResponse,
 ) -> Result<Contact, String> {
-    let expected = pairing_transcript(invite, request, &response.inviter_ephemeral_public);
+    let expected = pairing_transcript(invite, request, &response.inviter_ephemeral_public)?;
     if expected != response.transcript_hash {
         return Err("pairing transcript mismatch".into());
     }

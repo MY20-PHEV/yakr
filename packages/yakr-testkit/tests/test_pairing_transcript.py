@@ -21,7 +21,7 @@ def _load_vectors() -> list[dict]:
 def test_pairing_transcript_vectors() -> None:
     for vector in _load_vectors():
         invite = InviteBundle(
-            protocol="yakr-v0.4",
+            protocol=vector.get("invite_protocol", "yakr-v0.4"),
             inviter_name="alice",
             signing_public=bytes.fromhex(vector["invite_signing_public_hex"]),
             agreement_public=bytes.fromhex(vector["invite_agreement_public_hex"]),
@@ -72,7 +72,7 @@ def test_pairing_transcript_matches_inviter_and_joiner_paths(vector_name: str = 
 
     vector = next(item for item in _load_vectors() if item["name"] == vector_name)
     invite = InviteBundle(
-        protocol="yakr-v0.4",
+        protocol=vector.get("invite_protocol", "yakr-v0.4"),
         inviter_name="alice",
         signing_public=bytes.fromhex(vector["invite_signing_public_hex"]),
         agreement_public=bytes.fromhex(vector["invite_agreement_public_hex"]),

@@ -45,7 +45,20 @@ Validation:
 - `expires_at` must be in the future
 - `ciphertext` ≤ 64 KiB
 
-### `GET /v1/blobs/{mailbox_tag}`
+### `GET /v1/blobs/{mailbox_tag}` (legacy)
+
+Returns all non-expired blobs for the tag. **Deprecated for new clients** — mailbox tags in URL paths leak to infra logs. Use `POST /v1/fetch` instead.
+
+### `POST /v1/fetch` (preferred)
+
+```json
+{
+  "mailbox_tags": ["<base64url>", "..."],
+  "ticket": "<optional relay ticket>"
+}
+```
+
+Returns merged blob list for all tags. When `require_capabilities` is enabled on the relay, clients MUST authorize with capability headers (`fetch` permission) instead of a ticket.
 
 Return all non-expired blobs for the tag. Order is implementation-defined (`stored_at` ascending is typical); clients MUST NOT assume blob order matches application `seq` ([fetch-algorithm.md](./fetch-algorithm.md)).
 

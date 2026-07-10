@@ -133,7 +133,9 @@ def pairing_transcript(
     request: PairingRequest,
     inviter_ephemeral_public: bytes,
 ) -> bytes:
+    validate_pairing_request_for_invite(invite, request)
     parts = [
+        invite.protocol.encode("utf-8"),
         invite.invite_secret,
         invite.signing_public,
         invite.agreement_public,
@@ -142,9 +144,24 @@ def pairing_transcript(
         request.joiner_ephemeral_public,
         inviter_ephemeral_public,
     ]
-    if request.kem_ciphertext:
+    if invite_supports_hybrid(invite):
         parts.append(request.kem_ciphertext)
     return hashlib.sha256(b"|".join(parts)).digest()
+
+
+def validate_pairing_request_for_invite(
+    invite: InviteBundle,
+    request: PairingRequest,
+) -> None:
+    """Reject PQ downgrade (hybrid invite without KEM) and classical uplift."""
+    if request.invite_secret != invite.invite_secret:
+        raise ValueError("pairing invite secret mismatch")
+    if invite_supports_hybrid(invite):
+        if not request.kem_ciphertext:
+            raise ValueError("hybrid invite requires kem ciphertext")
+        return
+    if request.kem_ciphertext:
+        raise ValueError("unexpected kem ciphertext on classical invite")
 
 
 def derive_pair_master(
@@ -346,6 +363,7 @@ def inviter_complete_pairing(
     *,
     inviter_profile: bytes = b"",
 ) -> tuple[PairingResponse, Contact]:
+    validate_pairing_request_for_invite(invite, request)
     inviter_ephemeral_public = inviter_ephemeral_private.public_key().public_bytes(
         encoding=serialization.Encoding.Raw,
         format=serialization.PublicFormat.Raw,
@@ -403,6 +421,7 @@ def joiner_complete_pairing(
 ) -> Contact:
     if response.transcript_hash != pairing_transcript(invite, request, response.inviter_ephemeral_public):
         raise ValueError("pairing transcript mismatch")
+    validate_pairing_request_for_invite(invite, request)
     hybrid = invite_supports_hybrid(invite)
     pq_secret = secrets.pq_secret if hybrid else None
     if hybrid and pq_secret is None:

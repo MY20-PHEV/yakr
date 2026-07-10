@@ -13,6 +13,7 @@ from pydantic import BaseModel
 from yakr_core.capability_grant import (
     CapabilityGrant,
     grant_allows_permission,
+    issue_capability_grant,
     verify_capability_grant,
     verify_capability_request,
 )
@@ -65,6 +66,20 @@ class CapabilityRegisterRequest(BaseModel):
     grant: str
 
 
+class CapabilityIssueRequest(BaseModel):
+    auth_public: str
+    capability_id: str
+    capability_generation: int
+    issuance_salt: str
+    permissions: list[str]
+    ticket: str | None = None
+
+
+class FetchRequest(BaseModel):
+    mailbox_tags: list[str]
+    ticket: str | None = None
+
+
 @dataclass
 class RelayRuntime:
     role: RelayRole
@@ -74,7 +89,24 @@ class RelayRuntime:
     require_capabilities: bool = False
     forward_delay_max_secs: int = 0
     relay_issuance_public: bytes = field(default_factory=bytes)
+    relay_issuance_private: bytes = field(default_factory=bytes)
     relay_tls_spki_sha256: bytes = field(default_factory=bytes)
+
+
+def _check_bootstrap_ticket(ticket_b64: str | None, *, runtime: RelayRuntime) -> None:
+    if ticket_b64 is None:
+        raise HTTPException(status_code=401, detail="relay ticket required for capability issue")
+    try:
+        ticket = RelayTicket.from_b64(ticket_b64)
+        for permission in ("store", "fetch"):
+            try:
+                verify_relay_ticket(ticket, relay_name=runtime.name, permission=permission)
+                return
+            except ValueError:
+                continue
+        raise ValueError("relay ticket missing store or fetch permission")
+    except Exception as exc:
+        raise HTTPException(status_code=401, detail=f"invalid relay ticket: {exc}") from exc
 
 
 def _check_ticket(ticket_b64: str | None, *, runtime: RelayRuntime, permission: str) -> None:
@@ -168,7 +200,45 @@ def create_app(
 
     @app.get("/healthz")
     def healthz() -> dict[str, str]:
-        return {"status": "ok", "role": runtime.role, "name": runtime.name}
+        payload = {"status": "ok", "role": runtime.role, "name": runtime.name}
+        if runtime.relay_issuance_public:
+            payload["capability_issuance_public"] = _b64encode(runtime.relay_issuance_public)
+        return payload
+
+    @app.post("/v1/capabilities/issue", status_code=201)
+    def issue_capability(request: CapabilityIssueRequest) -> dict[str, str]:
+        if not runtime.relay_issuance_private:
+            raise HTTPException(status_code=500, detail="relay missing issuance private key")
+        _check_bootstrap_ticket(request.ticket, runtime=runtime)
+        try:
+            from cryptography.hazmat.primitives.asymmetric import ed25519
+
+            auth_public = _b64decode(request.auth_public)
+            capability_id = _b64decode(request.capability_id)
+            issuance_salt = _b64decode(request.issuance_salt)
+            if len(capability_id) != 16:
+                raise ValueError("capability_id must be 16 bytes")
+            if len(issuance_salt) != 16:
+                raise ValueError("issuance_salt must be 16 bytes")
+            relay_private = ed25519.Ed25519PrivateKey.from_private_bytes(runtime.relay_issuance_private)
+            grant = issue_capability_grant(
+                relay_private,
+                capability_id=capability_id,
+                capability_generation=request.capability_generation,
+                relay_name=runtime.name,
+                relay_tls_spki_sha256=runtime.relay_tls_spki_sha256,
+                permissions=tuple(request.permissions),
+                auth_public=auth_public,
+            )
+            capability_store.register(
+                grant,
+                relay_signing_public=runtime.relay_issuance_public,
+                relay_name=runtime.name,
+                relay_tls_spki_sha256=runtime.relay_tls_spki_sha256,
+            )
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {"status": "issued", "grant": grant.to_b64()}
 
     @app.post("/v1/capabilities/register", status_code=201)
     def register_capability(request: CapabilityRegisterRequest) -> dict[str, str]:
@@ -210,8 +280,46 @@ def create_app(
             raise HTTPException(status_code=status, detail=str(exc)) from exc
         return {"status": "stored"}
 
+    @app.post("/v1/fetch", response_model=list[BlobResponse])
+    async def fetch_blobs_post(request: Request, payload: FetchRequest) -> list[BlobResponse]:
+        if runtime.role == "entry":
+            raise HTTPException(status_code=405, detail="entry relay does not fetch blobs")
+        body = await request.body()
+        _authorize_request(
+            request,
+            runtime=runtime,
+            capability_store=capability_store,
+            permission="fetch",
+            body=body,
+            ticket_b64=payload.ticket,
+        )
+        if not payload.mailbox_tags:
+            raise HTTPException(status_code=400, detail="mailbox_tags required")
+        items: list[BlobResponse] = []
+        seen: set[tuple[str, int]] = set()
+        for mailbox_tag in payload.mailbox_tags:
+            try:
+                tag_bytes = _b64decode(mailbox_tag)
+            except Exception as exc:
+                raise HTTPException(status_code=400, detail="invalid mailbox_tag") from exc
+            for blob in store.fetch(tag_bytes):
+                key = (_b64encode(blob.ciphertext), blob.stored_at)
+                if key in seen:
+                    continue
+                seen.add(key)
+                items.append(
+                    BlobResponse(
+                        mailbox_tag=_b64encode(blob.mailbox_tag),
+                        expires_at=blob.expires_at,
+                        ciphertext=_b64encode(blob.ciphertext),
+                        stored_at=blob.stored_at,
+                    )
+                )
+        return items
+
     @app.get("/v1/blobs/{mailbox_tag}", response_model=list[BlobResponse])
-    def fetch_blobs(mailbox_tag: str) -> list[BlobResponse]:
+    def fetch_blobs_legacy(mailbox_tag: str) -> list[BlobResponse]:
+        """Legacy v1 fetch — mailbox tag in URL path. Prefer POST /v1/fetch."""
         try:
             tag_bytes = _b64decode(mailbox_tag)
         except Exception as exc:

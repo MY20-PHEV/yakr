@@ -68,6 +68,7 @@ Joiner MUST reject if `transcript_hash` does not recompute.
 
 ```text
 parts = [
+    invite.protocol.encode("utf-8"),
     invite.invite_secret,
     invite.signing_public,
     invite.agreement_public,
@@ -76,13 +77,15 @@ parts = [
     request.joiner_ephemeral_public,
     inviter_ephemeral_public,
 ]
-if request.kem_ciphertext is non-empty:
+if invite_supports_hybrid(invite):
     parts.append(request.kem_ciphertext)
 
 transcript_hash = SHA-256( parts[0] || b"|" || parts[1] || b"|" || ... || parts[n-1] )
 ```
 
 Delimiter is ASCII `|` (0x7C) between **raw byte fields** in list order.
+
+Hybrid invites MUST include non-empty `kem_ciphertext` in the request; classical invites MUST NOT include `kem_ciphertext` (enforced by `validate_pairing_request_for_invite`).
 
 ### What is bound
 
@@ -93,9 +96,17 @@ Delimiter is ASCII `|` (0x7C) between **raw byte fields** in list order.
 | Ephemeral contributions | Yes | Both ephemeral public keys in hash |
 | Invite freshness | Partial | `invite_secret` uniqueness per invite |
 | PQ negotiation | Yes (hybrid) | `kem_ciphertext` appended when present |
-| Protocol version string | **Gap** | Not in hash today — see §Open gaps |
+| Protocol version string | Yes | `invite.protocol` as first transcript field |
 | Delivery profiles | **Out of band** | Profiles verified by signature after derive; not in transcript hash |
 | Rendezvous relay identity | Partial | `rendezvous_tls_spki_sha256` in signed invite only |
+
+## PQ downgrade policy (normative)
+
+| Case | Behaviour |
+|------|-----------|
+| Hybrid invite, empty `kem_ciphertext` | **Reject** before transcript hash |
+| Classical invite, non-empty `kem_ciphertext` | **Reject** before transcript hash |
+| Hybrid invite, valid `kem_ciphertext` | Include in transcript; use hybrid master derivation |
 
 ## Master secret derivation (normative)
 
@@ -157,15 +168,15 @@ Profiles are **not** included in `transcript_hash`. Security relies on:
 | MITM without breaking invite or ephemeral DH | Intended — requires review |
 | Unknown key-share (different peer view) | Intended — identities in transcript |
 | Replay pairing across sessions | New invite_secret per attempt |
-| Downgrade PQ → classical only | **Open** — version not in transcript (P2-3) |
-| Cross-protocol replay | **Open** — no domain separator on outer invite URL |
+| Downgrade PQ → classical only | **Rejected** — `validate_pairing_request_for_invite` |
+| Cross-protocol replay | Mitigated — `invite.protocol` bound in transcript |
 
 ## Open gaps (tracked)
 
 | ID | Gap | Backlog |
 |----|-----|---------|
-| G1 | `protocol_version` not in transcript hash | P2-4 |
-| G2 | PQ downgrade if inviter strips KEM after hybrid invite | P2-3 |
+| G1 | ~~`protocol_version` not in transcript hash~~ | **Closed** — `invite.protocol` is first field |
+| G2 | ~~PQ downgrade if inviter strips KEM after hybrid invite~~ | **Closed** — validation rejects mismatch |
 | G3 | Profile bytes not in transcript | Design choice — document or fix |
 | G4 | Online vs offline pairing path byte identity | Verify rendezvous path matches |
 | G5 | Independent cryptographer review | P2-1 |
@@ -182,7 +193,7 @@ Profiles are **not** included in `transcript_hash`. Security relies on:
 ## Exit criteria
 
 - [x] Cross-language test vector: invite + request + response → `transcript_hash` + `master_secret` ([pairing_transcript.json](./test-vectors-v1/pairing_transcript.json))
-- [ ] Documented PQ downgrade policy implemented or rejected with rationale
+- [x] Documented PQ downgrade policy implemented or rejected with rationale
 - [ ] External review sign-off or documented findings
 
 ## References
