@@ -1,0 +1,86 @@
+# Security and Protocol Hardening Backlog
+
+**Status:** Living document  
+**Source:** [External review 2026-07-10](reviews/external-critique-2026-07-10.md)  
+**Purpose:** Track P0–P3 work before new transports or features
+
+## Maturity labels (project-wide)
+
+| Label | Current status |
+|-------|----------------|
+| Reference implementation breadth | Phases 1–10 largely complete |
+| Protocol stability | Draft (`yakr-v1.0` frozen for interop; extensions in flight) |
+| Security maturity | **Experimental** — not production-audited |
+| External audit | Not performed |
+| Production recommendation | **No** |
+
+---
+
+## P0 — Protocol correctness (attack first)
+
+| ID | Item | Spec / tracking | Status |
+|----|------|-----------------|--------|
+| P0-1 | Formal delivery state machine | [delivery-state-machine.md](spec/delivery-state-machine.md) | Draft spec |
+| P0-2 | Transactional ratchet + outbound queue persist | [delivery-state-machine.md](spec/delivery-state-machine.md) §Crash safety | Open |
+| P0-3 | Transactional receive decrypt + `last_recv_seq` persist | Same | Open |
+| P0-4 | Crash injection tests (send + receive) | `yakr-testkit` | Open |
+| P0-5 | Document relay retention: TTL-only delete (not fetch/receipt) | [ephemeral-messages.md](spec/ephemeral-messages.md), state machine | Documented |
+| P0-6 | Concurrent fetch serialization policy | state machine | Open |
+| P0-7 | Stale receipt handling normative test | fetch-algorithm | Open |
+| P0-8 | Profile rollback / replay protection audit | pairing, profiles | Open |
+| P0-9 | TLS pin rotation + relay key compromise recovery | [tls-endpoints.md](spec/tls-endpoints.md) | Open |
+
+## P1 — Identity and authorisation privacy
+
+| ID | Item | Notes | Status |
+|----|------|-------|--------|
+| P1-1 | Replace stable `contact_id` in relay tickets | Current: `issuer_signing_public` + `contact_id` in `relay_ticket.py` | Open |
+| P1-2 | Per-relay pseudonymous capability tokens | Review proposes `capability_id` + relay-bound auth key | Design |
+| P1-3 | Separate operator identity from relay client capability | | Design |
+| P1-4 | Relay-observer privacy table | [security/analysis-v1.md](security/analysis-v1.md) §8.5 | Draft |
+| P1-5 | `POST /v1/fetch` (tags in body, not URL path) | Reduces infra log leakage | Design (`yakr-v1.1`) |
+| P1-6 | Capability / wake token revocation lifecycle | [platform-wake-v1.md](spec/platform-wake-v1.md) | Partial spec |
+
+## P2 — Cryptographic protocol review
+
+| ID | Item | Status |
+|----|------|--------|
+| P2-1 | Independent session / ratchet review | Not started |
+| P2-2 | Complete pairing transcript construction doc | Partial in pairing specs |
+| P2-3 | PQ downgrade prevention (no silent classical after hybrid) | Open |
+| P2-4 | Protocol version downgrade policy | Open |
+| P2-5 | Skipped-key limits + DoS bounds | [double-ratchet.md](spec/double-ratchet.md) — verify |
+| P2-6 | Malicious-input test vectors + CBOR fuzz | Open |
+| P2-7 | Label ratchet "experimental, not audited" in docs | Open |
+
+## P3 — Real mobile evidence
+
+| ID | Item | Status |
+|----|------|--------|
+| P3-1 | Physical Android delivery delay matrix (Doze, kill, reboot) | Open |
+| P3-2 | Battery / wake reliability with optional platform wake | Depends on ADR 011 impl |
+| P3-3 | QR byte budget for hybrid PQ invites | Open |
+| P3-4 | Duplicate count under flaky network | Open |
+
+---
+
+## Easy doc fixes (from review)
+
+| Item | Status |
+|------|--------|
+| Phase 5 heading in REFERENCE_DESIGN | Done |
+| Whitepaper abstract vs single-hop default | Done |
+| Whitepaper TTL examples → 24h normative | Done |
+| Whitepaper roadmap defers to REFERENCE_DESIGN | Done |
+| Maturity banner in README / CERTIFICATION | Done |
+| Soften relay identity prose in whitepaper §3.1 | Done |
+| Save external critique | [reviews/external-critique-2026-07-10.md](reviews/external-critique-2026-07-10.md) |
+
+---
+
+## Explicit deferrals (do not start until P0–P1 progress)
+
+- Tor transport
+- Meshtastic / LoRaWAN ([ADR 010](adr/010-offline-mesh-transports.md))
+- Ephemeral cloud deploy ([ADR 009](adr/009-ephemeral-cloud-relay.md))
+- Multi-device sync ([multi-device.md](spec/multi-device.md))
