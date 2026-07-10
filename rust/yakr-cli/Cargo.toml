@@ -1,0 +1,20 @@
+[package]
+name = "yakr-cli"
+description = "Yakr Protocol v1.0 reference CLI (Rust)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "yakr"
+path = "src/main.rs"
+
+[dependencies]
+base64 = "0.22"
+clap = { version = "4", features = ["derive"] }
+reqwest = { version = "0.12", features = ["json", "blocking"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+yakr-core = { path = "../yakr-core" }
+yakr-crypto = { path = "../yakr-crypto" }

@@ -19,14 +19,21 @@ uv run pytest packages/yakr-testkit/tests/test_phase9_interop.py -q
 uv run pytest packages/yakr-testkit/tests/test_phase9_relay_abuse.py -q
 ```
 
-### Rust reference (`rust/yakr-crypto`)
+### Rust reference (`rust/`)
 
-Independent crypto crate; loads the same JSON vectors from `docs/spec/test-vectors-v1/`:
+Independent Rust workspace mirroring the Python reference stack:
 
 ```bash
 cd rust
-cargo test -p yakr-crypto
+cargo test
 ```
+
+| Crate | Role |
+|-------|------|
+| `yakr-crypto` | Frozen interop vectors + AEAD/HKDF primitives |
+| `yakr-core` | Double ratchet session, pairing, identity/store |
+| `yakr-relay` | Mailbox relay (`yakr-relay serve`) |
+| `yakr-cli` | Reference client (`yakr init/send/fetch`) |
 
 ## Conformance Checklist
 
@@ -43,17 +50,17 @@ cargo test -p yakr-crypto
 
 ### Relay (if implementing a relay)
 
-- [ ] Rejects `mailbox_tag` ≠ 32 bytes
-- [ ] Rejects `expires_at` in the past
+- [x] Rejects `mailbox_tag` ≠ 32 bytes (`rust/yakr-relay`)
+- [x] Rejects `expires_at` in the past (`rust/yakr-relay`)
 - [ ] Rejects ciphertext > 64 KiB
-- [ ] Returns 429 when per-tag blob cap exceeded
-- [ ] Does not decrypt ciphertext
+- [x] Returns 429 when per-tag blob cap exceeded (`rust/yakr-relay`)
+- [x] Does not decrypt ciphertext (`rust/yakr-relay`)
 
 ### Client (minimal)
 
-- [ ] Pairwise master derivation (classical or hybrid) matches vectors
-- [ ] Encrypt/decrypt round-trip for inner message format
-- [ ] Fetch uses epoch lookback (current + N prior epochs)
+- [x] Pairwise master derivation (classical or hybrid) matches vectors (`rust/yakr-core`)
+- [x] Encrypt/decrypt round-trip for inner message format (`rust/yakr-crypto`, `rust/yakr-core`)
+- [x] Fetch uses epoch lookback (current + N prior epochs) (`rust/yakr-core`, `rust/yakr-cli`)
 
 ## Independent Verifier API
 
