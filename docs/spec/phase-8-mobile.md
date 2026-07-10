@@ -19,6 +19,7 @@ apps/yakr-android/      BeeWare Briefcase Android shell
 - **Encrypted SQLite store** — passphrase-wrapped Fernet encryption over identity/contacts
 - **YakrMobileClient** — send, fetch, invite QR, pairing, resume after process death
 - **FetchWorker** — battery-aware poll intervals (30s charging / 300s battery / 900s low battery)
+- **Optional platform wake** — not implemented; spec in [ADR 011](../adr/011-optional-platform-wake.md) / [platform-wake-v1.md](./platform-wake-v1.md) (opt-in silent push → fetch)
 - **RelayWorker** — respects Wi-Fi-only and charging-only gates
 - **Toga UI** — contact list, chat, invite safety code display
 

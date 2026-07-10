@@ -54,7 +54,7 @@ Every client MAY embed the relay HTTP API when `relay.active` is advertised **wi
 |-------------|------------------|
 | Profile-only (frequent re-sign) | Too heavy; mixes slow trust anchor with fast reachability |
 | Global presence server | Violates decentralisation / no global IDs principle |
-| Push notifications only | Requires platform infra; poll-on-relay remains baseline |
+| Push notifications only | Requires platform infra; poll-on-relay remains baseline — see [ADR 011](011-optional-platform-wake.md) for optional opt-in wake |
 | DHT discovery | Deferred; abuse and metadata concerns |
 
 ## References

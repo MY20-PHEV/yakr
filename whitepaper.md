@@ -1967,16 +1967,16 @@ no public searchable user IDs
 
 ### 26.5 How should push notifications work?
 
-On mobile platforms, push is difficult to avoid.
+**Decision (ADR 011):** Poll-on-relay remains the **normative** delivery path. **Optional** platform wake (silent APNs / FCM) MAY wake the client to fetch sooner. A central **wake gateway** holds send credentials; friend-operator relays forward wake requests with device tokens only — no message ciphertext on the push path. Users opt in; privacy tradeoffs are disclosed. See `docs/adr/011-optional-platform-wake.md` and `docs/spec/platform-wake-v1.md`.
 
-Possible options:
+Earlier options considered:
 
 ```text
-no push, delayed polling only
-privacy-preserving wake notifications
-self-hosted push bridge
-platform push with minimal metadata
-user-owned always-on relay device
+no push, delayed polling only                    ← baseline (always available)
+privacy-preserving wake notifications            ← adopted (opt-in)
+self-hosted push bridge                          ← future fork / self-hosted app
+platform push with minimal metadata              ← adopted (reference wake gateway)
+user-owned always-on relay device                ← homelab / ADR 009 (message store, not push)
 ```
 
 ### 26.6 How should multi-device sync work?

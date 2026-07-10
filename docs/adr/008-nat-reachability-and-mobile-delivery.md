@@ -90,6 +90,8 @@ Apple does not forbid binding a listening socket while the app is **foreground**
 
 **Normative:** iOS (and similarly constrained Android background policies) MUST use **outbound poll** to friend-operator relays as the receive path. Embedded relay on iPhone is limited to **foreground + dialable `reachable`** (typically same LAN) or future explicit user opt-in foreground service — not background cellular mailbox duty.
 
+**Optional:** Clients MAY use **platform wake** (silent APNs / FCM) as a latency hint to run the same outbound fetch sooner. Wake is opt-in, carries no message plaintext, and is not required for correctness. See [ADR 011](011-optional-platform-wake.md).
+
 ### Practical matrix (iPhone-first)
 
 | Scenario | Direct / embedded relay | Correctness path |
@@ -122,3 +124,4 @@ This is why Yakr is **decentralized E2E messaging with social relays**, not tran
 - `docs/spec/presence-minimal.md` — implemented presence subset
 - ADR 007 — presence layer and group relays
 - ADR 010 — offline mesh transports when internet backbone is unavailable
+- ADR 011 — optional platform wake (push as fetch hint, not delivery path)

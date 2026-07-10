@@ -279,7 +279,7 @@ Independent implementations MUST pass the interop verifier suite (see `interop/R
 
 See `docs/security/analysis-v1.md` for threat model, trust assumptions, and mitigations.
 
-Planned extensions: `docs/spec/presence-v1.md` (live reachability, group relay polling).
+Planned extensions: `docs/spec/presence-v1.md` (live reachability, group relay polling); `docs/spec/platform-wake-v1.md` (optional silent push wake, ADR 011).
 
 ## 10. References
 
