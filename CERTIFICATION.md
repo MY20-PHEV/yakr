@@ -8,6 +8,17 @@
 
 Formal badge name: **Yakr Protocol Certified** (short: **Yakr Certified**).
 
+### Project maturity (all categories)
+
+| Dimension | Status |
+|-----------|--------|
+| Reference implementation | Broad phase coverage |
+| Protocol stability | Draft (`yakr-v1.0` interop baseline) |
+| Security maturity | **Experimental** — composition not externally audited |
+| Production recommendation | **No** |
+
+See [docs/SECURITY_BACKLOG.md](docs/SECURITY_BACKLOG.md). Certification attests to **wire compatibility**, not production security.
+
 ---
 
 ## What certification means

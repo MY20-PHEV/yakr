@@ -73,6 +73,8 @@ Receipts use the same single-hop mailbox failover path as sends. Failed receipt 
 - Second fetch on the same mailbox returns no new application messages when all blobs were already accepted (`DuplicateSeqError` on every blob).
 - Relay blobs remain until TTL sweep; clients rely on `last_recv_seq`, not relay deletion.
 
+Normative state machine: [delivery-state-machine.md](./delivery-state-machine.md).
+
 ## Exit criteria (tests)
 
 - Burst send (N messages) → single fetch delivers all N in `seq` order.

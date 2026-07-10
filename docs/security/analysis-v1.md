@@ -84,6 +84,8 @@ Global rate limiting per IP is deployment-specific and not mandated in v1. Opera
 4. **Classical-only invites** remain vulnerable to future quantum break of recorded pairing transcripts; use hybrid invites when PQ libraries are available.
 5. **Presence metadata** — encrypted `type=presence` inner messages reduce exposure, but relays still observe poll timing, blob sizes, and which mailbox tags are requested. Fresh presence URLs in the cache are advisory; clients fall back to signed profile `relay_descriptors` when presence expires. Embedded relays MUST only set `relay.active=true` when a dialable `reachable` URL is verified (ADR 008).
 6. **Platform wake metadata** (optional, ADR 011) — opt-in wake registration exposes device tokens to trusted relays and the wake gateway; wake timing is more precise than poll-only. No message plaintext leaves the relay blob path. Apple/Google process silent push per their policies.
+7. **Ratchet persistence** — send/receive paths require transactional coupling between ratchet advancement and queue/message persist; reference store is not yet fully atomic ([delivery-state-machine.md](../spec/delivery-state-machine.md), [SECURITY_BACKLOG.md](../SECURITY_BACKLOG.md) P0-2/3).
+8. **Relay-visible tickets** — optional `require_tickets` exposes `issuer_signing_public` and `contact_id` to relays; per-relay pseudonymous capabilities are planned (P1-1).
 
 ## 8. Presence and Relay Reachability (Phase 10)
 
@@ -115,6 +117,23 @@ Presence does not provide anonymity against a global observer correlating poll t
 ### 8.4 Optional platform wake (ADR 011)
 
 Users who **opt in** to platform wake delegate a wake capability to relays they already trust for blob storage. A wake gateway and the platform provider (APNs/FCM) see device handles and wake timing, not ciphertext. Users who need minimum third-party metadata SHOULD leave wake disabled and rely on poll-only delivery.
+
+### 8.5 Relay-observer privacy (draft)
+
+What observers learn depends on deployment mode. **Default reference path: single-hop mailbox** (`POST`/`GET` same relay).
+
+| Observation | Mailbox relay (single-hop default) | Entry relay (optional two-hop) | Network observer | Wake gateway (opt-in) |
+|-------------|-----------------------------------|----------------------------------|------------------|------------------------|
+| Client IP on store/fetch | Store: poster IP; fetch: poller IP | Entry: poster; mailbox: may differ | TLS metadata, timing | N/A |
+| Mailbox tag | **Yes** (fetch path / logs) | Mailbox relay: yes; entry: tag may be wrapped | Hidden under TLS to relay only | No |
+| Blob size | Yes | Yes | Approximate | No |
+| Sender identity key | **Must be no** (E2E) | **Must be no** | No | No |
+| Recipient identity key | **Must be no** | **Must be no** | No | No |
+| Plaintext content | **No** | **No** | No | No |
+| Timing / volume | Yes | Yes | Yes | Wake timing |
+| Stable relay ticket identity | Yes if `require_tickets` (`issuer_signing_public`, `contact_id`) | Same | No | Device token if wake enabled |
+
+**Wording standard:** say *relays do not receive plaintext identifiers or decrypt contents* — not *relays never know who sent or fetched* (network and operator context may deanonymise).
 
 ## 9. Review Checklist
 

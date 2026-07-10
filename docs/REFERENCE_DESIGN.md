@@ -533,6 +533,8 @@ Relay verifies ticket signature against a known contact issuer key before accept
 - [x] Relay rendezvous pairing via group relay (`docs/spec/relay-rendezvous.md`)
 - [x] Relay advertisement limited to paired operators (`docs/spec/relay-authorization.md`)
 
+## Phase 5 — Delivery Profiles
+
 **Depends on:** Phase 4  
 **Protocol:** `yakr-v0.5`  
 **Status:** Complete
@@ -899,7 +901,9 @@ Track unresolved items here; close with ADRs in `docs/adr/`.
 
 ## 9. Immediate Next Steps
 
-Phase 1–9 are complete. Phase 10 is complete except future ADR work. Current focus:
+Phase 1–9 are complete. Phase 10 is complete except future ADR work.
+
+**Security hardening (P0–P3)** takes priority over new transports — see [SECURITY_BACKLOG.md](SECURITY_BACKLOG.md) and [delivery-state-machine.md](spec/delivery-state-machine.md). Current focus:
 
 1. **Homelab** — deploy Charlie with HTTPS (`deploy_charlie_vps.sh` + `generate_operator_relay_tls.py`); prefer **8090** or Tailscale over home **443** ([homelab-relay.md](homelab-relay.md)); use `yakr presence push` on IP change
 2. **CLI polish** — optional background `resend`/`receipts` worker
