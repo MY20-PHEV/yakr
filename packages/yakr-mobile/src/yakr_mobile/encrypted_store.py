@@ -178,6 +178,17 @@ class MobileStore:
     def save_outbound_pending(self, contact_name: str, msg_id: str, seq: int, body: str) -> None:
         self.file_store.save_outbound_pending(contact_name, msg_id, seq, body)
 
+    def atomic_commit_send(self, contact: Contact, **kwargs) -> None:
+        self.file_store.atomic_commit_send(contact, **kwargs)
+        self.put_blob(f"contact:{contact.name}", json.dumps(contact.to_dict()).encode("utf-8"))
+
+    def atomic_commit_receive_text(self, contact: Contact, inner, *, identity: Identity) -> None:
+        self.file_store.atomic_commit_receive_text(contact, inner, identity=identity)
+        self.put_blob(f"contact:{contact.name}", json.dumps(contact.to_dict()).encode("utf-8"))
+
+    def load_outbound_outer(self, contact_name: str, msg_id: str):
+        return self.file_store.load_outbound_outer(contact_name, msg_id)
+
     def mark_outbound_delivered(self, contact_name: str, msg_id: str) -> bool:
         return self.file_store.mark_outbound_delivered(contact_name, msg_id)
 

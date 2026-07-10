@@ -49,6 +49,7 @@ class MeshParticipant:
     sent: list[SentMessage] = field(default_factory=list)
     _unreceipted: list[tuple[str, OuterBlob]] = field(default_factory=list)
     _send_lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
+    _fetch_lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
     def send(self, recipient: str, body: str) -> SentMessage:
         with self._send_lock:
@@ -60,12 +61,12 @@ class MeshParticipant:
             raise ValueError(f"{self.name} has no contact {recipient}")
         session = Session(self.identity, contact)
         encrypted = session.encrypt_text(body)
-        self.store.save_contact(contact)
-        self.store.save_outbound_pending(
-            recipient,
-            encrypted.msg_id,
-            encrypted.inner_message.seq,
-            body,
+        self.store.atomic_commit_send(
+            contact,
+            msg_id=encrypted.msg_id,
+            seq=encrypted.inner_message.seq,
+            body=body,
+            outer=encrypted.outer_blob,
         )
         previous = os.environ.get("YAKR_RELAY_URL")
         os.environ["YAKR_RELAY_URL"] = self.relay_url
@@ -122,6 +123,16 @@ class MeshParticipant:
         ]
 
     def fetch(
+        self,
+        peer: str,
+        *,
+        send_receipts: bool = True,
+        save_local: bool = True,
+    ) -> list[ReceivedMessage]:
+        with self._fetch_lock:
+            return self._fetch_unlocked(peer, send_receipts=send_receipts, save_local=save_local)
+
+    def _fetch_unlocked(
         self,
         peer: str,
         *,
@@ -228,8 +239,13 @@ class MeshParticipant:
                         continue
 
                     if save_local:
-                        self.store.save_inbound_message(peer, inner, identity=self.identity)
-                    self.store.save_contact(contact)
+                        self.store.atomic_commit_receive_text(
+                            contact,
+                            inner,
+                            identity=self.identity,
+                        )
+                    else:
+                        self.store.save_contact(contact)
                     received.append(
                         ReceivedMessage(
                             sender=peer,

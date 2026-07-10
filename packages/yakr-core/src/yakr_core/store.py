@@ -3,14 +3,14 @@ from __future__ import annotations
 import json
 import sqlite3
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
 from yakr_core.delivery_profile import DeliveryProfile
 from yakr_core.ephemeral import MESSAGE_TTL_MS
+from yakr_core.identity import Contact, Identity, b64decode, b64encode, export_public_bundle
 from yakr_core.privacy import PrivacyMetrics
-from yakr_core.identity import Contact, Identity, export_public_bundle
 from yakr_core.routing import RouteState
 
 if TYPE_CHECKING:
@@ -38,6 +38,26 @@ class LocalStore(Protocol):
     def save_outbound_pending(
         self, contact_name: str, msg_id: str, seq: int, body: str
     ) -> None: ...
+
+    def atomic_commit_send(
+        self,
+        contact: Contact,
+        *,
+        msg_id: str,
+        seq: int,
+        body: str,
+        outer: "OuterBlob",
+    ) -> None: ...
+
+    def atomic_commit_receive_text(
+        self,
+        contact: Contact,
+        inner: "InnerMessage",
+        *,
+        identity: Identity,
+    ) -> None: ...
+
+    def load_outbound_outer(self, contact_name: str, msg_id: str) -> "OuterBlob | None": ...
 
     def mark_outbound_delivered(self, contact_name: str, msg_id: str) -> bool: ...
 
@@ -86,6 +106,7 @@ class LocalStore(Protocol):
 @dataclass
 class FileLocalStore:
     root: Path
+    test_fault: str | None = field(default=None, repr=False, compare=False)
 
     @property
     def identity_path(self) -> Path:
@@ -116,13 +137,36 @@ class FileLocalStore:
         return self.contacts_dir / f"{name}.json"
 
     def get_contact(self, name: str) -> Contact | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT payload_json FROM contacts WHERE name = ?",
+                (name,),
+            ).fetchone()
+        if row is not None:
+            return Contact.from_dict(json.loads(str(row[0])))
         path = self.contact_path(name)
         if not path.exists():
             return None
-        payload = json.loads(path.read_text(encoding="utf-8"))
-        return Contact.from_dict(payload)
+        contact = Contact.from_dict(json.loads(path.read_text(encoding="utf-8")))
+        self.save_contact(contact)
+        return contact
+
+    def _contact_payload(self, contact: Contact) -> str:
+        return json.dumps(contact.to_dict())
+
+    def _save_contact_conn(self, conn: sqlite3.Connection, contact: Contact) -> None:
+        conn.execute(
+            "INSERT OR REPLACE INTO contacts (name, payload_json) VALUES (?, ?)",
+            (contact.name, self._contact_payload(contact)),
+        )
 
     def save_contact(self, contact: Contact) -> None:
+        with self._connect() as conn:
+            self._save_contact_conn(conn, contact)
+            conn.commit()
+        self._sync_contact_json(contact)
+
+    def _sync_contact_json(self, contact: Contact) -> None:
         self.contacts_dir.mkdir(parents=True, exist_ok=True)
         self.contact_path(contact.name).write_text(
             json.dumps(contact.to_dict(), indent=2),
@@ -179,10 +223,29 @@ class FileLocalStore:
                     body TEXT NOT NULL,
                     created_at INTEGER NOT NULL,
                     valid_until INTEGER NOT NULL,
+                    outer_ciphertext_b64 TEXT,
+                    mailbox_tag_b64 TEXT,
+                    outer_expires_at INTEGER,
                     PRIMARY KEY (contact_name, msg_id)
                 )
                 """
             )
+        else:
+            outbound_column_names = outbound_columns
+            if "outer_ciphertext_b64" not in outbound_column_names:
+                conn.execute("ALTER TABLE outbound_pending ADD COLUMN outer_ciphertext_b64 TEXT")
+            if "mailbox_tag_b64" not in outbound_column_names:
+                conn.execute("ALTER TABLE outbound_pending ADD COLUMN mailbox_tag_b64 TEXT")
+            if "outer_expires_at" not in outbound_column_names:
+                conn.execute("ALTER TABLE outbound_pending ADD COLUMN outer_expires_at INTEGER")
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS contacts (
+                name TEXT PRIMARY KEY,
+                payload_json TEXT NOT NULL
+            )
+            """
+        )
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS sent_messages (
@@ -321,6 +384,119 @@ class FileLocalStore:
                 (contact_name, seq, body, now, valid_until),
             )
             conn.commit()
+
+    def atomic_commit_send(
+        self,
+        contact: Contact,
+        *,
+        msg_id: str,
+        seq: int,
+        body: str,
+        outer: "OuterBlob",
+    ) -> None:
+        from yakr_core.ephemeral import message_valid_until
+        from yakr_core.message import OuterBlob
+
+        if not isinstance(outer, OuterBlob):
+            raise TypeError("expected OuterBlob")
+        now = int(time.time() * 1000)
+        valid_until = message_valid_until(created_at_ms=now)
+        with self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            try:
+                self._save_contact_conn(conn, contact)
+                if self.test_fault == "outbound_pending":
+                    raise sqlite3.OperationalError("injected outbound fault")
+                conn.execute(
+                    """
+                    INSERT OR REPLACE INTO outbound_pending
+                    (contact_name, msg_id, seq, body, created_at, valid_until,
+                     outer_ciphertext_b64, mailbox_tag_b64, outer_expires_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        contact.name,
+                        msg_id,
+                        seq,
+                        body,
+                        now,
+                        valid_until,
+                        b64encode(outer.ciphertext),
+                        b64encode(outer.mailbox_tag),
+                        outer.expires_at,
+                    ),
+                )
+                conn.execute(
+                    """
+                    INSERT OR IGNORE INTO sent_messages
+                    (contact_name, seq, body, created_at, valid_until)
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (contact.name, seq, body, now, valid_until),
+                )
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+        self._sync_contact_json(contact)
+
+    def atomic_commit_receive_text(
+        self,
+        contact: Contact,
+        inner: "InnerMessage",
+        *,
+        identity: Identity,
+    ) -> None:
+        from yakr_core.message import InnerMessage
+        from yakr_core.session import wrap_local_ciphertext
+
+        if not isinstance(inner, InnerMessage):
+            raise TypeError("expected InnerMessage")
+        now = int(time.time() * 1000)
+        wrapped = wrap_local_ciphertext(identity, inner.to_bytes())
+        with self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            try:
+                self._save_contact_conn(conn, contact)
+                if self.test_fault == "inbound_message":
+                    raise sqlite3.OperationalError("injected inbound fault")
+                conn.execute(
+                    """
+                    INSERT OR IGNORE INTO inbound_messages
+                    (contact_name, seq, valid_until, received_at, local_ciphertext)
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (contact.name, inner.seq, inner.valid_until, now, wrapped),
+                )
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+        self._sync_contact_json(contact)
+
+    def load_outbound_outer(self, contact_name: str, msg_id: str) -> "OuterBlob | None":
+        from yakr_core.message import OuterBlob
+
+        with self._connect() as conn:
+            row = conn.execute(
+                """
+                SELECT outer_ciphertext_b64, mailbox_tag_b64, outer_expires_at
+                FROM outbound_pending
+                WHERE contact_name = ? AND msg_id = ?
+                """,
+                (contact_name, msg_id),
+            ).fetchone()
+        if row is None:
+            return None
+        ciphertext_b64, tag_b64, expires_at = row
+        if not ciphertext_b64 or not tag_b64 or expires_at is None:
+            return None
+        return OuterBlob(
+            version=1,
+            mailbox_tag=b64decode(str(tag_b64)),
+            expires_at=int(expires_at),
+            ciphertext=b64decode(str(ciphertext_b64)),
+        )
 
     def list_sent_messages(self, contact_name: str) -> list[tuple[int, str]]:
         return [(seq, body) for seq, body, _at in self.list_sent_messages_timed(contact_name)]

@@ -19,7 +19,8 @@ from yakr_core.identity import Contact, Identity
 from yakr_core.presence import fresh_group_relay_urls, is_presence_fresh, resolve_operator_url
 from yakr_core.relay import RelayNode, load_relay_network
 from yakr_core.relay_ticket import issue_relay_ticket
-from yakr_core.message import OuterBlob
+from yakr_core.mailbox import MailboxTag
+from yakr_core.message import InnerMessage, OuterBlob
 from yakr_core.session import EncryptedMessage, Session
 from yakr_core.store import FileLocalStore
 
@@ -543,22 +544,49 @@ def resend_pending_for_contact(
     *,
     route: str | None = None,
 ) -> int:
-    """Re-encrypt and deliver each pending outbound message; clear stale pending on success."""
+    """Deliver pending outbound messages; reuse stored ciphertext when available."""
     contact = store.get_contact(contact_name)
     if contact is None:
         raise ValueError(f"unknown contact: {contact_name}")
 
     resent = 0
     for msg_id, pending_seq, body in list(store.list_outbound_pending(contact_name)):
+        outer = store.load_outbound_outer(contact_name, msg_id)
+        if outer is not None:
+            encrypted = EncryptedMessage(
+                outer_blob=outer,
+                inner_message=InnerMessage.text(
+                    conversation_id=contact.conversation_id,
+                    sender_device_id=identity.device_id,
+                    seq=pending_seq,
+                    body=body,
+                ),
+                msg_id=msg_id,
+                mailbox_tag=MailboxTag(tag=outer.mailbox_tag, epoch=0, direction="resend"),
+            )
+            try:
+                deliver_encrypted(
+                    encrypted,
+                    contact=contact,
+                    identity=identity,
+                    route=route,
+                    store=store,
+                )
+            except RuntimeError:
+                continue
+            if store.mark_outbound_delivered(contact_name, msg_id):
+                resent += 1
+            continue
+
         contact.next_send_seq = pending_seq
         session = Session(identity, contact)
         encrypted = session.encrypt_text(body)
-        store.save_contact(contact)
-        store.save_outbound_pending(
-            contact_name,
-            encrypted.msg_id,
-            encrypted.inner_message.seq,
-            body,
+        store.atomic_commit_send(
+            contact,
+            msg_id=encrypted.msg_id,
+            seq=encrypted.inner_message.seq,
+            body=body,
+            outer=encrypted.outer_blob,
         )
         try:
             deliver_encrypted(

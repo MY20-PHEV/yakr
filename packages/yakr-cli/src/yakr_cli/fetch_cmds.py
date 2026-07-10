@@ -152,7 +152,7 @@ def fetch_contact_inbound(
                 if inner.type != "text":
                     continue
 
-                store.save_inbound_message(contact_name, inner, identity=identity)
+                store.atomic_commit_receive_text(contact, inner, identity=identity)
                 if not quiet:
                     console.print(f"[cyan]{contact_name}[/cyan]: {inner.body}")
                 fetched += 1
