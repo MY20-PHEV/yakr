@@ -182,6 +182,11 @@ def fetch_cmd(
         help="Contact to fetch messages from (omit with --all)",
     ),
     all_contacts: bool = typer.Option(False, "--all", help="Fetch from all paired contacts"),
+    wide: bool = typer.Option(
+        False,
+        "--wide",
+        help="Poll every relay in the trust graph (default: per-contact relays only)",
+    ),
     route: str | None = typer.Option(None, "--route", help="Two-hop route for delivery receipts"),
 ) -> None:
     """Fetch and decrypt messages from relay mailboxes."""
@@ -189,7 +194,7 @@ def fetch_cmd(
     identity = _require_identity(store)
 
     if all_contacts:
-        fetch_all_contacts(store, identity, route=route)
+        fetch_all_contacts(store, identity, route=route, wide=wide)
         return
 
     if contact_name is None:
@@ -198,7 +203,7 @@ def fetch_cmd(
 
     store.sweep_expired_messages()
     store.sweep_expired_outbound()
-    count = fetch_contact_inbound(store, identity, contact_name, route=route)
+    count = fetch_contact_inbound(store, identity, contact_name, route=route, wide=wide)
     if count == 0:
         console.print(f"[yellow]No new messages from {contact_name}[/yellow]")
     else:

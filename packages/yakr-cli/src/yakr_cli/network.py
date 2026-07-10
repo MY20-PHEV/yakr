@@ -167,6 +167,23 @@ def _contact_profile_mailbox_urls(
     return _profile_mailbox_urls(contact.delivery_profile, store=store)
 
 
+def _contact_fetch_mailbox_urls(
+    store: FileLocalStore,
+    contact: Contact,
+) -> list[str]:
+    """Relay URLs to poll for inbound mail from a single contact.
+
+    Senders store for this recipient on the recipient's mailboxes first, then on
+    sender fallbacks drawn from the sender's signed profile — both are covered by
+    local mailboxes plus this contact's profile (and their presence hints).
+    """
+    seen: set[str] = set()
+    urls: list[str] = []
+    _append_unique_urls(urls, seen, local_mailbox_urls(store))
+    _append_unique_urls(urls, seen, _contact_profile_mailbox_urls(contact, store=store))
+    return urls
+
+
 def _trust_graph_mailbox_urls(
     store: FileLocalStore,
     contact: Contact | None = None,
@@ -242,13 +259,18 @@ def fetch_mailbox_urls(
     route: str | None,
     *,
     store: FileLocalStore | None = None,
+    wide: bool = False,
 ) -> list[str]:
     """Relay URLs to poll for inbound messages in a conversation."""
     if route is not None:
         return delivery_mailbox_urls(contact, route, store=store)
 
     if store is not None:
-        urls = _trust_graph_mailbox_urls(store, contact)
+        urls = (
+            _trust_graph_mailbox_urls(store, contact)
+            if wide
+            else _contact_fetch_mailbox_urls(store, contact)
+        )
         if urls:
             return urls
 
@@ -267,10 +289,11 @@ def mailbox_urls(
     route: str | None,
     *,
     store: FileLocalStore | None = None,
+    wide: bool = False,
 ) -> list[str]:
     if contact is None:
         raise ValueError("contact required")
-    return fetch_mailbox_urls(contact, route, store=store)
+    return fetch_mailbox_urls(contact, route, store=store, wide=wide)
 
 
 def mailbox_url(

@@ -49,6 +49,7 @@ def fetch_contact_inbound(
     contact_name: str,
     *,
     route: str | None = None,
+    wide: bool = False,
     quiet: bool = False,
 ) -> int:
     """Fetch and decrypt inbound messages from a single paired contact."""
@@ -71,7 +72,7 @@ def fetch_contact_inbound(
     )
     real_tag_set = {tag.tag_b64 for tag in deriver.candidate_epochs(session.recv_direction)}
     resolved_route = resolve_fetch_route(store, contact, route)
-    fetch_bases = fetch_mailbox_urls(contact, resolved_route, store=store)
+    fetch_bases = fetch_mailbox_urls(contact, resolved_route, store=store, wide=wide)
     direct_hints = list(contact.delivery_profile.direct_hints) if contact.delivery_profile else []
 
     fetched = 0
@@ -185,6 +186,7 @@ def fetch_all_contacts(
     identity: Identity,
     *,
     route: str | None = None,
+    wide: bool = False,
 ) -> tuple[int, int]:
     """Fetch inbound messages from every paired contact."""
     store.sweep_expired_messages()
@@ -204,6 +206,7 @@ def fetch_all_contacts(
                 identity,
                 contact_name,
                 route=route,
+                wide=wide,
                 quiet=False,
             )
         except ValueError as exc:
