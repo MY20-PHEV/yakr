@@ -1,6 +1,74 @@
 //! Inner message canonical JSON (`yakr-protocol-v1.md` §4.1).
 
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use sha2::{Digest, Sha256};
+
+/// Inner cleartext message types.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MessageType {
+    Text,
+    Receipt,
+    Profile,
+    Presence,
+}
+
+/// Full inner message matching Python `InnerMessage`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct InnerMessage {
+    pub version: u32,
+    pub conversation_id: String,
+    pub sender_device_id: String,
+    pub seq: u64,
+    pub created_at: u64,
+    pub valid_until: u64,
+    #[serde(rename = "type")]
+    pub message_type: MessageType,
+    pub body: Option<String>,
+    pub message_id: Option<String>,
+}
+
+impl InnerMessage {
+    pub fn text(
+        conversation_id: impl Into<String>,
+        sender_device_id: impl Into<String>,
+        seq: u64,
+        body: impl Into<String>,
+        created_at: u64,
+        valid_until: u64,
+    ) -> Self {
+        Self {
+            version: 1,
+            conversation_id: conversation_id.into(),
+            sender_device_id: sender_device_id.into(),
+            seq,
+            created_at,
+            valid_until,
+            message_type: MessageType::Text,
+            body: Some(body.into()),
+            message_id: None,
+        }
+    }
+
+    /// Canonical compact sorted JSON bytes.
+    pub fn to_bytes(&self) -> Result<Vec<u8>, serde_json::Error> {
+        let value = serde_json::to_value(self)?;
+        serde_json::to_vec(&value)
+    }
+
+    pub fn from_bytes(data: &[u8]) -> Result<Self, serde_json::Error> {
+        serde_json::from_slice(data)
+    }
+}
+
+/// Message id from outer ciphertext (`yakr/v0.1/message-id`).
+pub fn message_id(ciphertext: &[u8]) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(b"yakr/v0.1/message-id|");
+    hasher.update(ciphertext);
+    hex::encode(hasher.finalize())
+}
 
 /// Parsed fields checked by `inner_message.json` interop vectors.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -103,5 +171,30 @@ mod tests {
         assert_eq!(parsed.conversation_id, vector.conversation_id);
         assert_eq!(parsed.seq, vector.seq);
         assert_eq!(parsed.body, vector.body);
+    }
+
+    #[test]
+    fn inner_message_round_trip_encrypt() {
+        use crate::aead::{xchacha_decrypt, xchacha_encrypt};
+        use crate::master::derive_message_key;
+
+        let inner = InnerMessage::text(
+            "pairwise_alice_bob",
+            "abc123",
+            1,
+            "hello rust",
+            1_700_000_000_000,
+            1_700_086_400_000,
+        );
+        let raw = inner.to_bytes().unwrap();
+        verify_inner_message_json(&raw).unwrap();
+
+        let master = [7u8; 32];
+        let key = derive_message_key(&master, 1);
+        let ciphertext = xchacha_encrypt(&key, &raw, b"").unwrap();
+        let plain = xchacha_decrypt(&key, &ciphertext, b"").unwrap();
+        assert_eq!(plain, raw);
+        let decoded = InnerMessage::from_bytes(&plain).unwrap();
+        assert_eq!(decoded.body.as_deref(), Some("hello rust"));
     }
 }
