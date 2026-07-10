@@ -7,7 +7,7 @@
 
 ---
 
-Ellis, honestly: this has crossed the line from "interesting messenger idea" into a credible protocol project.
+Honestly: this has crossed the line from "interesting messenger idea" into a credible protocol project.
 The strongest thing is not any individual cryptographic choice. It is that you have repeatedly forced the design to confront reality:
 
 - phones sleep;
@@ -469,7 +469,7 @@ The crypto can prevent protocol-level identity disclosure, but a relay normally 
 
 A self-hosted relay may also know perfectly well:
 
-> "That residential IP belongs to Ellis."
+> "That residential IP belongs to a specific household."
 
 Two hops help separate some observations but do not make them disappear.
 
@@ -684,4 +684,4 @@ That is a clear idea people can understand.
 | Product viability | Plausible |
 | Production security | Not yet something the documents alone can establish |
 
-This is good work, Ellis. Much better than I expected when we first started discussing encrypted blobs wandering through friends' relays. The next valuable step is probably not another feature; it is to turn the security-critical flows into exact, hostile-input-resistant state machines.
+This is good work — much better than expected when we first started discussing encrypted blobs wandering through friends' relays. The next valuable step is probably not another feature; it is to turn the security-critical flows into exact, hostile-input-resistant state machines.

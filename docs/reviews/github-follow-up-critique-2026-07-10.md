@@ -8,7 +8,7 @@
 
 ---
 
-Ellis, the live repository is a substantial step forward from the version I first reviewed.
+The live repository is a substantial step forward from the version I first reviewed.
 
 You have not merely edited the prose. You have taken the critique and turned the highest-risk points into specifications, code changes, tests, and tracked security work. That is exactly the right response.
 
