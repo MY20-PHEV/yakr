@@ -9,6 +9,15 @@ Fetch polls mailbox relays for opaque blobs, decrypts them, persists ratchet sta
 
 Because multiple blobs can accumulate per tag and `GET /v1/blobs/{tag}` returns them in **arbitrary order** (typically by relay `stored_at`, which need not match application `seq`), clients MUST implement the algorithm below. A naive single-pass decrypt loop drops messages and receipts when a higher `seq` is processed before a lower one.
 
+## Fetch poll scope
+
+By default, `fetch <contact>` polls **only**:
+
+1. This device's published mailbox URLs (local profile).
+2. That contact's `relay_descriptors` (including fresh operator presence overrides).
+
+Use `yakr fetch <contact> --wide` (or `fetch --all --wide`) to restore the legacy trust-graph union (every paired contact's relays plus all cached presence URLs). Prefer the default on mobile to reduce empty polls.
+
 ## Layers
 
 | Layer | Ordering rule |
