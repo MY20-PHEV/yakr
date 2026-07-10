@@ -34,11 +34,11 @@
 
 | ID | Item | Notes | Status |
 |----|------|-------|--------|
-| P1-1 | Replace stable `contact_id` in relay tickets | [ADR 012](adr/012-relay-capability-tokens.md), [relay-capability-v1.md](spec/relay-capability-v1.md) | **Partial** (`capability_grant.py`, relay register + POST auth) |
+| P1-1 | Replace stable `contact_id` in relay tickets | [ADR 012](adr/012-relay-capability-tokens.md), [relay-capability-v1.md](spec/relay-capability-v1.md) | **Partial** (relay POST auth + client `YAKR_USE_CAPABILITIES`) |
 | P1-2 | Per-relay pseudonymous capability tokens | ADR 012 + `derive_capability_material` | **Partial** |
 | P1-3 | Separate operator identity from relay client capability | | Design |
 | P1-4 | Relay-observer privacy table | [security/analysis-v1.md](security/analysis-v1.md) §8.5 | Draft |
-| P1-5 | `POST /v1/fetch` (tags in body, not URL path) | Reduces infra log leakage | Design (`yakr-v1.1`) |
+| P1-5 | `POST /v1/fetch` (tags in body, not URL path) | Reduces infra log leakage | **Partial** (`POST /v1/fetch`; GET legacy) |
 | P1-6 | Capability / wake token revocation lifecycle | [platform-wake-v1.md](spec/platform-wake-v1.md) | Partial spec |
 
 ## P2 — Cryptographic protocol review
@@ -47,8 +47,8 @@
 |----|------|--------|
 | P2-1 | Independent session / ratchet review | Not started |
 | P2-2 | Complete pairing transcript construction doc | [pairing-transcript-v1.md](spec/pairing-transcript-v1.md) | **Partial** (normative draft + vectors) |
-| P2-3 | PQ downgrade prevention (no silent classical after hybrid) | Open — gap G2 in pairing transcript |
-| P2-4 | Protocol version downgrade policy | Open — gap G1 in pairing transcript |
+| P2-3 | PQ downgrade prevention (no silent classical after hybrid) | **Done** — `validate_pairing_request_for_invite` |
+| P2-4 | Protocol version downgrade policy | **Done** — `invite.protocol` in transcript |
 | P2-5 | Skipped-key limits + DoS bounds | [double-ratchet.md](spec/double-ratchet.md) — verify |
 | P2-6 | Malicious-input test vectors + CBOR fuzz | Open |
 | P2-7 | Label ratchet "experimental, not audited" in docs | Open |

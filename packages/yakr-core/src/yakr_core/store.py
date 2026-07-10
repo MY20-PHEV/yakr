@@ -108,6 +108,18 @@ class LocalStore(Protocol):
         msg_id: str,
     ) -> tuple[int, tuple[str, ...]] | None: ...
 
+    def load_capability_grant(self, relay_name: str) -> dict[str, str | int] | None: ...
+
+    def save_capability_grant(
+        self,
+        *,
+        relay_name: str,
+        grant: "CapabilityGrant",
+        auth_private: "ed25519.Ed25519PrivateKey",
+        issuance_salt: bytes,
+        relay_tls_spki_sha256: bytes,
+    ) -> None: ...
+
 
 @dataclass
 class FileLocalStore:
@@ -302,6 +314,20 @@ class FileLocalStore:
                 profile_version INTEGER NOT NULL,
                 relay_names TEXT NOT NULL,
                 PRIMARY KEY (contact_name, msg_id)
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS capability_grants (
+                relay_name TEXT NOT NULL,
+                capability_generation INTEGER NOT NULL,
+                grant_b64 TEXT NOT NULL,
+                auth_private_b64 TEXT NOT NULL,
+                issuance_salt_b64 TEXT NOT NULL,
+                relay_tls_spki_sha256 BLOB NOT NULL,
+                expires_at INTEGER NOT NULL,
+                PRIMARY KEY (relay_name, capability_generation)
             )
             """
         )
@@ -804,3 +830,62 @@ class FileLocalStore:
         version = int(row[0])
         names = tuple(part.strip() for part in str(row[1]).split(",") if part.strip())
         return version, names
+
+    def load_capability_grant(self, relay_name: str) -> dict[str, str | int] | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                """
+                SELECT capability_generation, grant_b64, auth_private_b64,
+                       issuance_salt_b64, expires_at
+                FROM capability_grants
+                WHERE relay_name = ?
+                ORDER BY capability_generation DESC
+                LIMIT 1
+                """,
+                (relay_name,),
+            ).fetchone()
+        if row is None:
+            return None
+        return {
+            "capability_generation": int(row[0]),
+            "grant_b64": str(row[1]),
+            "auth_private_b64": str(row[2]),
+            "issuance_salt_b64": str(row[3]),
+            "expires_at": int(row[4]),
+        }
+
+    def save_capability_grant(
+        self,
+        *,
+        relay_name: str,
+        grant: "CapabilityGrant",
+        auth_private: "ed25519.Ed25519PrivateKey",
+        issuance_salt: bytes,
+        relay_tls_spki_sha256: bytes,
+    ) -> None:
+        from yakr_core.identity import b64encode
+
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO capability_grants (
+                    relay_name,
+                    capability_generation,
+                    grant_b64,
+                    auth_private_b64,
+                    issuance_salt_b64,
+                    relay_tls_spki_sha256,
+                    expires_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    relay_name,
+                    grant.capability_generation,
+                    grant.to_b64(),
+                    b64encode(auth_private.private_bytes_raw()),
+                    b64encode(issuance_salt),
+                    relay_tls_spki_sha256,
+                    grant.expires_at,
+                ),
+            )
+            conn.commit()
