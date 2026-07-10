@@ -19,12 +19,21 @@ uv run pytest packages/yakr-testkit/tests/test_phase9_interop.py -q
 uv run pytest packages/yakr-testkit/tests/test_phase9_relay_abuse.py -q
 ```
 
+### Rust reference (`rust/yakr-crypto`)
+
+Independent crypto crate; loads the same JSON vectors from `docs/spec/test-vectors-v1/`:
+
+```bash
+cd rust
+cargo test -p yakr-crypto
+```
+
 ## Conformance Checklist
 
 ### Crypto / encoding
 
-- [ ] **Hybrid KEX** — `hybrid_kex.json` master matches §3.4 derivation
-- [ ] **Mailbox tag** — `mailbox_tag.json` tag matches §3.6
+- [x] **Hybrid KEX** — `hybrid_kex.json` master matches §3.4 derivation (`rust/yakr-crypto`)
+- [x] **Mailbox tag** — `mailbox_tag.json` tag matches §3.6 (`rust/yakr-crypto`)
 - [ ] **Inner message** — `inner_message.json` parses as canonical sorted JSON
 
 ### Signed artifacts
