@@ -98,6 +98,29 @@ uv run pytest packages/yakr-testkit/tests/test_hybrid_homelab_mesh.py -m homelab
 
 Homelab failover test additionally needs `CHARLIE_VPS_HOST` (or `VPS_HOST`) for `docker stop yakr-charlie` via SSH.
 
+### Five-peer mesh + Alice homelab relay mid-test
+
+Alice, Bob, Charlie, Dennis, and Geoff (local relay) stress messaging; mid-test Alice runs `yakr relay create` + deploy for **alice-ops** on the homelab VPS, then Charlie + Dennis are stopped so traffic must use alice-ops (+ Geoff's relay).
+
+```bash
+# Simulated (CI) — alice-ops in-process on 127.0.0.1
+uv run pytest packages/yakr-testkit/tests/test_alice_homelab_relay_mesh.py::test_alice_homelab_relay_mid_mesh -v
+
+# Live homelab — Charlie + Dennis + alice-ops on VPS; Geoff stays local
+export CHARLIE_URL=https://YOUR_HOMELAB:8090
+export DENNIS_URL=https://YOUR_HOMELAB:8091
+export CHARLIE_OPERATOR_HOME=/path/to/charlie-operator
+export DENNIS_OPERATOR_HOME=/path/to/dennis-operator
+export VPS_HOST=user@YOUR_HOMELAB          # alice-ops deploy + relay stop/start
+export ALICE_OPS_PORT=8092                 # optional; default 8092
+# optional: ALICE_OPS_URL=https://YOUR_HOMELAB:8092
+uv run pytest packages/yakr-testkit/tests/test_alice_homelab_relay_mesh.py::test_alice_homelab_relay_mid_mesh_live -m homelab -v
+```
+
+Requires `CHARLIE_VPS_HOST` / `DENNIS_VPS_HOST` (or `VPS_HOST`) for phase-2 outage simulation. Operator TLS homes must match the certs deployed on the VPS.
+
+Full write-up with topology, live run results, and failure notes: [five-peer-homelab-relay-test.md](./five-peer-homelab-relay-test.md).
+
 ### Key modules
 
 | File | Purpose |
@@ -178,7 +201,7 @@ For operators and future send-retry worker design:
 - [x] CLI receipt flush resilience (`yakr receipts flush`, `pending_receipts` store)
 - [x] Live homelab tests (`test_homelab_mesh.py -m homelab`, `stress_charlie_mesh.py --live`)
 - [x] Hybrid homelab Alice↔Bob stress (`hybrid_homelab_stress.py`, `test_hybrid_homelab_mesh.py`)
-- [x] Five-peer mesh + Alice homelab relay mid-test (`test_alice_homelab_relay_mesh.py`)
+- [x] Five-peer mesh + Alice homelab relay mid-test (`test_alice_homelab_relay_mesh.py`, [five-peer-homelab-relay-test.md](./five-peer-homelab-relay-test.md))
 - [x] Single-hop default + profile-ack sender fallback gate
 - [x] VPS trust model in testkit (no Bob↔Charlie operator shortcut)
 - [ ] Multi-device identity — **deferred** ([multi-device.md](./multi-device.md); v1 = one client per identity)

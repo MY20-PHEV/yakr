@@ -78,6 +78,16 @@ ssh "$VPS_HOST" docker run -d \
 
 sleep 2
 # shellcheck disable=SC2029
+for _ in $(seq 1 30); do
+  if ssh "$VPS_HOST" "curl -sf ${CURL_INSECURE} ${SCHEME}://127.0.0.1:${CHARLIE_PORT}/healthz" >/dev/null; then
+    break
+  fi
+  sleep 0.5
+else
+  echo "relay health check failed on ${VPS_HOST}:${CHARLIE_PORT}" >&2
+  exit 1
+fi
+# shellcheck disable=SC2029
 ssh "$VPS_HOST" "curl -sf ${CURL_INSECURE} ${SCHEME}://127.0.0.1:${CHARLIE_PORT}/healthz"
 
 VPS_IP="$(ssh "$VPS_HOST" 'curl -sf ifconfig.me 2>/dev/null || hostname -I | awk "{print \$1}"')"
