@@ -128,9 +128,10 @@ During migration, relays accept `Authorization: RelayTicket <b64>` **or** capabi
 
 | Component | Status |
 |-----------|--------|
-| Spec + ADR (trust anchor) | Draft — **P1 blocker resolved on paper** |
-| `yakr-core` issue/verify | Not started |
-| `yakr-relay` grant store + middleware | Not started |
+| Spec + ADR (trust anchor) | Draft |
+| `yakr-core` issue/verify + `capability_client` | **Partial** — issue, register, request headers |
+| `yakr-relay` grant store + POST auth + `POST /v1/fetch` | **Partial** |
+| Operator pairing bootstrap | **Partial** — `yakr relay capability-bootstrap`, pairing hook |
 | Client profile publish | Not started |
 
 Track in [SECURITY_BACKLOG.md](../SECURITY_BACKLOG.md) P1-1, P1-2.

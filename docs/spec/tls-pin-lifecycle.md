@@ -99,7 +99,7 @@ TLS connect → hash SPKI → compare to pin from:
 | Profile refresh on TLS failure | Partial (network refresh exists) |
 | Explicit pin revocation list in profile | Not implemented |
 | Compromise playbook in homelab-relay.md | TODO |
-| Tests: pin rotation without re-pair | TODO |
+| Tests: pin rotation without re-pair | **Partial** — `test_tls_pin_rotation.py` |
 
 ## References
 
