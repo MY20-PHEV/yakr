@@ -1,7 +1,7 @@
 # Double Ratchet — X25519 DH
 
 **Protocol:** `yakr-v1.0`  
-**Status:** Implemented
+**Status:** Implemented — **experimental; not externally audited** (see [SECURITY_BACKLOG.md](../SECURITY_BACKLOG.md) P2-7)
 
 ## Overview
 
