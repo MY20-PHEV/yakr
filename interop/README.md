@@ -38,7 +38,7 @@ cargo test -p yakr-crypto
 
 ### Signed artifacts
 
-- [ ] **Invite** — CBOR decode, Ed25519 signature verifies, safety code matches
+- [x] **Invite** — CBOR decode, Ed25519 signature verifies, safety code matches (`rust/yakr-crypto`)
 - [ ] **Delivery profile** — CBOR decode, Ed25519 signature verifies
 
 ### Relay (if implementing a relay)
