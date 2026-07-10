@@ -17,9 +17,14 @@ from yakr_relay.app import RelayRuntime, create_app
 from yakr_relay.pairing_store import PairingStore
 from yakr_relay.store import BlobStore
 from yakr_cli.presence_cmds import broadcast_presence
+from yakr_cli import relay_create_cmds
 
 console = Console()
 relay_ops_app = typer.Typer(help="Relay operator commands")
+
+relay_ops_app.command("create")(relay_create_cmds.relay_create)
+relay_ops_app.command("deploy")(relay_create_cmds.relay_deploy)
+relay_ops_app.command("status")(relay_create_cmds.relay_status)
 
 
 def _store():

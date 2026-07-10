@@ -43,7 +43,34 @@ Do **not** forward 443 at home unless you already run a reverse proxy there and 
 
 ## Prerequisites (all paths)
 
-1. **Operator identity** — `yakr identity init` in a dedicated `YAKR_HOME` for the relay operator (can be the same person as your phone identity, but the relay is published as **operator contact**).
+1. **Messaging identity** — `yakr identity init --name alice` in your phone/laptop `YAKR_HOME`.
+2. **Dedicated relay operator** (recommended for VPS/homelab) — one command:
+
+   ```bash
+   yakr relay create alice-ops --public-url https://relay.example:8090 --port 8090
+   ```
+
+   This creates `relays/alice-ops/` under your home, mints a **separate operator identity**, pre-pairs it with `alice`, writes TLS + `deploy/docker-compose.yml`, and adds an `alice-ops` contact so `yakr profile publish` may advertise the relay.
+
+3. **Deploy** (VPS):
+
+   ```bash
+   yakr relay deploy alice-ops --vps user@203.0.113.10
+   ```
+
+   Wraps `scripts/deploy_charlie_vps.sh` with bundle TLS, wrap secret, and port from the manifest.
+
+4. **Check**:
+
+   ```bash
+   yakr relay status alice-ops
+   ```
+
+### Manual operator setup (alternative)
+
+If you prefer separate homes by hand:
+
+1. `yakr identity init` in a dedicated `YAKR_HOME` for the relay operator.
 2. **TLS** — pairing-anchored cert so peers pin SPKI in profiles ([tls-endpoints.md](spec/tls-endpoints.md)):
 
    ```bash
@@ -56,7 +83,15 @@ Do **not** forward 443 at home unless you already run a reverse proxy there and 
 
 ### 1. Run the relay
 
-**Docker (recommended):**
+**From create bundle (homelab / local Docker):**
+
+```bash
+cd ~/.yakr/alice/relays/alice-ops/deploy
+docker build -t yakr-relay:local /path/to/yakr/repo
+docker compose up -d
+```
+
+**Or manual Docker:**
 
 ```bash
 docker build -t yakr-relay:local .
@@ -164,5 +199,6 @@ See [relay-authorization.md](spec/relay-authorization.md).
 - [relay-authorization.md](spec/relay-authorization.md) — advertise vs use
 - [relay-failover.md](spec/relay-failover.md) — ordered mailbox POST
 - [fetch-algorithm.md](spec/fetch-algorithm.md) — per-contact fetch (default) vs `--wide`
+- CLI: `yakr relay create` / `deploy` / `status` — operator bundle under `relays/<name>/`
 - [demo-vps-charlie.md](demo-vps-charlie.md) — VPS Charlie demo
 - [ADR 008](adr/008-nat-reachability-and-mobile-delivery.md) — why phones poll outbound

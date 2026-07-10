@@ -30,6 +30,17 @@ Not affiliated with unrelated sound-alike businesses — see [NOTICE.md](NOTICE.
 | [docs/demo-vps-charlie.md](docs/demo-vps-charlie.md) | Alice/Bob local + Charlie on VPS demo |
 | [docs/homelab-relay.md](docs/homelab-relay.md) | **Homelab relay runbook** — 8090 at home, Tailscale, or VPS |
 
+## Relay operator CLI
+
+```bash
+yakr relay create alice-ops --public-url https://relay.example:8090   # operator identity + pairing
+yakr relay deploy alice-ops --vps user@203.0.113.10                   # VPS via deploy script
+yakr relay status alice-ops
+yakr profile publish && yakr profile push bob
+```
+
+See [docs/homelab-relay.md](docs/homelab-relay.md).
+
 ## Status
 
 **Phase 10 complete** — Yakr Protocol v1.0, test vectors, security analysis, interop verifier, presence/TLS/failover, `yakr fetch --all`, and relay embed (see [docs/spec/phase-10-presence.md](docs/spec/phase-10-presence.md)).
