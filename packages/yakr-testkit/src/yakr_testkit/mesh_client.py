@@ -49,7 +49,6 @@ class MeshParticipant:
     sent: list[SentMessage] = field(default_factory=list)
     _unreceipted: list[tuple[str, OuterBlob]] = field(default_factory=list)
     _send_lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
-    _fetch_lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
     def send(self, recipient: str, body: str) -> SentMessage:
         with self._send_lock:
@@ -129,7 +128,7 @@ class MeshParticipant:
         send_receipts: bool = True,
         save_local: bool = True,
     ) -> list[ReceivedMessage]:
-        with self._fetch_lock:
+        with self.store.fetch_lock():
             return self._fetch_unlocked(peer, send_receipts=send_receipts, save_local=save_local)
 
     def _fetch_unlocked(
@@ -289,9 +288,11 @@ class MeshParticipant:
         return sent
 
     def _send_receipt(self, session: Session, contact, outer: OuterBlob) -> None:
-        previous_send_seq = contact.next_send_seq
+        from yakr_cli.receipt_cmds import _ratchet_snapshot, _restore_ratchet_snapshot
+
+        snapshot = _ratchet_snapshot(contact)
         receipt = session.encrypt_receipt(message_id(outer.ciphertext))
-        self.store.save_contact(contact)
+        self.store.atomic_persist_contact(contact)
         previous = os.environ.get("YAKR_RELAY_URL")
         os.environ["YAKR_RELAY_URL"] = self.relay_url
         try:
@@ -303,8 +304,8 @@ class MeshParticipant:
                 allow_direct=False,
             )
         except BaseException:
-            contact.next_send_seq = previous_send_seq
-            self.store.save_contact(contact)
+            _restore_ratchet_snapshot(contact, snapshot)
+            self.store.atomic_persist_contact(contact)
             raise
         finally:
             if previous is None:

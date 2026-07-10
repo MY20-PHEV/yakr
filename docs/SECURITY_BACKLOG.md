@@ -25,8 +25,8 @@
 | P0-3 | Transactional receive decrypt + `last_recv_seq` persist | Same | **Implemented** (`atomic_commit_receive_text`) |
 | P0-4 | Crash injection tests (send + receive) | `test_delivery_persistence.py` | **Partial** (rollback + key reuse tests) |
 | P0-5 | Document relay retention: TTL-only delete (not fetch/receipt) | [ephemeral-messages.md](spec/ephemeral-messages.md), state machine | Documented |
-| P0-6 | Concurrent fetch serialization policy | state machine | Open |
-| P0-7 | Stale receipt handling normative test | fetch-algorithm | Open |
+| P0-6 | Concurrent fetch serialization policy | `FileLocalStore.fetch_lock()` | **Implemented** (CLI, mesh, mobile) |
+| P0-7 | Stale receipt handling normative test | `test_fetch_hardening.py` | **Partial** (stale receipt + duplicate fetch) |
 | P0-8 | Profile rollback / replay protection audit | pairing, profiles | Open |
 | P0-9 | TLS pin rotation + relay key compromise recovery | [tls-endpoints.md](spec/tls-endpoints.md) | Open |
 
