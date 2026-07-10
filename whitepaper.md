@@ -1001,13 +1001,13 @@ Message 1:
   Alice → Charlie → Dennis → Bob
 
 Message 2:
-  Alice → Ellis → Fred → Bob
+  Alice → Eve → Fred → Bob
 
 Message 3:
   Alice → Dennis → Charlie → Bob
 
 Message 4:
-  Alice → Fred → Ellis → Bob
+  Alice → Fred → Eve → Bob
 ```
 
 ### 14.1 Route Selection
@@ -1445,7 +1445,7 @@ Client creates:
   message encrypted for Bob
   message encrypted for Charlie
   message encrypted for Dennis
-  message encrypted for Ellis
+  message encrypted for Eve
   message encrypted for Fred
 ```
 
