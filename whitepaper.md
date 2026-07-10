@@ -11,7 +11,7 @@
 
 ## 1. Abstract
 
-Yakr is a decentralised messaging protocol designed around end-to-end encryption, **pairing-gated social relays**, rotating multi-hop message paths, and hybrid post-quantum cryptography.
+Yakr is a decentralised messaging protocol based on end-to-end encryption, **pairing-gated social mailboxes**, relay failover, and hybrid post-quantum cryptography. Deployments may optionally use multi-hop relay paths and metadata-hardening modes. The **reference client** defaults to **single-hop** mailbox delivery with ordered relay failover.
 
 Unlike conventional centralised messengers, Yakr does not require all messages to pass through a single provider-operated server. Unlike messengers that assume two devices can open a direct wire between them, Yakr does not assume that user devices are always online, inbound-reachable, or capable of accepting connections from the open internet (typical on mobile cellular and iOS background limits).
 
@@ -91,19 +91,20 @@ A relay's job is intentionally boring:
 ```text
 Receive opaque encrypted blobs.
 Store them temporarily.
-Forward them if instructed.
-Return them to holders of valid opaque mailbox tokens.
-Delete them after expiry or receipt.
+Forward them if instructed (optional two-hop wire path).
+Return them to fetchers presenting a valid mailbox tag.
+Delete them after expiry (v1 reference: TTL sweep only).
 ```
 
-Relays should not need to know:
+Relays do not receive plaintext and cannot decrypt message contents. At the protocol layer they should not need:
 
 ```text
-Who sent the message.
-Who the message is for.
-What the message says.
+Sender or recipient identity keys.
+Message plaintext.
 Whether a blob is a chat message, receipt, profile update, or dummy traffic.
 ```
+
+Relays **do** observe network facts (client IP, TLS session, timing, blob size) and, on the default single-hop path, **mailbox tags** on fetch. A friendly operator may also know whose IP is polling. See threat model in `docs/security/analysis-v1.md`.
 
 ### 3.2 Direct delivery is optional — relays are the foundation
 
@@ -725,22 +726,18 @@ This allows deduplication without exposing content.
 
 ### 10.4 Expiry
 
-Every relay-stored blob should have an expiry.
-
-Example policy:
+Every relay-stored blob MUST have an expiry. **Normative v1 policy:** 24 hours maximum for text and receipts — see `docs/spec/ephemeral-messages.md`.
 
 ```text
-small text messages:
-  keep for 7 days
+text and receipts (v1):
+  valid_until = created_at + 24h
+  relay expires_at ≤ now + 24h at POST
 
-large attachments:
-  keep for 24–72 hours
-
-receipts:
-  keep for 7 days
+future attachment classes (out of v1 scope):
+  sender-requested TTL ≤ protocol maximum
 
 dummy traffic:
-  keep for short random intervals
+  short random intervals per privacy mode
 ```
 
 ---
@@ -1684,7 +1681,7 @@ Yakr trades wire-level directness for **pairing-gated relay store-and-forward** 
 
 SimpleX is an important related design because it avoids user identifiers and uses message queues rather than normal global account IDs.
 
-Yakr differs by making friend/social relays and rotating multi-hop social delivery a core design element.
+Yakr differs by making friend/social relays and **pairing-gated mailbox delivery** a core design element (single-hop default in the reference client; optional multi-hop wire path for metadata reduction).
 
 ---
 
@@ -1765,6 +1762,8 @@ yakr-spec:
 ---
 
 ## 25. Implementation Roadmap
+
+**Canonical phase numbering and status** are maintained in [`docs/REFERENCE_DESIGN.md`](docs/REFERENCE_DESIGN.md). The phases below are a **conceptual dependency sequence** for readers of this whitepaper; phase numbers may differ from the reference implementation plan.
 
 ### Phase 0: Protocol Sketch
 

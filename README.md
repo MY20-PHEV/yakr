@@ -8,6 +8,8 @@ Not affiliated with unrelated sound-alike businesses — see [NOTICE.md](NOTICE.
 
 **Web:** [yakr.co.uk](https://yakr.co.uk) (registered; DNS pending) · Merch: [yakr.store](https://yakr.store) (future)
 
+> **Project maturity:** Reference implementation phases are largely complete; **protocol stability is draft** and **security maturity is experimental** (no external audit; not recommended for production). See [docs/SECURITY_BACKLOG.md](docs/SECURITY_BACKLOG.md).
+
 ## Documents
 
 | Document | Description |
@@ -24,6 +26,9 @@ Not affiliated with unrelated sound-alike businesses — see [NOTICE.md](NOTICE.
 | [docs/spec/tls-endpoints.md](docs/spec/tls-endpoints.md) | **Implemented** pairing-anchored TLS (SPKI pins in profiles) |
 | [docs/spec/ephemeral-messages.md](docs/spec/ephemeral-messages.md) | 24h ephemeral message TTL |
 | [docs/spec/fetch-algorithm.md](docs/spec/fetch-algorithm.md) | **Normative** fetch ordering, receipts, and contact state |
+| [docs/spec/delivery-state-machine.md](docs/spec/delivery-state-machine.md) | Delivery/receipt state machine (P0 draft) |
+| [docs/SECURITY_BACKLOG.md](docs/SECURITY_BACKLOG.md) | Security hardening backlog (P0–P3) |
+| [docs/reviews/external-critique-2026-07-10.md](docs/reviews/external-critique-2026-07-10.md) | External protocol review (reference) |
 | [docs/spec/double-ratchet.md](docs/spec/double-ratchet.md) | X25519 double ratchet |
 | [docs/spec/mesh-testing-and-resilience.md](docs/spec/mesh-testing-and-resilience.md) | Mesh stress and relay outage test status |
 | [docs/html/index.html](docs/html/index.html) | Visual protocol guide (HTML + flowcharts) |
