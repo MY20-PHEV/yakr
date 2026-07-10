@@ -167,6 +167,115 @@ pub fn inviter_complete_pairing(
     Ok((response, contact))
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    #[derive(serde::Deserialize)]
+    struct PairingTranscriptVector {
+        name: String,
+        invite_secret_hex: String,
+        invite_signing_public_hex: String,
+        invite_agreement_public_hex: String,
+        joiner_signing_public_hex: String,
+        joiner_agreement_public_hex: String,
+        joiner_ephemeral_public_hex: String,
+        inviter_ephemeral_public_hex: String,
+        inviter_agreement_private_hex: String,
+        inviter_ephemeral_private_hex: String,
+        joiner_agreement_private_hex: String,
+        joiner_ephemeral_private_hex: String,
+        expected_transcript_hash_hex: String,
+        expected_identity_shared_hex: String,
+        expected_ephemeral_shared_hex: String,
+        expected_master_secret_hex: String,
+    }
+
+    fn vectors_path(file: &str) -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../docs/spec/test-vectors-v1")
+            .join(file)
+    }
+
+    #[test]
+    fn pairing_transcript_vectors() {
+        let path = vectors_path("pairing_transcript.json");
+        let raw = std::fs::read_to_string(&path)
+            .unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
+        let vectors: Vec<PairingTranscriptVector> =
+            serde_json::from_str(&raw).expect("parse pairing_transcript.json");
+
+        for vector in vectors {
+            let invite = crate::invite::InviteBundle {
+                protocol: "yakr-v0.4".into(),
+                inviter_name: "alice".into(),
+                signing_public: hex::decode(&vector.invite_signing_public_hex).unwrap().try_into().unwrap(),
+                agreement_public: hex::decode(&vector.invite_agreement_public_hex).unwrap().try_into().unwrap(),
+                invite_secret: hex::decode(&vector.invite_secret_hex).unwrap().try_into().unwrap(),
+                rendezvous_hint: "https://rendezvous.test/v1".into(),
+                expires_at: 1_700_000_000_000,
+                capabilities: vec!["direct_p2p".into()],
+                signature: vec![0u8; 64],
+                kem_public: Vec::new(),
+            };
+            let request = PairingRequest {
+                invite_secret: invite.invite_secret,
+                joiner_name: "bob".into(),
+                joiner_signing_public: hex::decode(&vector.joiner_signing_public_hex).unwrap().try_into().unwrap(),
+                joiner_agreement_public: hex::decode(&vector.joiner_agreement_public_hex).unwrap().try_into().unwrap(),
+                joiner_ephemeral_public: hex::decode(&vector.joiner_ephemeral_public_hex).unwrap().try_into().unwrap(),
+                kem_ciphertext: Vec::new(),
+            };
+            let inviter_ephemeral_public: [u8; 32] =
+                hex::decode(&vector.inviter_ephemeral_public_hex).unwrap().try_into().unwrap();
+
+            let transcript = pairing_transcript(&invite, &request, &inviter_ephemeral_public);
+            assert_eq!(
+                hex::encode(transcript),
+                vector.expected_transcript_hash_hex,
+                "vector {}",
+                vector.name
+            );
+
+            let inv_agree: [u8; 32] =
+                hex::decode(&vector.inviter_agreement_private_hex).unwrap().try_into().unwrap();
+            let inv_eph: [u8; 32] =
+                hex::decode(&vector.inviter_ephemeral_private_hex).unwrap().try_into().unwrap();
+            let join_agree_pub: [u8; 32] =
+                hex::decode(&vector.joiner_agreement_public_hex).unwrap().try_into().unwrap();
+            let join_eph_pub: [u8; 32] =
+                hex::decode(&vector.joiner_ephemeral_public_hex).unwrap().try_into().unwrap();
+
+            let identity_shared =
+                yakr_crypto::x25519_shared_secret(&inv_agree, &join_agree_pub);
+            let ephemeral_shared = yakr_crypto::x25519_shared_secret(&inv_eph, &join_eph_pub);
+            assert_eq!(hex::encode(identity_shared), vector.expected_identity_shared_hex);
+            assert_eq!(hex::encode(ephemeral_shared), vector.expected_ephemeral_shared_hex);
+
+            let master = derive_pair_master(
+                &identity_shared,
+                &ephemeral_shared,
+                &transcript,
+                None,
+            );
+            assert_eq!(hex::encode(master), vector.expected_master_secret_hex);
+
+            let join_agree: [u8; 32] =
+                hex::decode(&vector.joiner_agreement_private_hex).unwrap().try_into().unwrap();
+            let join_eph: [u8; 32] =
+                hex::decode(&vector.joiner_ephemeral_private_hex).unwrap().try_into().unwrap();
+            let joiner_master = derive_pair_master(
+                &yakr_crypto::x25519_shared_secret(&join_agree, &invite.agreement_public),
+                &yakr_crypto::x25519_shared_secret(&join_eph, &inviter_ephemeral_public),
+                &transcript,
+                None,
+            );
+            assert_eq!(master, joiner_master, "vector {} joiner master", vector.name);
+        }
+    }
+}
+
 pub fn joiner_complete_pairing(
     identity: &Identity,
     invite: &InviteBundle,

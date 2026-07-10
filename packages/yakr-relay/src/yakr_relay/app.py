@@ -3,16 +3,23 @@ from __future__ import annotations
 import base64
 import random
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 
 import httpx
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 
+from yakr_core.capability_grant import (
+    CapabilityGrant,
+    grant_allows_permission,
+    verify_capability_grant,
+    verify_capability_request,
+)
 from yakr_core.onion import decode_entry_packet, decode_mailbox_packet
 from yakr_core.relay import RelayRole
 from yakr_core.relay_ticket import RelayTicket, verify_relay_ticket
+from yakr_relay.capability_store import CapabilityGrantStore
 from yakr_relay.pairing_store import PairingStore
 from yakr_relay.store import BlobStore, _b64decode, _b64encode
 
@@ -54,13 +61,20 @@ class PairResponseBody(BaseModel):
     response: str
 
 
+class CapabilityRegisterRequest(BaseModel):
+    grant: str
+
+
 @dataclass
 class RelayRuntime:
     role: RelayRole
     wrap_secret: bytes | None
     name: str
     require_tickets: bool = False
+    require_capabilities: bool = False
     forward_delay_max_secs: int = 0
+    relay_issuance_public: bytes = field(default_factory=bytes)
+    relay_tls_spki_sha256: bytes = field(default_factory=bytes)
 
 
 def _check_ticket(ticket_b64: str | None, *, runtime: RelayRuntime, permission: str) -> None:
@@ -75,6 +89,72 @@ def _check_ticket(ticket_b64: str | None, *, runtime: RelayRuntime, permission: 
         raise HTTPException(status_code=401, detail=f"invalid relay ticket: {exc}") from exc
 
 
+def _check_capability(
+    request: Request,
+    *,
+    runtime: RelayRuntime,
+    capability_store: CapabilityGrantStore,
+    permission: str,
+    body: bytes,
+) -> None:
+    if not runtime.require_capabilities:
+        return
+    if not runtime.relay_issuance_public:
+        raise HTTPException(status_code=500, detail="relay missing issuance public key")
+    grant_b64 = request.headers.get("Yakr-Capability-Grant")
+    timestamp_raw = request.headers.get("Yakr-Capability-Timestamp")
+    nonce_b64 = request.headers.get("Yakr-Capability-Nonce")
+    signature_b64 = request.headers.get("Yakr-Capability-Signature")
+    if not all([grant_b64, timestamp_raw, nonce_b64, signature_b64]):
+        raise HTTPException(status_code=401, detail="capability headers required")
+    try:
+        grant = CapabilityGrant.from_b64(str(grant_b64))
+        verify_capability_grant(
+            grant,
+            relay_signing_public=runtime.relay_issuance_public,
+            relay_name=runtime.name,
+            relay_tls_spki_sha256=runtime.relay_tls_spki_sha256,
+        )
+        if not capability_store.is_registered(grant):
+            raise ValueError("capability grant not registered")
+        if not grant_allows_permission(grant, permission):
+            raise ValueError(f"capability missing permission: {permission}")
+        verify_capability_request(
+            grant,
+            auth_public=grant.auth_public,
+            signature=_b64decode(str(signature_b64)),
+            method=request.method,
+            path=request.url.path,
+            body=body,
+            timestamp_ms=int(timestamp_raw),
+            nonce=_b64decode(str(nonce_b64)),
+        )
+        capability_store.consume_nonce(str(nonce_b64))
+    except Exception as exc:
+        raise HTTPException(status_code=401, detail=f"invalid capability: {exc}") from exc
+
+
+def _authorize_request(
+    request: Request,
+    *,
+    runtime: RelayRuntime,
+    capability_store: CapabilityGrantStore,
+    permission: str,
+    body: bytes,
+    ticket_b64: str | None,
+) -> None:
+    if runtime.require_capabilities:
+        _check_capability(
+            request,
+            runtime=runtime,
+            capability_store=capability_store,
+            permission=permission,
+            body=body,
+        )
+        return
+    _check_ticket(ticket_b64, runtime=runtime, permission=permission)
+
+
 def create_app(
     store: BlobStore,
     runtime: RelayRuntime | None = None,
@@ -83,22 +163,47 @@ def create_app(
 ) -> FastAPI:
     runtime = runtime or RelayRuntime(role="mailbox", wrap_secret=None, name="relay")
     pairing_store = pairing_store or PairingStore(store.root)
+    capability_store = CapabilityGrantStore(store.root / "capabilities")
     app = FastAPI(title="Yakr Relay", version="0.3.0")
 
     @app.get("/healthz")
     def healthz() -> dict[str, str]:
         return {"status": "ok", "role": runtime.role, "name": runtime.name}
 
+    @app.post("/v1/capabilities/register", status_code=201)
+    def register_capability(request: CapabilityRegisterRequest) -> dict[str, str]:
+        if not runtime.relay_issuance_public:
+            raise HTTPException(status_code=500, detail="relay missing issuance public key")
+        try:
+            grant = CapabilityGrant.from_b64(request.grant)
+            capability_store.register(
+                grant,
+                relay_signing_public=runtime.relay_issuance_public,
+                relay_name=runtime.name,
+                relay_tls_spki_sha256=runtime.relay_tls_spki_sha256,
+            )
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {"status": "registered", "capability_id": _b64encode(grant.capability_id)}
+
     @app.post("/v1/blobs", status_code=201)
-    def store_blob(request: BlobStoreRequest) -> dict[str, str]:
+    async def store_blob(request: Request, payload: BlobStoreRequest) -> dict[str, str]:
         if runtime.role == "entry":
             raise HTTPException(status_code=405, detail="entry relay does not store blobs directly")
-        _check_ticket(request.ticket, runtime=runtime, permission="store")
+        body = await request.body()
+        _authorize_request(
+            request,
+            runtime=runtime,
+            capability_store=capability_store,
+            permission="store",
+            body=body,
+            ticket_b64=payload.ticket,
+        )
         try:
             store.store(
-                _b64decode(request.mailbox_tag),
-                request.expires_at,
-                _b64decode(request.ciphertext),
+                _b64decode(payload.mailbox_tag),
+                payload.expires_at,
+                _b64decode(payload.ciphertext),
             )
         except ValueError as exc:
             status = 429 if "blob limit exceeded" in str(exc) else 400
