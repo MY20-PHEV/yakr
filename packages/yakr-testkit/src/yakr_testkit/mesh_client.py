@@ -7,11 +7,12 @@ from dataclasses import dataclass, field
 import httpx
 
 from yakr_core.crypto import derive_mailbox_secret
-from yakr_core.delivery_profile import DeliveryProfile, verify_delivery_profile
+from yakr_core.delivery_profile import DeliveryProfile, apply_delivery_profile_update
 from yakr_core.errors import DuplicateSeqError, YakrError
 from yakr_core.identity import Identity
 from yakr_core.message import OuterBlob, message_id
 from yakr_core.privacy import fetch_tags_for_mode
+from yakr_core.receipt_apply import apply_inbound_delivery_receipt
 from yakr_core.session import Session
 from yakr_core.store import FileLocalStore
 from yakr_cli.network import (
@@ -214,8 +215,12 @@ class MeshParticipant:
 
                     if inner.type == "profile" and inner.body:
                         profile = DeliveryProfile.from_b64(inner.body)
-                        verify_delivery_profile(profile, contact.signing_public)
-                        contact.delivery_profile = profile
+                        try:
+                            apply_delivery_profile_update(
+                                contact, profile, contact.signing_public
+                            )
+                        except ValueError:
+                            pass
                         self.store.save_contact(contact)
                         continue
 
@@ -227,7 +232,7 @@ class MeshParticipant:
                         continue
 
                     if inner.type == "receipt" and inner.message_id:
-                        self.store.mark_outbound_delivered(peer, inner.message_id)
+                        apply_inbound_delivery_receipt(self.store, peer, inner)
                         from yakr_core.profile_ack import record_profile_ack_on_receipt
 
                         record_profile_ack_on_receipt(self.store, contact, peer, inner.message_id)
