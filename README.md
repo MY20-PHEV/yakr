@@ -89,7 +89,7 @@ packages/yakr-cli/      command-line reference client (Typer)
 packages/yakr-testkit/  test harness and demos (pytest)
 packages/yakr-mobile/   Android/mobile reference client
 apps/yakr-android/      BeeWare Briefcase APK shell
-rust/yakr-crypto/       Rust crypto primitives (interop vectors; second reference)
+rust/                   Rust reference stack (yakr-crypto, yakr-core, yakr-relay, yakr-cli)
 ```
 
 ## Docker Demos (recommended)
