@@ -21,7 +21,7 @@ uv run pytest packages/yakr-testkit/tests/test_phase9_relay_abuse.py -q
 
 ### Rust reference (`rust/`)
 
-Independent Rust workspace mirroring the Python reference stack:
+Independent Rust workspace mirroring the Python reference stack. **Port status:** [`rust/RUST_PORT.md`](../rust/RUST_PORT.md).
 
 ```bash
 cd rust
