@@ -189,9 +189,10 @@ Then send receipt (may use `pending_receipts` if POST fails).
 
 ## Exit criteria (tests to add)
 
-- [ ] Crash injection: kill after encrypt, before `save_outbound_pending` — no key reuse on restart
-- [ ] Crash injection: kill after decrypt, before `save_contact` — re-fetch succeeds without `seq` skip
-- [ ] Duplicate poll returns same messages once; second fetch idempotent
+- [x] Rollback on injected fault during `atomic_commit_send` / `atomic_commit_receive_text`
+- [x] Restart after atomic send does not reuse ratchet keys
+- [x] Atomic receive persists `last_recv_seq` and rejects duplicate decrypt
+- [ ] Process-level crash injection (kill -9) end-to-end
 - [ ] Receipt flush after crash delivers pending receipt
 - [ ] Stale receipt does not clear unrelated `outbound_pending`
 - [ ] Concurrent fetch test (serialized lock) — no double `seq` advance

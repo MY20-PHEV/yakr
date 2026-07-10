@@ -21,9 +21,9 @@
 | ID | Item | Spec / tracking | Status |
 |----|------|-----------------|--------|
 | P0-1 | Formal delivery state machine | [delivery-state-machine.md](spec/delivery-state-machine.md) | Draft spec |
-| P0-2 | Transactional ratchet + outbound queue persist | [delivery-state-machine.md](spec/delivery-state-machine.md) §Crash safety | Open |
-| P0-3 | Transactional receive decrypt + `last_recv_seq` persist | Same | Open |
-| P0-4 | Crash injection tests (send + receive) | `yakr-testkit` | Open |
+| P0-2 | Transactional ratchet + outbound queue persist | [delivery-state-machine.md](spec/delivery-state-machine.md) §Crash safety | **Implemented** (`atomic_commit_send`) |
+| P0-3 | Transactional receive decrypt + `last_recv_seq` persist | Same | **Implemented** (`atomic_commit_receive_text`) |
+| P0-4 | Crash injection tests (send + receive) | `test_delivery_persistence.py` | **Partial** (rollback + key reuse tests) |
 | P0-5 | Document relay retention: TTL-only delete (not fetch/receipt) | [ephemeral-messages.md](spec/ephemeral-messages.md), state machine | Documented |
 | P0-6 | Concurrent fetch serialization policy | state machine | Open |
 | P0-7 | Stale receipt handling normative test | fetch-algorithm | Open |

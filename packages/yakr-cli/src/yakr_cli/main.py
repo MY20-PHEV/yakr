@@ -153,8 +153,13 @@ def send_cmd(
 
     session = Session(identity, contact)
     encrypted = session.encrypt_text(message)
-    store.save_contact(contact)
-    store.save_outbound_pending(contact_name, encrypted.msg_id, encrypted.inner_message.seq, message)
+    store.atomic_commit_send(
+        contact,
+        msg_id=encrypted.msg_id,
+        seq=encrypted.inner_message.seq,
+        body=message,
+        outer=encrypted.outer_blob,
+    )
 
     mode = deliver_encrypted(
         encrypted,

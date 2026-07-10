@@ -154,8 +154,13 @@ class YakrMobileClient:
         contact = self._require_contact(contact_name)
         session = Session(identity, contact)
         encrypted = session.encrypt_text(body)
-        self.store.save_contact(contact)
-        self.store.save_outbound_pending(contact_name, encrypted.msg_id, encrypted.inner_message.seq, body)
+        self.store.atomic_commit_send(
+            contact,
+            msg_id=encrypted.msg_id,
+            seq=encrypted.inner_message.seq,
+            body=body,
+            outer=encrypted.outer_blob,
+        )
 
         previous = os.environ.get("YAKR_RELAY_URL")
         os.environ["YAKR_RELAY_URL"] = self.relay_url
@@ -268,8 +273,7 @@ class YakrMobileClient:
                         continue
                     if inner.type != "text":
                         continue
-                    self.store.save_inbound_message(contact_name, inner, identity=identity)
-                    self.store.save_contact(contact)
+                    self.store.atomic_commit_receive_text(contact, inner, identity=identity)
                     messages.append(inner.body)
                     receipt = session.encrypt_receipt(message_id(outer.ciphertext))
                     self.store.save_contact(contact)
