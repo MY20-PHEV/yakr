@@ -130,7 +130,7 @@ Bob decrypts Alice text (seq N)
 
 **Ordering:** Receipt `seq` shares Bob's outbound counter with his `text` messages. Fetch MUST NOT clobber Bob's send-side ratchet when saving receive-side updates after generating a receipt.
 
-**Stale receipt:** If `delivered_id` is unknown or already acknowledged, recipient SHOULD ignore without clearing newer pending state.
+**Stale receipt:** If `delivered_id` is unknown or already acknowledged, `apply_inbound_delivery_receipt` returns false and MUST NOT clear unrelated `outbound_pending`. Receive state (`last_recv_seq`, ratchet) MUST still be persisted after `decrypt_outer` success.
 
 ## Concurrent fetch
 
@@ -194,8 +194,8 @@ Then send receipt (may use `pending_receipts` if POST fails).
 - [x] Atomic receive persists `last_recv_seq` and rejects duplicate decrypt
 - [ ] Process-level crash injection (kill -9) end-to-end
 - [ ] Receipt flush after crash delivers pending receipt
-- [ ] Stale receipt does not clear unrelated `outbound_pending`
-- [ ] Concurrent fetch test (serialized lock) — no double `seq` advance
+- [x] Stale receipt does not clear unrelated `outbound_pending` (`test_receipt_apply.py`, `test_fetch_hardening.py`)
+- [x] Concurrent fetch test (serialized lock) — no double `seq` advance
 
 ## References
 

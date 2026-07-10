@@ -3,12 +3,14 @@ from __future__ import annotations
 from rich.console import Console
 
 from yakr_core.crypto import derive_mailbox_secret
+from yakr_core.delivery_profile import DeliveryProfile, apply_delivery_profile_update
 from yakr_core.profile_ack import record_profile_ack_on_receipt, relay_names_from_profile
 from yakr_core.errors import ContactNotFoundError, DuplicateSeqError, YakrError
 from yakr_core.identity import Contact, Identity
 from yakr_core.message import OuterBlob, message_id
 from yakr_core.presence import apply_presence_message
 from yakr_core.privacy import fetch_tags_for_mode
+from yakr_core.receipt_apply import apply_inbound_delivery_receipt
 from yakr_core.session import Session
 from yakr_core.store import FileLocalStore
 from yakr_cli.network import (
@@ -119,14 +121,18 @@ def fetch_contact_inbound(
 
                     if inner.type == "profile" and inner.body:
                         profile = DeliveryProfile.from_b64(inner.body)
-                        verify_delivery_profile(profile, contact.signing_public)
-                        contact.delivery_profile = profile
-                        store.save_contact(contact)
-                        if not quiet:
-                            console.print(
-                                f"[green]Updated delivery profile for {contact_name} "
-                                f"(v{profile.version})[/green]"
+                        try:
+                            apply_delivery_profile_update(
+                                contact, profile, contact.signing_public
                             )
+                            if not quiet:
+                                console.print(
+                                    f"[green]Updated delivery profile for {contact_name} "
+                                    f"(v{profile.version})[/green]"
+                                )
+                        except ValueError:
+                            pass
+                        store.save_contact(contact)
                         continue
 
                     presence = None
@@ -144,7 +150,7 @@ def fetch_contact_inbound(
                         continue
 
                     if inner.type == "receipt" and inner.message_id:
-                        if store.mark_outbound_delivered(contact_name, inner.message_id) and not quiet:
+                        if apply_inbound_delivery_receipt(store, contact_name, inner) and not quiet:
                             console.print(
                                 f"[green]Delivery receipt for {inner.message_id[:12]}…[/green]"
                             )

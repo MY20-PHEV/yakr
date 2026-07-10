@@ -8,7 +8,7 @@ from dataclasses import dataclass
 import httpx
 
 from yakr_core.crypto import derive_mailbox_secret
-from yakr_core.delivery_profile import DeliveryProfile, verify_delivery_profile
+from yakr_core.delivery_profile import DeliveryProfile, apply_delivery_profile_update
 from yakr_core.errors import DuplicateSeqError, YakrError
 from yakr_core.identity import Identity
 from yakr_core.invite import invite_from_url, verify_invite
@@ -26,6 +26,7 @@ from yakr_core.pairing import (
     respond_to_pair_request,
 )
 from yakr_core.privacy import fetch_tags_for_mode
+from yakr_core.receipt_apply import apply_inbound_delivery_receipt
 from yakr_core.session import Session
 
 from yakr_mobile.device_settings import DeviceSettings, fetch_poll_interval, relay_may_run
@@ -186,11 +187,11 @@ class YakrMobileClient:
 
     def fetch_contact(self, contact_name: str) -> FetchResult:
         from yakr_cli.network import (
-            deliver_encrypted,
             fetch_direct_blobs,
             fetch_mailbox_urls,
             resolve_contact_route,
         )
+        from yakr_cli.receipt_cmds import send_delivery_receipt
         from yakr_core.message import message_id
 
         identity = self._require_identity()
@@ -266,36 +267,44 @@ class YakrMobileClient:
 
                         if inner.type == "profile" and inner.body:
                             profile = DeliveryProfile.from_b64(inner.body)
-                            verify_delivery_profile(profile, contact.signing_public)
-                            contact.delivery_profile = profile
+                            try:
+                                apply_delivery_profile_update(
+                                    contact, profile, contact.signing_public
+                                )
+                            except ValueError:
+                                pass
                             self.store.save_contact(contact)
                             continue
-                        if inner.type == "receipt":
-                            if inner.message_id:
-                                self.store.mark_outbound_delivered(contact_name, inner.message_id)
+                        if inner.type == "receipt" and inner.message_id:
+                            apply_inbound_delivery_receipt(
+                                self.store.file_store, contact_name, inner
+                            )
                             self.store.save_contact(contact)
                             continue
                         if inner.type != "text":
                             continue
                         self.store.atomic_commit_receive_text(contact, inner, identity=identity)
                         messages.append(inner.body)
-                        receipt = session.encrypt_receipt(message_id(outer.ciphertext))
-                        self.store.save_contact(contact)
+                        delivered_id = message_id(outer.ciphertext)
                         previous = os.environ.get("YAKR_RELAY_URL")
                         os.environ["YAKR_RELAY_URL"] = self.relay_url
                         try:
-                            deliver_encrypted(
-                                receipt,
-                                contact=contact,
-                                identity=identity,
-                                store=self.store.file_store,
-                                allow_direct=False,
+                            send_delivery_receipt(
+                                self.store.file_store,
+                                identity,
+                                contact_name,
+                                delivered_id,
                             )
                         finally:
                             if previous is None:
                                 os.environ.pop("YAKR_RELAY_URL", None)
                             else:
                                 os.environ["YAKR_RELAY_URL"] = previous
+                        persisted = self.store.get_contact(contact_name)
+                        if persisted is not None:
+                            contact.next_send_seq = persisted.next_send_seq
+                            contact.ratchet = persisted.ratchet
+                        self.store.save_contact(contact)
                     if not progressed:
                         break
                     pending = still_pending

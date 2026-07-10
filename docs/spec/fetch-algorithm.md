@@ -58,7 +58,7 @@ Implementations MUST:
 | `inner.type` | Action |
 |--------------|--------|
 | `text` | Save inbound row; send delivery receipt; persist contact |
-| `receipt` | `mark_outbound_delivered(contact, message_id)`; persist contact |
+| `receipt` | `apply_inbound_delivery_receipt`; persist contact (see §Unknown receipts) |
 | `profile` | Verify and merge `DeliveryProfile`; persist contact |
 | `presence` | Apply presence update; persist contact |
 
@@ -69,6 +69,19 @@ After decrypting inbound `text`, the recipient sends an encrypted `receipt` inne
 **State rule:** `send_delivery_receipt` loads contact state, advances `next_send_seq`, and updates the send-side ratchet. The fetch loop MUST NOT overwrite that send-side state when saving receive-side updates. Implementations MUST merge send-side fields from disk (or send the receipt before the final `save_contact` for the inbound message) so each message gets a distinct receipt `seq`.
 
 Receipts use the same single-hop mailbox failover path as sends. Failed receipt POSTs are queued in `pending_receipts` and retried via `yakr receipts flush` or the next fetch.
+
+### Unknown receipts
+
+After successful `decrypt_outer`, a `receipt` whose `message_id` is **unknown** or already acknowledged MUST:
+
+1. **Not** remove any `outbound_pending` row (only exact `message_id` match clears pending).
+2. **Still** persist receive state (`last_recv_seq`, receive ratchet) — the sender consumed a `seq` slot; skipping advancement breaks monotonicity.
+
+Reference: `yakr_core.receipt_apply.apply_inbound_delivery_receipt`.
+
+### Profile replay
+
+Inbound `profile` merges MUST enforce monotonic `version` ([profile-replay-policy.md](./profile-replay-policy.md)). Rejected rollbacks still consume `seq` as above.
 
 ## Idempotency
 
@@ -87,4 +100,5 @@ Normative state machine: [delivery-state-machine.md](./delivery-state-machine.md
 
 - `packages/yakr-cli/src/yakr_cli/fetch_cmds.py` — `fetch_contact_inbound`, `_refresh_contact_send_state`
 - `packages/yakr-core/src/yakr_core/session.py` — `decrypt_outer`
+- `packages/yakr-core/src/yakr_core/receipt_apply.py` — `apply_inbound_delivery_receipt`
 - `packages/yakr-testkit/src/yakr_testkit/mesh_client.py` — test harness fetch loop
