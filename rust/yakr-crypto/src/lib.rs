@@ -3,12 +3,17 @@
 //! Independent of the Python `yakr-core` package. Conformance is checked against
 //! `docs/spec/test-vectors-v1/`.
 
+pub mod cbor;
+pub mod delivery_profile;
 pub mod encoding;
 pub mod hkdf;
 pub mod hybrid;
 pub mod inner_message;
+pub mod invite;
 pub mod mailbox;
 
+pub use delivery_profile::verify_delivery_profile;
 pub use hybrid::derive_hybrid_master;
 pub use inner_message::{verify_inner_message_json, InnerMessageError, InnerMessageFields};
+pub use invite::{derive_safety_code, verify_invite_bundle};
 pub use mailbox::{derive_mailbox_secret, derive_mailbox_tag};
