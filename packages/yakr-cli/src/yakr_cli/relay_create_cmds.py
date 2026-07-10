@@ -11,6 +11,7 @@ from rich.console import Console
 from yakr_core.http_client import yakr_get
 from yakr_core.identity import b64encode
 from yakr_core.relay_authorization import authorized_publish_relays
+from yakr_core.relay_deploy import deploy_operator_bundle, repo_root_from_here
 from yakr_core.relay_operator import (
     create_relay_operator,
     load_relay_operator_manifest,
@@ -35,7 +36,7 @@ def _require_identity(store: FileLocalStore):
 
 
 def _repo_root() -> Path:
-    return Path(__file__).resolve().parents[3]
+    return repo_root_from_here(Path(__file__))
 
 
 def relay_create(
@@ -89,44 +90,16 @@ def relay_deploy(
     store = _store()
     _require_identity(store)
 
-    operator_home = relay_operator_home(store.root, operator_name)
     try:
-        manifest = load_relay_operator_manifest(operator_home)
+        deploy_operator_bundle(store, operator_name, vps_host, repo_root=_repo_root())
     except FileNotFoundError as exc:
         console.print(f"[red]{exc}[/red]")
         raise typer.Exit(code=1) from exc
-
-    tls_dir = operator_home / "relay-tls"
-    if not (tls_dir / "endpoint.key.pem").exists():
-        console.print(f"[red]missing TLS material under {tls_dir}[/red]")
-        raise typer.Exit(code=1)
-
-    script = _repo_root() / "scripts" / "deploy_charlie_vps.sh"
-    if not script.exists():
-        console.print(f"[red]deploy script not found: {script}[/red]")
-        raise typer.Exit(code=1)
-
-    env = os.environ.copy()
-    env.update(
-        {
-            "VPS_HOST": vps_host,
-            "CHARLIE_PORT": str(manifest.host_port),
-            "CHARLIE_WRAP_SECRET": b64encode(manifest.wrap_secret),
-            "CHARLIE_TLS_DIR": str(tls_dir),
-            "RELAY_NAME": manifest.operator_name,
-            "RELAY_CONTAINER": f"yakr-{manifest.operator_name}",
-            "RELAY_DATA_VOLUME": f"yakr-{manifest.operator_name}-data",
-            "URL_EXPORT_NAME": f"{manifest.operator_name.upper().replace('-', '_')}_URL",
-        }
-    )
-
-    console.print(f"[cyan]Deploying {operator_name} to {vps_host}…[/cyan]")
-    try:
-        subprocess.run(["bash", str(script)], cwd=_repo_root(), env=env, check=True)
     except subprocess.CalledProcessError as exc:
         console.print(f"[red]deploy failed (exit {exc.returncode})[/red]")
         raise typer.Exit(code=exc.returncode) from exc
 
+    manifest = load_relay_operator_manifest(relay_operator_home(store.root, operator_name))
     console.print(
         f"[green]Deploy complete.[/green] Run [bold]yakr profile publish[/bold] "
         f"then [bold]yakr profile push[/bold] so contacts learn {manifest.public_url}"
