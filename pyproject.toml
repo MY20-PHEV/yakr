@@ -5,6 +5,9 @@ description = "Yakr reference implementation workspace"
 requires-python = ">=3.12"
 dependencies = []
 
+[project.urls]
+Repository = "https://github.com/MY20-PHEV/yakr"
+
 [tool.uv.workspace]
 members = ["packages/*"]
 

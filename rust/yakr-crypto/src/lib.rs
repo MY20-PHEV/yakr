@@ -1,4 +1,4 @@
-//! Cryptographic primitives for [Yakr Protocol](https://github.com/yakr-protocol/yakr) v1.0.
+//! Cryptographic primitives for [Yakr Protocol](https://github.com/MY20-PHEV/yakr) v1.0.
 //!
 //! Independent of the Python `yakr-core` package. Conformance is checked against
 //! `docs/spec/test-vectors-v1/`.
@@ -23,6 +23,7 @@ pub use inner_message::{
     MessageType,
 };
 pub use invite::{derive_safety_code, verify_invite_bundle};
+pub use hkdf::hkdf_sha256;
 pub use mailbox::{derive_mailbox_secret, derive_mailbox_tag};
 pub use master::{derive_master_secret, derive_message_key};
 pub use x25519::{generate_keypair as x25519_generate_keypair, shared_secret as x25519_shared_secret};
