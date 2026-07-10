@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["yakr-crypto"]
+members = ["yakr-crypto", "yakr-core", "yakr-relay", "yakr-cli"]
 
 [workspace.package]
 version = "0.1.0"
