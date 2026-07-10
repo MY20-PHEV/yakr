@@ -202,6 +202,45 @@ def profile_is_stale(profile: DeliveryProfile, *, now_ms: int | None = None) -> 
     return profile_is_expired(profile, now_ms=now_ms)
 
 
+def accept_delivery_profile_update(
+    current: DeliveryProfile | None,
+    incoming: DeliveryProfile,
+    *,
+    now_ms: int | None = None,
+) -> None:
+    """Reject expired profiles and monotonic-version rollback."""
+    if profile_is_expired(incoming, now_ms=now_ms):
+        raise ValueError("delivery profile expired")
+    if current is None:
+        return
+    if incoming.version < current.version:
+        raise ValueError(
+            f"delivery profile rollback rejected: incoming v{incoming.version} "
+            f"< stored v{current.version}"
+        )
+    if incoming.version == current.version and incoming.to_bytes() != current.to_bytes():
+        raise ValueError(
+            f"delivery profile version conflict at v{incoming.version}"
+        )
+
+
+def apply_delivery_profile_update(
+    contact: "Contact",
+    profile: DeliveryProfile,
+    signing_public: bytes,
+    *,
+    now_ms: int | None = None,
+) -> None:
+    """Verify, anti-replay check, and store a peer delivery profile."""
+    from yakr_core.identity import Contact
+
+    if not isinstance(contact, Contact):
+        raise TypeError("expected Contact")
+    verify_delivery_profile(profile, signing_public)
+    accept_delivery_profile_update(contact.delivery_profile, profile, now_ms=now_ms)
+    contact.delivery_profile = profile
+
+
 def relay_network_from_profile(profile: DeliveryProfile) -> dict[str, RelayNode]:
     return {descriptor.name: descriptor.to_relay_node() for descriptor in profile.relay_descriptors}
 

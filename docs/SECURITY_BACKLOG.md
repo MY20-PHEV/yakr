@@ -26,16 +26,16 @@
 | P0-4 | Crash injection tests (send + receive) | `test_delivery_persistence.py` | **Partial** (rollback + key reuse tests) |
 | P0-5 | Document relay retention: TTL-only delete (not fetch/receipt) | [ephemeral-messages.md](spec/ephemeral-messages.md), state machine | Documented |
 | P0-6 | Concurrent fetch serialization policy | `FileLocalStore.fetch_lock()` | **Implemented** (CLI, mesh, mobile) |
-| P0-7 | Stale receipt handling normative test | `test_fetch_hardening.py` | **Partial** (stale receipt + duplicate fetch) |
-| P0-8 | Profile rollback / replay protection audit | pairing, profiles | Open |
+| P0-7 | Stale receipt handling normative test | `test_fetch_hardening.py`, `test_receipt_apply.py` | **Implemented** |
+| P0-8 | Profile rollback / replay protection audit | [profile-replay-policy.md](spec/profile-replay-policy.md) | **Implemented** |
 | P0-9 | TLS pin rotation + relay key compromise recovery | [tls-endpoints.md](spec/tls-endpoints.md) | Open |
 
 ## P1 — Identity and authorisation privacy
 
 | ID | Item | Notes | Status |
 |----|------|-------|--------|
-| P1-1 | Replace stable `contact_id` in relay tickets | Current: `issuer_signing_public` + `contact_id` in `relay_ticket.py` | Open |
-| P1-2 | Per-relay pseudonymous capability tokens | Review proposes `capability_id` + relay-bound auth key | Design |
+| P1-1 | Replace stable `contact_id` in relay tickets | [ADR 012](adr/012-relay-capability-tokens.md), [relay-capability-v1.md](spec/relay-capability-v1.md) | **Design** |
+| P1-2 | Per-relay pseudonymous capability tokens | ADR 012 | **Design** |
 | P1-3 | Separate operator identity from relay client capability | | Design |
 | P1-4 | Relay-observer privacy table | [security/analysis-v1.md](security/analysis-v1.md) §8.5 | Draft |
 | P1-5 | `POST /v1/fetch` (tags in body, not URL path) | Reduces infra log leakage | Design (`yakr-v1.1`) |
