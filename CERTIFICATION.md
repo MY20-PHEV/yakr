@@ -56,6 +56,7 @@ For messenger apps, CLI tools, or libraries that act as a Yakr **user endpoint**
 - Hybrid post-quantum pairing (`yakr-v0.6+`)
 - Minimal presence (`yakr-v1.1/presence`)
 - Pairing-anchored TLS (`docs/spec/tls-endpoints.md`)
+- Optional platform wake (`yakr-v1.2/wake`, ADR 011) — poll remains required; silent push as fetch hint only
 
 ### Yakr Certified — Relay v1.0
 

@@ -691,7 +691,7 @@ Prove Yakr works on a **real mobile device** with offline delivery, invite QR, a
 | Platform | Android first (Briefcase app embedding `yakr-core`, or Kotlin + Chaquopy) |
 | Storage | SQLCipher via `sqlcipher3` or encrypted SQLite wrapper |
 | UI | 1:1 chat, contact list, invite QR, safety code screen |
-| Notifications | Polling worker default; optional unified push stub |
+| Notifications | Polling worker default; optional platform wake ([ADR 011](adr/011-optional-platform-wake.md)) |
 | Relay mode | Foreground service; Wi-Fi + charging toggle |
 | Networking | HTTPS relay, battery-aware fetch interval |
 | Packaging | Sideload APK; Play Store deferred |
@@ -873,7 +873,7 @@ Track unresolved items here; close with ADRs in `docs/adr/`.
 |----|----------|--------------|----------------------|
 | OD-01 | Double ratchet library vs. custom | 4 | Minimal in-tree ratchet; no heavy Signal port |
 | OD-02 | PQ library selection | 6 | `liboqs-python` if viable, else subprocess to `oqs` CLI for vectors only |
-| OD-03 | Push strategy on mobile | 8 | Polling only |
+| OD-03 | Push strategy on mobile | 8 | **Closed** — poll required; optional platform wake ([ADR 011](adr/011-optional-platform-wake.md), [platform-wake-v1.md](spec/platform-wake-v1.md)) |
 | OD-04 | Public DHT for invite rendezvous | 9+ | Defer; LAN + manual relay |
 | OD-05 | Attachment chunking design | 9+ | Out of v1 scope |
 | OD-06 | Multi-device model | 9+ | **Deferred** — v1 is one active client per identity; relay operator is a separate role ([multi-device.md](spec/multi-device.md)) |

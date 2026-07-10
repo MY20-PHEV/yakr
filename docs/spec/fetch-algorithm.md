@@ -7,6 +7,8 @@
 
 Fetch polls mailbox relays for opaque blobs, decrypts them, persists ratchet state, and (for inbound `text`) sends delivery receipts. Relays **do not** consume blobs on read — the same ciphertext MAY appear on every poll until TTL expiry ([ephemeral-messages.md](./ephemeral-messages.md)).
 
+**Triggers:** Periodic poll worker (baseline), app foreground, network change, and optionally silent platform wake ([platform-wake-v1.md](./platform-wake-v1.md)). All triggers run the same algorithm below; wake does not change decrypt or receipt rules.
+
 Because multiple blobs can accumulate per tag and `GET /v1/blobs/{tag}` returns them in **arbitrary order** (typically by relay `stored_at`, which need not match application `seq`), clients MUST implement the algorithm below. A naive single-pass decrypt loop drops messages and receipts when a higher `seq` is processed before a lower one.
 
 ## Fetch poll scope

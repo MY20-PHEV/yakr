@@ -83,6 +83,7 @@ Global rate limiting per IP is deployment-specific and not mandated in v1. Opera
 3. **No MLS-style group messaging** in v1 — pairwise sessions only.
 4. **Classical-only invites** remain vulnerable to future quantum break of recorded pairing transcripts; use hybrid invites when PQ libraries are available.
 5. **Presence metadata** — encrypted `type=presence` inner messages reduce exposure, but relays still observe poll timing, blob sizes, and which mailbox tags are requested. Fresh presence URLs in the cache are advisory; clients fall back to signed profile `relay_descriptors` when presence expires. Embedded relays MUST only set `relay.active=true` when a dialable `reachable` URL is verified (ADR 008).
+6. **Platform wake metadata** (optional, ADR 011) — opt-in wake registration exposes device tokens to trusted relays and the wake gateway; wake timing is more precise than poll-only. No message plaintext leaves the relay blob path. Apple/Google process silent push per their policies.
 
 ## 8. Presence and Relay Reachability (Phase 10)
 
@@ -110,6 +111,10 @@ Presence payloads carried as E2E inner messages protect **operator location hint
 ### 8.3 Residual risk
 
 Presence does not provide anonymity against a global observer correlating poll times across relays. High-risk users should combine relay placement, Tor transport (future), and operational discipline.
+
+### 8.4 Optional platform wake (ADR 011)
+
+Users who **opt in** to platform wake delegate a wake capability to relays they already trust for blob storage. A wake gateway and the platform provider (APNs/FCM) see device handles and wake timing, not ciphertext. Users who need minimum third-party metadata SHOULD leave wake disabled and rely on poll-only delivery.
 
 ## 9. Review Checklist
 
