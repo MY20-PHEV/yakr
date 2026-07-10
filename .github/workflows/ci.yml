@@ -30,7 +30,7 @@ jobs:
         run: uv run pytest packages/ -q --ignore=packages/yakr-testkit/tests/test_phase1_exit.py
 
   rust:
-    name: Rust interop vectors
+    name: Rust workspace
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -41,5 +41,5 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Cargo test (yakr-crypto vectors)
+      - name: Cargo test (all crates)
         run: cargo test
