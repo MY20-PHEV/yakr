@@ -217,6 +217,158 @@ pub fn inviter_complete_pairing(
     Ok((response, contact))
 }
 
+pub fn pairing_request_to_bytes(request: &PairingRequest) -> Result<Vec<u8>, String> {
+    use ciborium::value::Value;
+    let mut entries = vec![
+        (
+            Value::Text("invite_secret".into()),
+            Value::Bytes(request.invite_secret.to_vec()),
+        ),
+        (
+            Value::Text("joiner_name".into()),
+            Value::Text(request.joiner_name.clone()),
+        ),
+        (
+            Value::Text("joiner_signing_public".into()),
+            Value::Bytes(request.joiner_signing_public.to_vec()),
+        ),
+        (
+            Value::Text("joiner_agreement_public".into()),
+            Value::Bytes(request.joiner_agreement_public.to_vec()),
+        ),
+        (
+            Value::Text("joiner_ephemeral_public".into()),
+            Value::Bytes(request.joiner_ephemeral_public.to_vec()),
+        ),
+        (
+            Value::Text("joiner_ratchet_public".into()),
+            Value::Bytes(request.joiner_ratchet_public.to_vec()),
+        ),
+        (
+            Value::Text("joiner_profile".into()),
+            Value::Bytes(Vec::new()),
+        ),
+    ];
+    if !request.kem_ciphertext.is_empty() {
+        entries.push((
+            Value::Text("kem_ciphertext".into()),
+            Value::Bytes(request.kem_ciphertext.clone()),
+        ));
+    }
+    yakr_crypto::cbor::encode_cbor(&Value::Map(entries)).map_err(|e| format!("{e:?}"))
+}
+
+pub fn pairing_request_from_bytes(data: &[u8]) -> Result<PairingRequest, String> {
+    let value = yakr_crypto::cbor::decode_cbor(data).map_err(|e| format!("{e:?}"))?;
+    let get_bytes = |key: &str| -> Result<Vec<u8>, String> {
+        yakr_crypto::cbor::map_bytes(&value, key).ok_or_else(|| format!("missing {key}"))
+    };
+    let joiner_name = match yakr_crypto::cbor::map_field(&value, "joiner_name") {
+        Some(ciborium::value::Value::Text(s)) => s.clone(),
+        _ => return Err("missing joiner_name".into()),
+    };
+    Ok(PairingRequest {
+        invite_secret: get_bytes("invite_secret")?
+            .try_into()
+            .map_err(|_| "invite_secret".to_string())?,
+        joiner_name,
+        joiner_signing_public: get_bytes("joiner_signing_public")?
+            .try_into()
+            .map_err(|_| "joiner_signing_public".to_string())?,
+        joiner_agreement_public: get_bytes("joiner_agreement_public")?
+            .try_into()
+            .map_err(|_| "joiner_agreement_public".to_string())?,
+        joiner_ephemeral_public: get_bytes("joiner_ephemeral_public")?
+            .try_into()
+            .map_err(|_| "joiner_ephemeral_public".to_string())?,
+        joiner_ratchet_public: yakr_crypto::cbor::map_bytes(&value, "joiner_ratchet_public")
+            .unwrap_or_default()
+            .try_into()
+            .map_err(|_| "joiner_ratchet_public".to_string())?,
+        kem_ciphertext: yakr_crypto::cbor::map_bytes(&value, "kem_ciphertext").unwrap_or_default(),
+    })
+}
+
+pub fn pairing_response_to_bytes(response: &PairingResponse) -> Result<Vec<u8>, String> {
+    use ciborium::value::Value;
+    let entries = vec![
+        (
+            Value::Text("inviter_ephemeral_public".into()),
+            Value::Bytes(response.inviter_ephemeral_public.to_vec()),
+        ),
+        (
+            Value::Text("inviter_ratchet_public".into()),
+            Value::Bytes(response.inviter_ratchet_public.to_vec()),
+        ),
+        (
+            Value::Text("transcript_hash".into()),
+            Value::Bytes(response.transcript_hash.to_vec()),
+        ),
+        (
+            Value::Text("inviter_profile".into()),
+            Value::Bytes(Vec::new()),
+        ),
+    ];
+    yakr_crypto::cbor::encode_cbor(&Value::Map(entries)).map_err(|e| format!("{e:?}"))
+}
+
+pub fn pairing_response_from_bytes(data: &[u8]) -> Result<PairingResponse, String> {
+    let value = yakr_crypto::cbor::decode_cbor(data).map_err(|e| format!("{e:?}"))?;
+    let get_bytes = |key: &str| -> Result<Vec<u8>, String> {
+        yakr_crypto::cbor::map_bytes(&value, key).ok_or_else(|| format!("missing {key}"))
+    };
+    Ok(PairingResponse {
+        inviter_ephemeral_public: get_bytes("inviter_ephemeral_public")?
+            .try_into()
+            .map_err(|_| "inviter_ephemeral_public".to_string())?,
+        inviter_ratchet_public: yakr_crypto::cbor::map_bytes(&value, "inviter_ratchet_public")
+            .unwrap_or_default()
+            .try_into()
+            .map_err(|_| "inviter_ratchet_public".to_string())?,
+        transcript_hash: get_bytes("transcript_hash")?
+            .try_into()
+            .map_err(|_| "transcript_hash".to_string())?,
+    })
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct PairingSecretsFile {
+    pub ephemeral_private_hex: String,
+    pub ratchet_private_hex: String,
+    #[serde(default)]
+    pub pq_secret_hex: Option<String>,
+}
+
+impl PairingSecretsFile {
+    pub fn from_secrets(secrets: &PairingSecrets) -> Self {
+        Self {
+            ephemeral_private_hex: hex::encode(secrets.ephemeral_private),
+            ratchet_private_hex: hex::encode(secrets.ratchet_private),
+            pq_secret_hex: secrets.pq_secret.as_ref().map(hex::encode),
+        }
+    }
+
+    pub fn to_secrets(&self) -> Result<PairingSecrets, String> {
+        let ephemeral_private: [u8; 32] = hex::decode(&self.ephemeral_private_hex)
+            .map_err(|e| e.to_string())?
+            .try_into()
+            .map_err(|_| "ephemeral_private".to_string())?;
+        let ratchet_private: [u8; 32] = hex::decode(&self.ratchet_private_hex)
+            .map_err(|e| e.to_string())?
+            .try_into()
+            .map_err(|_| "ratchet_private".to_string())?;
+        let pq_secret = match &self.pq_secret_hex {
+            Some(hex_value) => Some(hex::decode(hex_value).map_err(|e| e.to_string())?),
+            None => None,
+        };
+        Ok(PairingSecrets {
+            ephemeral_private,
+            ratchet_private,
+            pq_secret,
+        })
+    }
+}
+
 pub fn joiner_complete_pairing(
     identity: &Identity,
     invite: &InviteBundle,

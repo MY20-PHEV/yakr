@@ -913,7 +913,7 @@ Python and Rust both implement the normative invite-pairing + double-ratchet pat
 ### Exit criteria
 
 - [ ] Python and Rust implement the same normative pairing and ratchet path
-- [ ] Python↔Rust interoperability in both role directions
+- [x] Python↔Rust interoperability in both role directions
 - [ ] All normative wire structures have frozen vectors
 - [ ] Negative vectors define rejection behaviour
 - [ ] Delivery semantics are no longer draft

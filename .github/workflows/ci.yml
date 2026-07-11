@@ -26,8 +26,17 @@ jobs:
       - name: Sync dependencies
         run: uv sync --all-packages
 
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build Rust CLI (cross-lang interop)
+        run: cargo build --release -p yakr-cli
+        working-directory: rust
+
       - name: Pytest
         run: uv run pytest packages/ -q --ignore=packages/yakr-testkit/tests/test_phase1_exit.py
+        env:
+          YAKR_RUST_BIN: ${{ github.workspace }}/rust/target/release/yakr
 
   rust:
     name: Rust workspace
