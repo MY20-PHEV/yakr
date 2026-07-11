@@ -110,3 +110,22 @@ def test_interop_negative_ratchet_independent() -> None:
     vectors = json.loads((VECTORS / "negative" / "ratchet.json").read_text(encoding="utf-8"))
     for vector in vectors:
         assert verify_negative_vector(vector, vectors_dir=VECTORS)
+
+
+def test_interop_negative_vectors_have_normative_outcomes() -> None:
+    import json
+
+    required = {
+        "must_reject",
+        "rejection_stage",
+        "normative_error_code",
+        "persistent_state_must_change",
+        "retryable",
+    }
+    for path in sorted((VECTORS / "negative").glob("*.json")):
+        items = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(items, list):
+            items = [items]
+        for vector in items:
+            missing = required - set(vector)
+            assert not missing, f"{path.name} ({vector.get('name')}): missing {missing}"

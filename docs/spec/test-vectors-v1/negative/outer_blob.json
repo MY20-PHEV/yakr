@@ -4,6 +4,10 @@
     "category": "outer_blob",
     "operation": "outer_blob_decode",
     "must_reject": true,
+    "rejection_stage": "outer_blob_decode",
+    "normative_error_code": "YAKR_E_OUTER_BLOB_INVALID_TAG",
+    "persistent_state_must_change": false,
+    "retryable": false,
     "error_contains": "32 bytes",
     "relay_json": {
       "mailbox_tag": "AQ",
@@ -16,6 +20,10 @@
     "category": "outer_blob",
     "operation": "outer_blob_decode",
     "must_reject": true,
+    "rejection_stage": "outer_blob_decode",
+    "normative_error_code": "YAKR_E_OUTER_BLOB_MISSING_FIELD",
+    "persistent_state_must_change": false,
+    "retryable": false,
     "relay_json": {
       "mailbox_tag": "obLD1OX2BxgpOktcbX6PkBEiM0RVZneImaq7zN3u_wA",
       "expires_at": 1700086400000

@@ -576,7 +576,148 @@ def _load_bootstrap_vector(vectors_dir: Path, name: str) -> dict[str, object]:
     raise KeyError(f"bootstrap vector not found: {name}")
 
 
-def _run_negative_operation(vector: dict[str, object], *, vectors_dir: Path) -> None:
+NEGATIVE_VECTOR_REQUIRED_FIELDS = (
+    "must_reject",
+    "rejection_stage",
+    "normative_error_code",
+    "persistent_state_must_change",
+    "retryable",
+)
+
+_RATCHET_OPERATIONS = frozenset(
+    {
+        "ratchet_decrypt",
+        "ratchet_decrypt_duplicate",
+        "ratchet_decrypt_skip_gap",
+        "ratchet_decrypt_tampered",
+    }
+)
+
+_OPERATION_REJECTION_STAGE = {
+    "pairing_validate": "pairing_validate",
+    "pairing_request_decode": "pairing_request_decode",
+    "pairing_response_decode": "pairing_response_decode",
+    "invite_verify": "invite_verify",
+    "outer_blob_decode": "outer_blob_decode",
+    "ratchet_decrypt": "ratchet_decrypt",
+    "ratchet_decrypt_duplicate": "ratchet_decrypt",
+    "ratchet_decrypt_skip_gap": "ratchet_decrypt",
+    "ratchet_decrypt_tampered": "ratchet_decrypt",
+}
+
+
+def _infer_normative_error_code(vector: dict[str, object], exc: BaseException) -> str:
+    operation = str(vector.get("operation", ""))
+    message = str(exc).lower()
+
+    if operation == "pairing_validate":
+        if "unexpected kem ciphertext" in message:
+            return "YAKR_E_PAIRING_UNEXPECTED_KEM"
+        if "hybrid invite requires kem" in message:
+            return "YAKR_E_PAIRING_MISSING_KEM"
+        if "invite secret mismatch" in message:
+            return "YAKR_E_PAIRING_INVITE_SECRET_MISMATCH"
+        if "missing joiner ratchet public key" in message:
+            return "YAKR_E_PAIRING_MISSING_JOINER_RATCHET"
+
+    if operation == "pairing_request_decode":
+        if isinstance(exc, cbor2.CBORDecodeError) or not str(vector.get("cbor_hex", "")):
+            return "YAKR_E_CBOR_DECODE_FAILED"
+        return "YAKR_E_PAIRING_REQUEST_INVALID"
+
+    if operation == "pairing_response_decode":
+        if isinstance(exc, cbor2.CBORDecodeError) or not str(vector.get("cbor_hex", "")):
+            return "YAKR_E_CBOR_DECODE_FAILED"
+        return "YAKR_E_PAIRING_RESPONSE_INVALID"
+
+    if operation == "invite_verify":
+        return "YAKR_E_INVITE_SIGNATURE_INVALID"
+
+    if operation == "outer_blob_decode":
+        if "32 bytes" in message:
+            return "YAKR_E_OUTER_BLOB_INVALID_TAG"
+        return "YAKR_E_OUTER_BLOB_MISSING_FIELD"
+
+    if operation in _RATCHET_OPERATIONS:
+        if "too short" in message:
+            return "YAKR_E_RATCHET_PAYLOAD_TOO_SHORT"
+        if "invalid ratchet header" in message:
+            return "YAKR_E_RATCHET_INVALID_HEADER"
+        if "already received" in message:
+            return "YAKR_E_RATCHET_DUPLICATE_MESSAGE"
+        if "skip gap too large" in message:
+            return "YAKR_E_RATCHET_SKIP_GAP"
+        return "YAKR_E_RATCHET_AEAD_FAILED"
+
+    raise ValueError(f"cannot classify negative rejection for operation {operation}: {exc}")
+
+
+def _reject_ratchet_vector(
+    vector: dict[str, object],
+    *,
+    local: _RatchetSession,
+    peer: _RatchetSession,
+) -> dict[str, object] | None:
+    """Run ratchet negative operation; return snapshot before rejecting step (if any)."""
+    operation = str(vector["operation"])
+    if operation == "ratchet_decrypt":
+        snapshot = local._snapshot()
+        local.decrypt(bytes.fromhex(str(vector["payload_hex"])))
+        return snapshot
+    if operation == "ratchet_decrypt_duplicate":
+        message = peer.encrypt(b"negative-vector-once")
+        local.decrypt(message)
+        snapshot = local._snapshot()
+        local.decrypt(message)
+        return snapshot
+    if operation == "ratchet_decrypt_skip_gap":
+        import secrets
+
+        first = peer.encrypt(b"negative-vector-first")
+        local.decrypt(first)
+        snapshot = local._snapshot()
+        peer_public = first[len(RATCHET_MAGIC) : len(RATCHET_MAGIC) + 32]
+        future_n = local.recv_n + MAX_SKIP_GAP + 1
+        forged = (
+            RATCHET_MAGIC
+            + peer_public
+            + struct.pack(">II", 0, future_n)
+            + secrets.token_bytes(32)
+        )
+        local.decrypt(forged)
+        return snapshot
+    if operation == "ratchet_decrypt_tampered":
+        snapshot = local._snapshot()
+        message = peer.encrypt(b"negative-vector-tampered")
+        tampered = bytearray(message)
+        tampered[-1] ^= 0xFF
+        local.decrypt(bytes(tampered))
+        return snapshot
+    raise ValueError(f"unknown ratchet negative operation: {operation}")
+
+
+def _run_ratchet_negative_operation(
+    vector: dict[str, object],
+    *,
+    vectors_dir: Path,
+    local: _RatchetSession | None = None,
+    peer: _RatchetSession | None = None,
+) -> None:
+    operation = str(vector["operation"])
+    if local is None or peer is None:
+        bootstrap = _load_bootstrap_vector(vectors_dir, str(vector["bootstrap_vector"]))
+        side = str(vector.get("side", "bob"))
+        local, peer = _RatchetSession.from_bootstrap_vector(bootstrap, side=side)
+    return _reject_ratchet_vector(vector, local=local, peer=peer)
+
+
+def _run_negative_operation(
+    vector: dict[str, object],
+    *,
+    vectors_dir: Path,
+    ratchet_local: _RatchetSession | None = None,
+    ratchet_peer: _RatchetSession | None = None,
+) -> None:
     operation = str(vector["operation"])
     if operation == "pairing_validate":
         _validate_pairing_request_for_invite(vector)
@@ -597,54 +738,65 @@ def _run_negative_operation(vector: dict[str, object], *, vectors_dir: Path) -> 
             raise ValueError("invalid relay_json")
         _outer_blob_from_relay_json(relay)
         return
-    if operation in {
-        "ratchet_decrypt",
-        "ratchet_decrypt_duplicate",
-        "ratchet_decrypt_skip_gap",
-        "ratchet_decrypt_tampered",
-    }:
-        bootstrap = _load_bootstrap_vector(vectors_dir, str(vector["bootstrap_vector"]))
-        side = str(vector.get("side", "bob"))
-        local, peer = _RatchetSession.from_bootstrap_vector(bootstrap, side=side)
-        if operation == "ratchet_decrypt":
-            local.decrypt(bytes.fromhex(str(vector["payload_hex"])))
-            return
-        if operation == "ratchet_decrypt_duplicate":
-            message = peer.encrypt(b"negative-vector-once")
-            local.decrypt(message)
-            local.decrypt(message)
-            return
-        if operation == "ratchet_decrypt_skip_gap":
-            import secrets
-
-            first = peer.encrypt(b"negative-vector-first")
-            local.decrypt(first)
-            peer_public = first[len(RATCHET_MAGIC) : len(RATCHET_MAGIC) + 32]
-            future_n = local.recv_n + MAX_SKIP_GAP + 1
-            forged = (
-                RATCHET_MAGIC
-                + peer_public
-                + struct.pack(">II", 0, future_n)
-                + secrets.token_bytes(32)
-            )
-            local.decrypt(forged)
-            return
-        message = peer.encrypt(b"negative-vector-tampered")
-        tampered = bytearray(message)
-        tampered[-1] ^= 0xFF
-        local.decrypt(bytes(tampered))
+    if operation in _RATCHET_OPERATIONS:
+        _run_ratchet_negative_operation(
+            vector,
+            vectors_dir=vectors_dir,
+            local=ratchet_local,
+            peer=ratchet_peer,
+        )
         return
     raise ValueError(f"unknown negative vector operation: {operation}")
 
 
 def verify_negative_vector(vector: dict[str, object], *, vectors_dir: str | Path) -> bool:
-    """Return True when the vector is rejected as expected."""
+    """Return True when the vector is rejected with the normative outcome."""
+    for field in NEGATIVE_VECTOR_REQUIRED_FIELDS:
+        if field not in vector:
+            return False
+
     root = Path(vectors_dir)
+    operation = str(vector["operation"])
+    ratchet_local: _RatchetSession | None = None
+    ratchet_peer: _RatchetSession | None = None
+    state_snapshot: dict[str, object] | None = None
+
+    if operation in _RATCHET_OPERATIONS:
+        bootstrap = _load_bootstrap_vector(root, str(vector["bootstrap_vector"]))
+        side = str(vector.get("side", "bob"))
+        ratchet_local, ratchet_peer = _RatchetSession.from_bootstrap_vector(bootstrap, side=side)
+
     try:
-        _run_negative_operation(vector, vectors_dir=root)
+        if operation in _RATCHET_OPERATIONS:
+            assert ratchet_local is not None and ratchet_peer is not None
+            state_snapshot = _reject_ratchet_vector(
+                vector,
+                local=ratchet_local,
+                peer=ratchet_peer,
+            )
+        else:
+            _run_negative_operation(
+                vector,
+                vectors_dir=root,
+                ratchet_local=ratchet_local,
+                ratchet_peer=ratchet_peer,
+            )
     except Exception as exc:
         if not vector.get("must_reject", True):
             return False
+        expected_stage = _OPERATION_REJECTION_STAGE.get(operation)
+        if expected_stage is None or str(vector["rejection_stage"]) != expected_stage:
+            return False
+        inferred = _infer_normative_error_code(vector, exc)
+        if str(vector["normative_error_code"]) != inferred:
+            return False
+        if vector.get("persistent_state_must_change") is not False:
+            return False
+        if vector.get("retryable") is not False:
+            return False
+        if state_snapshot is not None and ratchet_local is not None:
+            if ratchet_local._snapshot() != state_snapshot:
+                return False
         expected = vector.get("error_contains")
         if expected and str(expected) not in str(exc):
             return False
