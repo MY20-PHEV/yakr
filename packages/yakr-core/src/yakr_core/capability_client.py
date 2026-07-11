@@ -302,16 +302,20 @@ def issue_capability_from_relay(
     auth_public = auth_private.public_key().public_bytes_raw()
     ticket = _bootstrap_ticket(identity, contact, relay_name, ("store", "fetch"))
 
-    issue_body = json.dumps(
-        {
-            "auth_public": b64encode(auth_public),
-            "capability_id": b64encode(capability_id),
-            "capability_generation": generation,
-            "issuance_salt": b64encode(issuance_salt),
-            "permissions": list(permissions),
-            "ticket": ticket,
-        }
-    ).encode("utf-8")
+    issue_payload: dict[str, object] = {
+        "auth_public": b64encode(auth_public),
+        "capability_id": b64encode(capability_id),
+        "capability_generation": generation,
+        "issuance_salt": b64encode(issuance_salt),
+        "permissions": list(permissions),
+        "ticket": ticket,
+    }
+    stored = store.load_capability_grant(relay_name)
+    if stored is not None and generation > int(stored["capability_generation"]):
+        previous_grant = CapabilityGrant.from_bytes(b64decode(str(stored["grant_b64"])))
+        issue_payload["supersedes_capability_id"] = b64encode(previous_grant.capability_id)
+
+    issue_body = json.dumps(issue_payload).encode("utf-8")
     issue_response = yakr_post(
         f"{relay_url.rstrip('/')}/v1/capabilities/issue",
         store=store,

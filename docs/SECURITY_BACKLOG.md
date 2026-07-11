@@ -39,7 +39,7 @@
 | P1-3 | Separate operator identity from relay client capability | | Design |
 | P1-4 | Relay-observer privacy table | [relay-observer-privacy-v1.md](spec/relay-observer-privacy-v1.md) | **Done** |
 | P1-5 | `POST /v1/fetch` (tags in body, not URL path) | Reduces infra log leakage | **Done** (default; `YAKR_LEGACY_GET_FETCH=1` for GET) |
-| P1-6 | Capability / wake token revocation lifecycle | [platform-wake-v1.md](spec/platform-wake-v1.md) | Partial spec |
+| P1-6 | Capability / wake token revocation lifecycle | [platform-wake-v1.md](spec/platform-wake-v1.md) | **Partial** (capability overlap + revoke; wake spec only) |
 
 ## P2 — Cryptographic protocol review
 

@@ -10,12 +10,15 @@ from pathlib import Path
 from yakr_core.capability_grant import CapabilityGrant, verify_capability_grant
 from yakr_relay.store import _b64decode, _b64encode
 
+DEFAULT_CAPABILITY_OVERLAP_MS = 48 * 60 * 60 * 1000
+
 
 @dataclass
 class CapabilityGrantStore:
     """In-memory grant registry with optional JSON persistence."""
 
     root: Path
+    overlap_window_ms: int = DEFAULT_CAPABILITY_OVERLAP_MS
 
     def __post_init__(self) -> None:
         self.root.mkdir(parents=True, exist_ok=True)
@@ -30,10 +33,20 @@ class CapabilityGrantStore:
         payload = json.loads(self._path.read_text(encoding="utf-8"))
         self._active = dict(payload.get("active", {}))
         self._seen_nonces = dict(payload.get("seen_nonces", {}))
+        overlap = payload.get("overlap_window_ms")
+        if overlap is not None:
+            self.overlap_window_ms = int(overlap)
 
     def _save(self) -> None:
         self._path.write_text(
-            json.dumps({"active": self._active, "seen_nonces": self._seen_nonces}, indent=2),
+            json.dumps(
+                {
+                    "active": self._active,
+                    "seen_nonces": self._seen_nonces,
+                    "overlap_window_ms": self.overlap_window_ms,
+                },
+                indent=2,
+            ),
             encoding="utf-8",
         )
 
@@ -67,16 +80,52 @@ class CapabilityGrantStore:
         self._active[key] = {
             "grant_b64": grant.to_b64(),
             "registered_at": int(time.time() * 1000),
+            "revoked_at": None,
+            "overlap_until_ms": None,
         }
         self._save()
 
-    def is_registered(self, grant: CapabilityGrant) -> bool:
+    def revoke_with_overlap(
+        self,
+        capability_id: bytes,
+        *,
+        now_ms: int | None = None,
+        overlap_window_ms: int | None = None,
+    ) -> None:
+        """Begin overlap teardown for a superseded capability id."""
+        now = int(time.time() * 1000) if now_ms is None else now_ms
+        window = self.overlap_window_ms if overlap_window_ms is None else overlap_window_ms
+        key = _b64encode(capability_id)
+        record = self._active.get(key)
+        if record is None:
+            return
+        record["revoked_at"] = now
+        record["overlap_until_ms"] = now + window
+        self._save()
+
+    def revoke_immediately(
+        self,
+        capability_id: bytes,
+        *,
+        now_ms: int | None = None,
+    ) -> None:
+        """Revoke a capability id with zero overlap."""
+        now = int(time.time() * 1000) if now_ms is None else now_ms
+        self.revoke_with_overlap(capability_id, now_ms=now, overlap_window_ms=0)
+
+    def is_registered(self, grant: CapabilityGrant, *, now_ms: int | None = None) -> bool:
+        now = int(time.time() * 1000) if now_ms is None else now_ms
         key = _b64encode(grant.capability_id)
         record = self._active.get(key)
         if record is None:
             return False
         stored = CapabilityGrant.from_bytes(_b64decode(record["grant_b64"]))
-        return stored.capability_generation == grant.capability_generation
+        if stored.capability_generation != grant.capability_generation:
+            return False
+        overlap_until = record.get("overlap_until_ms")
+        if overlap_until is not None and now >= int(overlap_until):
+            return False
+        return True
 
     def consume_nonce(self, nonce_b64: str, *, now_ms: int | None = None) -> None:
         now = int(time.time() * 1000) if now_ms is None else now_ms
