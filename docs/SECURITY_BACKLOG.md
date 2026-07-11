@@ -46,7 +46,7 @@
 | ID | Item | Status |
 |----|------|--------|
 | P2-1 | Independent session / ratchet review | Not started |
-| P2-2 | Complete pairing transcript construction doc | [pairing-transcript-v1.md](spec/pairing-transcript-v1.md) | **Partial** (normative draft + vectors) |
+| P2-2 | Complete pairing transcript construction doc | [pairing-transcript-v1.md](spec/pairing-transcript-v1.md) | **Done** (normative spec, classical + hybrid vectors, transport equivalence tests) |
 | P2-3 | PQ downgrade prevention (no silent classical after hybrid) | **Done** — `validate_pairing_request_for_invite` |
 | P2-4 | Protocol version downgrade policy | **Done** — `invite.protocol` in transcript |
 | P2-5 | Skipped-key limits + DoS bounds | [double-ratchet.md](spec/double-ratchet.md) | **Done** (`MAX_SKIP_GAP`/`MAX_SKIPPED_KEYS` + tests) |
