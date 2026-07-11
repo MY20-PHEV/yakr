@@ -67,8 +67,8 @@ Architecturally cleaner than arbitrary periodic rotation; may require pairing tr
 |--------|--------|
 | Save review in `docs/reviews/` | Done (this file) |
 | Update review package wording | Done |
-| Protocol change | **Pending decision** (Option A vs B) |
-| Close F16 | Remains open until decision + implementation or explicit v1.0 scope doc |
+| Protocol change | **Option B implemented** (pairing transcript + asymmetric ratchet init) |
+| Close F16 | **Closed for pairing path**; `Contact.establish` symmetric-only behaviour documented |
 
 ## Tracking
 
