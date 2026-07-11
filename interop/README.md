@@ -100,11 +100,12 @@ Interop failures should include:
 
 Phase 9 interop is complete for crypto primitives. **Phase 11** ([phase-11-implementation-readiness.md](../docs/spec/phase-11-implementation-readiness.md)) adds:
 
-- `pairing_transcript.json` and `double_ratchet.json` in the standalone verifier
+- `pairing_transcript.json` and `double_ratchet.json` in the standalone verifier (**done**)
 - Published negative vectors under `test-vectors-v1/negative/` (**done**)
-- CI-gated Python↔Rust pairing and send/fetch in both directions (`test_phase11_cross_lang.py`)
+- CI-gated Python↔Rust pairing and send/fetch in both directions (**done**)
+- Normative delivery state machine and [errata-v1.md](../docs/spec/errata-v1.md) (**done**)
 
-Until Phase 11 closes, independent implementers should treat pairing/ratchet vectors as authoritative but verify them with reference testkit tests or by porting the verifier functions yourself.
+Criterion #3 (outer blob / receipt CBOR vectors) remains partial. Independent implementers should treat pairing/ratchet vectors and negative pack as authoritative via `verify_all_vectors()`.
 
 ## Version Freeze
 

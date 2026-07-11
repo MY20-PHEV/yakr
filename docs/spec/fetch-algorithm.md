@@ -88,7 +88,7 @@ Inbound `profile` merges MUST enforce monotonic `version` ([profile-replay-polic
 - Second fetch on the same mailbox returns no new application messages when all blobs were already accepted (`DuplicateSeqError` on every blob).
 - Relay blobs remain until TTL sweep; clients rely on `last_recv_seq`, not relay deletion.
 
-Normative state machine: [delivery-state-machine.md](./delivery-state-machine.md).
+Normative state machine: [delivery-state-machine.md](./delivery-state-machine.md). Known gaps and v1.1 deferrals: [errata-v1.md](./errata-v1.md).
 
 ## Exit criteria (tests)
 

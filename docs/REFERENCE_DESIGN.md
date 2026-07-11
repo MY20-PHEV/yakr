@@ -916,9 +916,9 @@ Python and Rust both implement the normative invite-pairing + double-ratchet pat
 - [x] Python↔Rust interoperability in both role directions
 - [ ] All normative wire structures have frozen vectors
 - [ ] Negative vectors define rejection behaviour
-- [ ] Delivery semantics are no longer draft
+- [ ] Delivery semantics are no longer draft — **done** ([delivery-state-machine.md](docs/spec/delivery-state-machine.md))
 - [ ] Third-party conformance suite runs without importing `yakr_core`
-- [ ] Remaining ambiguities tracked as errata or v1.1 work
+- [ ] Remaining ambiguities tracked as errata or v1.1 work — **done** ([errata-v1.md](docs/spec/errata-v1.md))
 
 ---
 
