@@ -278,7 +278,7 @@ That validates the Phase 11 claim better than adding another internal implementa
 | Finding | Steward position | Tracking |
 |---------|------------------|----------|
 | Classical-only live cross-lang interop | **Resolved (P11-1).** Hybrid PQ live E2E in both directions with reply + persisted restart. | Done — [test_phase11_cross_lang.py](../../packages/yakr-testkit/tests/test_phase11_cross_lang.py) |
-| Certification trust signalling | **Accepted.** Conformance ≠ security audit must be impossible to miss on badges and directory entries; steward listings should not look identical to third-party certification. | P11-3; [CERTIFICATION.md](../../CERTIFICATION.md), [certification/IMPLEMENTERS.md](../../certification/IMPLEMENTERS.md) |
+| Certification trust signalling | **Resolved (P11-3).** Disclaimer embedded in certified badges; reference-baseline artwork separate. | Done — [certification/badge/](../../certification/badge/) |
 | “All normative wire structures” wording | **Accepted.** Milestone docs will use bounded “core v1.0 interoperability structures” language. | [phase-11-implementation-readiness.md](../spec/phase-11-implementation-readiness.md) exit criterion #3 |
 | Negative vector protocol-level outcomes | **Resolved (P11-2).** [negative-vector-outcomes-v1.md](../spec/negative-vector-outcomes-v1.md) | Done |
 | CI green status not independently verified | **Noted.** Steward maintains CI gates; public badge/README may link to workflow status when useful. | — |

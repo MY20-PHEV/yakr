@@ -109,7 +109,7 @@
 |----|------|--------|
 | P11-1 | Hybrid PQ live Python↔Rust interop (both inviter directions) | **Done** |
 | P11-2 | Protocol-level negative vector outcomes (not exception substrings) | **Done** |
-| P11-3 | Certification trust wording + steward reference-baseline label | **Partial** — docs done; badge assets open |
+| P11-3 | Certification trust wording + steward reference-baseline label | **Done** |
 | P11-4 | Blind external implementation review package | **Done** |
 
 ---

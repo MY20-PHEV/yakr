@@ -129,8 +129,12 @@ The **Yakr Protocol** name and **Yakr Protocol Certified** badge are controlled 
 
 **Requires certification agreement:**
 
-- “Yakr Certified” / certified badge artwork
+- “Yakr Certified” / certified badge artwork (`yakr-certified-*.svg` — disclaimer is embedded; do not crop)
 - Implying endorsement by the steward beyond compatibility
+
+**Reference baseline** (steward only): use `yakr-reference-baseline-*.svg` — not interchangeable with third-party certified badges.
+
+**Adjacent disclaimer** (if badge disclaimer not visible): `certification-disclaimer-line.svg` or the full text in [certification/badge/README.md](certification/badge/README.md).
 
 Forks and independent implementations are welcome; they must not use the certified badge without passing review.
 
