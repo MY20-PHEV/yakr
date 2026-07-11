@@ -1,0 +1,18 @@
+[
+  {
+    "name": "double-ratchet-bootstrap-v1",
+    "description": "Deterministic v2 ratchet bootstrap and first message (classical pairing master from pairing_transcript.json)",
+    "master_secret_hex": "99079118d2a9bd7e4f4aef3a44ac7e846e1a7f0b22b6bb6d097e23bf8671dd28",
+    "alice_dh_self_private_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "alice_dh_self_public_hex": "14ca9e4d387bccf35746e0407daaacc6b28a4f8445ef5a5158894db983e24070",
+    "bob_dh_self_private_hex": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "bob_dh_self_public_hex": "6b0b616d718e53691236d3be3ce6d44f9d28836426d81305d131f488206f8d2b",
+    "alice_root_key_hex": "6ba378b17a76d57f5f3fc688690a3bb42cca5bacb75bc7ff6fd03b307dde8f9a",
+    "alice_send_chain_hex": "261602a8455ebdf4004b28d77485d0848efba00b74de35c899d49ebbfb8c2a08",
+    "alice_recv_chain_hex": "08fa287c48fb9eed310ecc012e9726bbdb7abf89c8db2c5389920387aa490770",
+    "plaintext_hex": "726174636865742d766563746f722d706c61696e74657874",
+    "header_dh_public_hex": "14ca9e4d387bccf35746e0407daaacc6b28a4f8445ef5a5158894db983e24070",
+    "header_prev_n": 0,
+    "header_message_n": 0
+  }
+]

@@ -41,7 +41,7 @@
 
 | Property | Mechanism | Notes |
 |----------|-----------|-------|
-| Confidentiality | XChaCha20-Poly1305 | Per-message keys from HKDF(master, seq) |
+| Confidentiality | XChaCha20-Poly1305 | Per-message keys from double ratchet (see [session-ratchet-review-v1.md](session-ratchet-review-v1.md)) |
 | Authenticity | AEAD + signed invites/profiles | Ed25519 / ML-DSA for artifacts |
 | Forward secrecy (pairing) | Ephemeral X25519 in pairing | Ratchet extends for ongoing messages |
 | PQ confidentiality | ML-KEM-768 hybrid master | Combined with classical DH |
