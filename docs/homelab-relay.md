@@ -185,6 +185,23 @@ Legacy ticket-only mode (`--require-tickets` + `YAKR_REQUIRE_TICKETS=1`) remains
 
 ## Path B — Tailscale (no port forward)
 
+**Project homelab** (`homelab` on Tailscale, `100.125.109.114`): Charlie `:8090`, Dennis `:8091`, `alice-ops` `:8092`. SSH: `devos@100.125.109.114`.
+
+```bash
+./scripts/run_homelab_tailscale.sh
+# or: source scripts/homelab_tailscale.env.sh && uv run pytest .../test_homelab_mesh.py -m homelab
+```
+
+Operator homes: `.tmp-homelab-operators/` (see [five-peer-homelab-relay-test.md](spec/five-peer-homelab-relay-test.md)). `homelab_tailscale.env.sh` sets `YAKR_LEGACY_GET_FETCH=1` until relays are redeployed with current `yakr-relay` (`POST /v1/fetch`). Redeploy requires local Docker:
+
+```bash
+source scripts/homelab_tailscale.env.sh
+VPS_HOST="$VPS_HOST" CHARLIE_TLS_DIR="$CHARLIE_OPERATOR_HOME/relay-tls" \
+  REMOTE_DIR='~/yakr-relay-charlie' ./scripts/deploy_charlie_vps.sh
+VPS_HOST="$VPS_HOST" DENNIS_TLS_DIR="$DENNIS_OPERATOR_HOME/relay-tls" \
+  REMOTE_DIR='~/yakr-relay-dennis' ./scripts/deploy_dennis_vps.sh
+```
+
 1. Install Tailscale on relay host (and on peers **or** use Tailscale Funnel only if you accept wider exposure).
 2. Run relay bound to tailnet IP or `0.0.0.0:8090` (tailnet only reaches it).
 3. Profile URL: `https://<magicdns>:8090` or `https://100.x.x.x:8090`.
