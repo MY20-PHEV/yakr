@@ -219,6 +219,6 @@ fn pair_demo() {
     let (request, secrets) = build_pairing_request(&bob, &invite, "bob").unwrap();
     let (ephemeral, _) = x25519_generate_keypair();
     let (response, _) =
-        inviter_complete_pairing(&alice, &invite, &request, ephemeral).unwrap();
+        inviter_complete_pairing(&alice, &invite, &request, ephemeral, None).unwrap();
     let _bob_contact = joiner_complete_pairing(&bob, &invite, &request, &secrets, &response).unwrap();
 }

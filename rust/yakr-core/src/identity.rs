@@ -172,7 +172,7 @@ impl Contact {
             last_recv_seq: 0,
             contact_id: None,
             transcript_hash: None,
-            ratchet: Some(RatchetState::from_master(&master, is_initiator, false)),
+            ratchet: Some(RatchetState::from_master(&master, is_initiator, false, None)),
             hybrid_pq: false,
             session_started_at: 0,
             privacy_mode: crate::privacy::MODE_FAST.to_string(),

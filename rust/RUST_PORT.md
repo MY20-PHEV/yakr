@@ -1,6 +1,8 @@
 # Rust port progress
 
-Status as of **2026-07-10**. Goal: a second reference implementation that speaks the same wire formats as the Python stack (`packages/yakr-*`), verifiable against `docs/spec/test-vectors-v1/` and interoperable in live mesh tests.
+Status as of **2026-07-11**. Goal: a second reference implementation that speaks the same wire formats as the Python stack (`packages/yakr-*`), verifiable against `docs/spec/test-vectors-v1/` and interoperable in live mesh tests.
+
+**Phase 11 WP1 (Option B pairing/ratchet):** Rust `yakr-core` now matches Python normative pairing path — transcript includes ratchet publics, joiner `pairing_recv_init`, inviter deferred `pairing_send_init` on first encrypt, decrypt rollback, skip limits.
 
 ## Quick commands
 
@@ -81,7 +83,10 @@ Interop checklist: [`interop/README.md`](../interop/README.md) — almost all Ru
 | `message` | `message.py` | ✅ `OuterBlob` relay JSON; re-exports `InnerMessage` from crypto |
 | `error` | `errors.py` | ⚠️ subset of error types |
 
-**Tests (3)** in `yakr-core/tests/session.rs`:
+**Tests (5)** in `yakr-core` (lib + `tests/session.rs`):
+- `pairing_transcript_vectors` — classical + hybrid `pairing_transcript.json`
+- `pairing_path_rotates_dh_epoch` — Option B DH epoch on first traffic
+- `double_ratchet_bootstrap_vector` — `double_ratchet.json`
 - `double_ratchet_bidirectional` — Alice→Bob→Alice encrypt/decrypt
 - `ratchet_state_persists_via_store` — contact JSON round-trip, ratchet version 2
 - `mailbox_epoch_lookback` — 3 candidate epochs (lookback=2)
