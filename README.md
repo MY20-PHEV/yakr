@@ -39,7 +39,8 @@ The whitepaper explains intent; the normative spec determines interoperability.
 | [docs/spec/tls-endpoints.md](docs/spec/tls-endpoints.md) | **Implemented** pairing-anchored TLS (SPKI pins in profiles) |
 | [docs/spec/ephemeral-messages.md](docs/spec/ephemeral-messages.md) | 24h ephemeral message TTL |
 | [docs/spec/fetch-algorithm.md](docs/spec/fetch-algorithm.md) | **Normative** fetch ordering, receipts, and contact state |
-| [docs/spec/delivery-state-machine.md](docs/spec/delivery-state-machine.md) | Delivery/receipt state machine (P0 draft) |
+| [docs/spec/delivery-state-machine.md](docs/spec/delivery-state-machine.md) | Delivery/receipt state machine (P0 draft; Phase 11 promotes to normative) |
+| [docs/spec/phase-11-implementation-readiness.md](docs/spec/phase-11-implementation-readiness.md) | **Active milestone** — Python↔Rust parity, full conformance vectors |
 | [docs/spec/relay-observer-privacy-v1.md](docs/spec/relay-observer-privacy-v1.md) | **Normative** what each relay/observer learns (metadata vs E2E) |
 | [docs/spec/operator-identity-v1.md](docs/spec/operator-identity-v1.md) | **Normative** messaging vs operator vs capability issuance keys |
 | [docs/SECURITY_BACKLOG.md](docs/SECURITY_BACKLOG.md) | Security hardening backlog (P0–P3) |

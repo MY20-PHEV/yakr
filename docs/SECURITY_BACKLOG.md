@@ -83,6 +83,21 @@
 
 ---
 
+## Phase 11 — Independent implementation readiness
+
+**Milestone:** [phase-11-implementation-readiness.md](spec/phase-11-implementation-readiness.md)  
+**Focus:** Rust Option B parity, cross-lang CI, extended `interop_verifier`, negative vectors, delivery spec promotion, `errata-v1.md`.
+
+| Work package | Ties to backlog |
+|--------------|-----------------|
+| WP1 Rust pairing/ratchet parity | P2-1 (complete second implementation) |
+| WP2 Cross-lang interop CI | — |
+| WP3 Conformance suite | Phase 9 gap closure |
+| WP4 Negative vectors | P2-6 extension |
+| WP5 Delivery + errata | P0-1 (delivery state machine draft → normative) |
+
+---
+
 ## Explicit deferrals (do not start until P0–P1 progress)
 
 - Tor transport
