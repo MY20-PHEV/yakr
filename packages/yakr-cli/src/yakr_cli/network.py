@@ -454,7 +454,7 @@ def send_encrypted(
     store: FileLocalStore | None = None,
 ) -> None:
     _ = (route, network)
-    relay_name = relay_name_for_url(relay_url, network)
+    relay_name = relay_name_for_url(relay_url, network, store=store)
     payload = encrypted.outer_blob.to_relay_json()
     use_capabilities, auth_contact = _relay_capability_context(
         relay_url,
@@ -490,7 +490,9 @@ def send_encrypted(
             timeout=10.0,
         )
     else:
-        payload["ticket"] = _ticket(identity, contact, relay_name, "store")
+        ticket = _ticket(identity, contact, relay_name, "store")
+        if ticket is not None:
+            payload["ticket"] = ticket
         response = yakr_post(
             f"{relay_url.rstrip('/')}/v1/blobs",
             store=store,
@@ -714,7 +716,7 @@ def fetch_relay_blobs(
     seen: set[str] = set()
     for fetch_base in fetch_bases:
         try:
-            relay_name = relay_name_for_url(fetch_base)
+            relay_name = relay_name_for_url(fetch_base, store=store)
             use_capabilities, auth_contact = _relay_capability_context(
                 fetch_base,
                 store=store,
