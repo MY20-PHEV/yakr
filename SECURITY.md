@@ -41,21 +41,26 @@ External reviews are welcome; see saved critiques in `docs/reviews/`.
 
 ## Open review call — DH ratchet epoch rotation (F16 / R6)
 
-**Status:** Open — seeking independent analysis  
+**Status:** Open — **first external review received** ([issue #2](https://github.com/MY20-PHEV/yakr/issues/2))  
 **Backlog:** P2-1 (partial)  
 **Posted:** 2026-07-11
 
 ### Summary
 
-Yakr v1.0 uses an X25519 double ratchet (`YKDR2` wire format). Internal self-review found that in **normal bidirectional ping-pong traffic**, the **DH ratchet epoch does not rotate**: `root_key` and `dh_self_public` stay fixed while only the symmetric send/recv chains advance.
+Yakr v1.0 uses an X25519 double ratchet (`YKDR2` wire format). Internal self-review found that in **normal bidirectional ping-pong traffic**, the **DH ratchet does not activate**: `root_key` and `dh_self_public` stay fixed while only the pairing-derived symmetric send/recv chains advance.
 
-We are **not** claiming this is exploitable today. We **are** asking whether it meets the project's forward-secrecy goals and how it compares to Signal-style double-ratchet behaviour.
+External review ([issue #2](https://github.com/MY20-PHEV/yakr/issues/2)) **confirms F16** as a design issue (not a demonstrated exploit). Precise wording:
+
+> Normal sessions advance only the pairing-derived symmetric chains. The X25519 ratchet keys exchanged in message headers do not contribute to the root key unless a peer independently changes its advertised public key.
+
+We are **not** claiming this is exploitable today. Resolution is pending: either **label v1.0 as symmetric-only** or **revise pairing/session initialisation** so normal traffic drives DH transitions (see saved review).
 
 ### Evidence
 
 | Item | Location |
 |------|----------|
 | Self-review finding F16 | [docs/reviews/ratchet-self-review-2026-07-11.md](docs/reviews/ratchet-self-review-2026-07-11.md) |
+| External review (issue #2) | [docs/reviews/external-ratchet-review-f16-issue-2-2026-07-11.md](docs/reviews/external-ratchet-review-f16-issue-2-2026-07-11.md) |
 | Review package R6 | [docs/security/session-ratchet-review-v1.md](docs/security/session-ratchet-review-v1.md) |
 | Regression test | `packages/yakr-testkit/tests/test_ratchet_adversarial.py` → `test_bidirectional_ping_pong_uses_symmetric_chain_only` |
 | Reference implementation | `packages/yakr-core/src/yakr_core/ratchet.py` — `decrypt()` sets `dh_peer_public` on first message without calling `_dh_ratchet`; DH step only runs when a **subsequent** header carries a **different** `dh_public` |
@@ -93,7 +98,8 @@ We aim to acknowledge public review responses within **14 days** and will publis
 
 **This call does not constitute a bug bounty.** It is an invitation for cryptographic design review on an experimental protocol.
 
-**Discussion thread:** https://github.com/MY20-PHEV/yakr/discussions/1
+**Discussion thread:** https://github.com/MY20-PHEV/yakr/discussions/1  
+**External review:** https://github.com/MY20-PHEV/yakr/issues/2
 
 ## Out of scope (for now)
 

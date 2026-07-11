@@ -24,14 +24,14 @@ The double ratchet implementation is **coherent and test-backed** for the refere
 | F6 | Same `dh_public` twice | **Pass** | No redundant DH step |
 | F7 | Tampered ciphertext / AAD | **Pass** | AEAD failure |
 | F8 | Malformed header | **Pass** | Short header / bad magic rejected |
-| F9 | Bidirectional concurrent send | **Pass** | E2E tests; DH steps occur on both sides |
+| F9 | Bidirectional concurrent send | **Pass** | Symmetric chains advance; DH ratchet remains inactive (see F16) |
 | F10 | Receipt send ratchet rollback | **Pass** | `test_receipt_failure_restores_ratchet` |
 | F11 | X25519 public key validation | **Open** | No explicit low-order point rejection; rely on library |
 | F12 | `prev_n` semantic binding | **Open** | In AAD only; not checked against peer `prev_send_n` |
 | F13 | Post-compromise security | **N/A** | Not a design goal in v1.0 |
 | F14 | Formal verification | **Open** | No machine-checked model |
 | F15 | Rust port as security proof | **N/A** | Interop aid only per critique |
-| F16 | DH ratchet activation in live traffic | **Open / High** | `_dh_ratchet` not reached in bidirectional ping-pong; only symmetric chain advances (`test_bidirectional_ping_pong_uses_symmetric_chain_only`) |
+| F16 | DH ratchet activation in live traffic | **Confirmed (external)** | Inactive in ping-pong; see [issue #2](https://github.com/MY20-PHEV/yakr/issues/2) |
 
 ## Critique traceability
 
@@ -58,6 +58,8 @@ Source: [github-follow-up-critique-2026-07-10.md](./github-follow-up-critique-20
 
 ## Next steps
 
-- [ ] Engage independent cryptographer or publish open review call
-- [ ] Optional: add `prev_n` validation if review recommends
-- [ ] Optional: ProVerif/Tamarin model (out of scope for reference impl unless funded)
+- [x] Publish open review call ([Discussion #1](https://github.com/MY20-PHEV/yakr/discussions/1))
+- [x] First external response ([issue #2](https://github.com/MY20-PHEV/yakr/issues/2)) — saved in [external-ratchet-review-f16-issue-2-2026-07-11.md](./external-ratchet-review-f16-issue-2-2026-07-11.md)
+- [ ] **Decision:** Option A (symmetric-only v1.0 labelling) vs Option B (pairing-time DH init)
+- [ ] Optional: add `prev_n` validation if further review recommends
+- [ ] Optional: ProVerif/Tamarin model (out of scope unless funded)

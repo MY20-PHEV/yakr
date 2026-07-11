@@ -45,7 +45,7 @@
 
 | ID | Item | Status |
 |----|------|--------|
-| P2-1 | Independent session / ratchet review | [session-ratchet-review-v1.md](security/session-ratchet-review-v1.md) | **Partial** (review package, vectors, adversarial tests, self-review; external sign-off pending) |
+| P2-1 | Independent session / ratchet review | [session-ratchet-review-v1.md](security/session-ratchet-review-v1.md) | **Partial** (F16 confirmed [issue #2](https://github.com/MY20-PHEV/yakr/issues/2); resolution pending Option A vs B) |
 | P2-2 | Complete pairing transcript construction doc | [pairing-transcript-v1.md](spec/pairing-transcript-v1.md) | **Done** (normative spec, classical + hybrid vectors, transport equivalence tests) |
 | P2-3 | PQ downgrade prevention (no silent classical after hybrid) | **Done** — `validate_pairing_request_for_invite` |
 | P2-4 | Protocol version downgrade policy | **Done** — `invite.protocol` in transcript |
