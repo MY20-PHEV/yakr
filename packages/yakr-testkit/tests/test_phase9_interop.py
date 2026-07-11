@@ -11,9 +11,11 @@ from yakr_testkit.interop_verifier import (
     verify_double_ratchet_vector,
     verify_hybrid_kex_vector,
     verify_inner_message_vector,
+    verify_inner_receipt_vector,
     verify_invite_vector,
     verify_mailbox_tag_vector,
     verify_negative_vector,
+    verify_outer_blob_vector,
     verify_pairing_transcript_vector,
 )
 
@@ -58,6 +60,20 @@ def test_interop_inner_message_independent() -> None:
 
     vector = json.loads((VECTORS / "inner_message.json").read_text(encoding="utf-8"))
     assert verify_inner_message_vector(vector)
+
+
+def test_interop_inner_receipt_independent() -> None:
+    import json
+
+    vector = json.loads((VECTORS / "inner_receipt.json").read_text(encoding="utf-8"))
+    assert verify_inner_receipt_vector(vector)
+
+
+def test_interop_outer_blob_independent() -> None:
+    import json
+
+    vector = json.loads((VECTORS / "outer_blob.json").read_text(encoding="utf-8"))
+    assert verify_outer_blob_vector(vector)
 
 
 def test_interop_pairing_transcript_independent() -> None:
