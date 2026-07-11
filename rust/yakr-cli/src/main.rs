@@ -73,7 +73,7 @@ enum InteropCommands {
         home: Option<PathBuf>,
         #[arg(long)]
         force: bool,
-        #[arg(long, default_value_t = true)]
+        #[arg(long, default_value_t = false)]
         classical: bool,
     },
     CreateInvite {
@@ -85,7 +85,7 @@ enum InteropCommands {
         rendezvous: String,
         #[arg(long)]
         out: PathBuf,
-        #[arg(long, default_value_t = true)]
+        #[arg(long, default_value_t = false)]
         classical: bool,
     },
     JoinerRequest {

@@ -21,7 +21,7 @@ Phase 9 proved a narrow crypto/encoding interop slice. Phase 11 closes the gap b
 | # | Criterion | Status | Notes |
 |---|-----------|--------|-------|
 | 1 | Python and Rust implement the **same normative pairing and ratchet path** | **Done (WP1)** | Rust Option B parity; cross-lang CI in WP2 |
-| 2 | **Python↔Rust interoperability** succeeds in **both role directions** (inviter/joiner × send/fetch) | **Done (WP2)** | `test_phase11_cross_lang.py` + CI |
+| 2 | **Python↔Rust interoperability** succeeds in **both role directions** (inviter/joiner × send/fetch) | **Done (WP2)** | Classical + **hybrid PQ** live E2E in `test_phase11_cross_lang.py`; CI |
 | 3 | **Core v1.0 interoperability structures** in the Phase 11 profile have frozen vectors | **Done** | Pairing, ratchet, outer blob, receipt inner JSON in `interop_verifier`; bounded scope per [phase-11 critique](../reviews/phase-11-independent-critique-2026-07-11.md) |
 | 4 | **Negative vectors** define rejection behaviour | **Done (WP4)** | `test-vectors-v1/negative/` + `verify_negative_vector` in `interop_verifier` |
 | 5 | **Delivery semantics** are no longer draft | **Done (WP5)** | [delivery-state-machine.md](./delivery-state-machine.md) normative; aligned with [fetch-algorithm.md](./fetch-algorithm.md) |
@@ -59,7 +59,7 @@ Phase 9 proved a narrow crypto/encoding interop slice. Phase 11 closes the gap b
 1. Rust relay in-process or ephemeral port.
 2. **Py inviter → Rust joiner** → Rust sends → Python fetches.
 3. **Rust inviter → Py joiner** → Python sends → Rust fetches.
-4. Repeat with hybrid PQ invite where ML-KEM parity is already pinned.
+4. Repeat with hybrid PQ invite where ML-KEM parity is already pinned. **Done** — `test_hybrid_*_send_fetch_reply_restart`.
 
 ### WP3 — Conformance suite expansion
 
@@ -106,12 +106,12 @@ Phase 11 is complete. The [CERTIFICATION.md](../../CERTIFICATION.md) application
 
 Phase 11 exit criteria remain **closed**. The following bounded follow-ups are tracked from the [11 July 2026 independent review](../reviews/phase-11-independent-critique-2026-07-11.md) — not a new protocol phase.
 
-| ID | Item | Priority |
-|----|------|----------|
-| P11-1 | Live **hybrid PQ** Python↔Rust interop (both inviter directions; send/fetch/reply; restart) | High |
-| P11-2 | Negative vectors: `rejection_stage`, `normative_error_code`, `persistent_state_must_change`, `retryable` | Medium |
-| P11-3 | Certification trust wording: badge disclaimer; steward **reference baseline** label vs third-party certified | Medium |
-| P11-4 | External blind implementation package (spec + vectors only; no reference code) | Medium |
+| ID | Item | Status |
+|----|------|--------|
+| P11-1 | Live **hybrid PQ** Python↔Rust interop (both inviter directions; send/fetch/reply; restart) | **Done** — `test_phase11_cross_lang.py` |
+| P11-2 | Negative vectors: `rejection_stage`, `normative_error_code`, `persistent_state_must_change`, `retryable` | **Open** |
+| P11-3 | Certification trust wording: badge disclaimer; steward **reference baseline** label vs third-party certified | **Partial** — docs; badge assets open |
+| P11-4 | External blind implementation package (spec + vectors only; no reference code) | **Open** |
 
 ---
 
