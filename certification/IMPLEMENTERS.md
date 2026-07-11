@@ -10,8 +10,8 @@ Steward-maintained reference implementations that pass the same conformance suit
 
 | Product | Category | Version | Baseline | Notes |
 |---------|----------|---------|----------|-------|
-| [Yakr reference CLI](../packages/yakr-cli/) | Client v1.0 | `main` | 2026-07-11 | Python reference client |
-| [yakr-relay](../packages/yakr-relay/) | Relay v1.0 | `main` | 2026-07-11 | Reference mailbox relay |
+| [Yakr reference CLI](../packages/yakr-cli/) | Client v1.0 | `main` | 2026-07-11 | Python reference client · badge: [reference-baseline-client.svg](../badge/yakr-reference-baseline-client.svg) |
+| [yakr-relay](../packages/yakr-relay/) | Relay v1.0 | `main` | 2026-07-11 | Reference mailbox relay · badge: [reference-baseline-relay.svg](../badge/yakr-reference-baseline-relay.svg) |
 
 ## Third-party certified products
 
