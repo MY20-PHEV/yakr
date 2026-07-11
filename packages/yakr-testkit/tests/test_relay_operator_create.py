@@ -41,6 +41,8 @@ def test_create_relay_operator_pairs_with_owner(tmp_path: Path) -> None:
     assert manifest.operator_name == "alice-ops"
     assert manifest.owner_name == "alice"
     assert manifest.public_url == "https://relay.example:8090"
+    assert manifest.capability_issuance_public_b64
+    assert len(manifest.capability_issuance_public_sha256) == 64
 
     owner_contact = alice_store.get_contact("alice-ops")
     assert owner_contact is not None

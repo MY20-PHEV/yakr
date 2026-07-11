@@ -125,4 +125,5 @@ Reference implementation keeps `relay_ticket.py` until v1.1 relay + client work 
 
 - [relay-capability-v1.md](../spec/relay-capability-v1.md)
 - [relay_ticket.py](../../packages/yakr-core/src/yakr_core/relay_ticket.py)
-- [SECURITY_BACKLOG.md](../SECURITY_BACKLOG.md) P1-1, P1-2
+- [SECURITY_BACKLOG.md](../SECURITY_BACKLOG.md) P1-1, P1-2, P1-3
+- [operator-identity-v1.md](../spec/operator-identity-v1.md)
