@@ -1,0 +1,11 @@
+[
+  {
+    "name": "invite-tampered-signature",
+    "category": "invite",
+    "operation": "invite_verify",
+    "must_reject": true,
+    "bundle_b64": "qWhwcm90b2NvbGl5YWtyLXYwLjRsaW52aXRlcl9uYW1lbHZlY3Rvci1hbGljZW5zaWduaW5nX3B1YmxpY1ggA6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbhwYWdyZWVtZW50X3B1YmxpY1ggNYBy1jZYgNGu6jKa35EhODhR7SGijjt16WXQ0s0WYlRtaW52aXRlX3NlY3JldFggfIDynxArEkRHgHp1MAvwioITn3l5zKdyQiUZZI2qLmJvcmVuZGV6dm91c19oaW50eBpodHRwczovL3JlbmRlenZvdXMudGVzdC92MWpleHBpcmVzX2F0GwAAAZ9CA8rUbGNhcGFiaWxpdGllc4NqZGlyZWN0X3AycGxmcmllbmRfcmVsYXltc3RvcmVfZm9yd2FyZGlzaWduYXR1cmVYQH9TEMUgIae9YWJaC2nPNrPaZRaEyBzQMuiEpA_Ee1y7yNGkVkbFqxfcnOvWv9ISyTOybQzGrzK3OnKd3qmmLw4",
+    "signing_public_hex": "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8",
+    "safety_code": "4510 2126 16"
+  }
+]
