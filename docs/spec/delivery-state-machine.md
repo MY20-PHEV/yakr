@@ -1,8 +1,8 @@
 # Delivery State Machine — Message, Receipt, and Relay Blob
 
-**Protocol:** `yakr-v1.0` (normative draft; P0 hardening)  
-**Status:** Draft — derived from [external review](../reviews/external-critique-2026-07-10.md) P0  
-**Related:** [fetch-algorithm.md](./fetch-algorithm.md), [ephemeral-messages.md](./ephemeral-messages.md)
+**Protocol:** `yakr-v1.0`  
+**Status:** Normative (Phase 11 WP5; aligns with [fetch-algorithm.md](./fetch-algorithm.md))  
+**Related:** [fetch-algorithm.md](./fetch-algorithm.md), [ephemeral-messages.md](./ephemeral-messages.md), [errata-v1.md](./errata-v1.md)
 
 ## Purpose
 
@@ -142,7 +142,7 @@ Bob decrypts Alice text (seq N)
 
 ## Crash safety (normative requirements)
 
-Known gap in reference implementation — rules below are **target** semantics for P0 hardening.
+Reference implementation: `atomic_commit_send`, `atomic_commit_receive_text`, and `pending_receipts` co-commit ([SECURITY_BACKLOG.md](../SECURITY_BACKLOG.md) P0-2–P0-4).
 
 ### Send path — MUST be atomic
 
@@ -170,7 +170,7 @@ Then send receipt (may use `pending_receipts` if POST fails). The reference clie
 
 **Rollback:** If validation fails after ratchet decrypt, MUST rollback in-memory ratchet before returning (reference: `session.py` `_rollback()`).
 
-**Gap:** Crash between ratchet advance and commit can still cause problems until transactional store lands — tracked in [SECURITY_BACKLOG.md](../SECURITY_BACKLOG.md).
+Process-level crash injection (`kill -9`) end-to-end is tracked in [errata-v1.md](./errata-v1.md) E-002; atomic storage rules above remain normative for v1.0.
 
 ## Error mapping
 
@@ -187,15 +187,17 @@ Then send receipt (may use `pending_receipts` if POST fails). The reference clie
 - Relay delete-after-receipt (optional operator policy) — requires new API and grace period
 - Per-relay pseudonymous capabilities replacing `contact_id` tickets — P1
 
-## Exit criteria (tests to add)
+## Exit criteria (conformance)
 
 - [x] Rollback on injected fault during `atomic_commit_send` / `atomic_commit_receive_text`
 - [x] Restart after atomic send does not reuse ratchet keys
 - [x] Atomic receive persists `last_recv_seq` and rejects duplicate decrypt
-- [ ] Process-level crash injection (kill -9) end-to-end
+- [ ] Process-level crash injection (`kill -9`) end-to-end — [errata-v1.md](./errata-v1.md) E-002 (not required for v1.0 interop)
 - [x] Receipt queued atomically with inbound message; flush after simulated crash delivers pending receipt
 - [x] Stale receipt does not clear unrelated `outbound_pending` (`test_receipt_apply.py`, `test_fetch_hardening.py`)
 - [x] Concurrent fetch test (serialized lock) — no double `seq` advance
+
+Operational fetch loop details (sort, retry, receipt merge): [fetch-algorithm.md](./fetch-algorithm.md).
 
 ## References
 
