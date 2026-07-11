@@ -70,9 +70,9 @@ Interop checklist: [`interop/README.md`](../interop/README.md) — almost all Ru
 
 | Module | Python equivalent | Status |
 |--------|-------------------|--------|
-| `ratchet` | `ratchet.py` | ✅ X25519 double ratchet v2, encrypt/decrypt, persist as JSON |
+| `ratchet` | `ratchet.py` | ✅ Option B pairing init, decrypt rollback, skip limits |
 | `session` | `session.py` | ✅ `encrypt_text`, `decrypt_outer`, privacy padding (fast mode) |
-| `pairing` | `pairing.py` | ✅ classical + hybrid pair-master, inviter/joiner complete |
+| `pairing` | `pairing.py` | ✅ Option B transcript + inviter/joiner complete |
 | `invite` | `invite.py` | ✅ `create_invite`, verify; CBOR sign |
 | `identity` | `identity.py` | ✅ generate, save/load JSON, `Contact` establish_classical |
 | `store` | `store.py` | ⚠️ identity + contacts JSON only (no SQLite messages DB) |
