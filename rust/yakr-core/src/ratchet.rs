@@ -4,10 +4,12 @@ use std::collections::BTreeMap;
 
 use base64::{engine::general_purpose::URL_SAFE, Engine as _};
 use serde::{Deserialize, Serialize};
-use x25519_dalek::StaticSecret;
+use x25519_dalek::{PublicKey, StaticSecret};
 use yakr_crypto::{hkdf_sha256, xchacha_decrypt, xchacha_encrypt};
 
 pub const RATCHET_MAGIC: &[u8; 5] = b"YKDR2";
+pub const MAX_SKIP_GAP: u32 = 128;
+pub const MAX_SKIPPED_KEYS: usize = 256;
 const ROOT_INFO: &[u8] = b"yakr/v1.0/double-ratchet-root";
 const RK_INFO: &[u8] = b"yakr/v1.0/double-ratchet-rk";
 const CK_INFO: &[u8] = b"yakr/v1.0/double-ratchet-ck";
@@ -38,6 +40,10 @@ fn shared_secret(private_key: &[u8; 32], peer_public: &[u8; 32]) -> [u8; 32] {
     yakr_crypto::x25519_shared_secret(private_key, peer_public)
 }
 
+fn public_from_private(private_key: &[u8; 32]) -> [u8; 32] {
+    PublicKey::from(&StaticSecret::from(*private_key)).to_bytes()
+}
+
 fn b64encode(data: &[u8]) -> String {
     URL_SAFE.encode(data).trim_end_matches('=').to_string()
 }
@@ -65,6 +71,7 @@ pub struct RatchetState {
     pub prev_send_n: u32,
     pub skipped_keys: BTreeMap<String, String>,
     pub hybrid: bool,
+    pub pending_pairing_dh_ratchet_peer: Option<[u8; 32]>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -89,17 +96,28 @@ pub struct RatchetDict {
     pub skipped_keys: BTreeMap<String, String>,
     #[serde(default)]
     pub hybrid: bool,
+    #[serde(default)]
+    pub pending_pairing_dh_ratchet_peer: String,
 }
 
 impl RatchetState {
-    pub fn from_master(master_secret: &[u8; 32], is_initiator: bool, hybrid: bool) -> Self {
+    pub fn from_master(
+        master_secret: &[u8; 32],
+        is_initiator: bool,
+        hybrid: bool,
+        ratchet_private: Option<[u8; 32]>,
+    ) -> Self {
         let root_key = hkdf_sha256(master_secret, ROOT_INFO, b"");
         let mut send_chain = hkdf_sha256(&root_key, SEND_CHAIN_INFO, b"");
         let mut recv_chain = hkdf_sha256(&root_key, RECV_CHAIN_INFO, b"");
         if !is_initiator {
             std::mem::swap(&mut send_chain, &mut recv_chain);
         }
-        let (dh_self_private, dh_self_public) = yakr_crypto::x25519_generate_keypair();
+        let (dh_self_private, dh_self_public) = if let Some(private) = ratchet_private {
+            (private, public_from_private(&private))
+        } else {
+            yakr_crypto::x25519_generate_keypair()
+        };
         Self {
             root_key,
             dh_self_private,
@@ -112,6 +130,7 @@ impl RatchetState {
             prev_send_n: 0,
             skipped_keys: BTreeMap::new(),
             hybrid,
+            pending_pairing_dh_ratchet_peer: None,
         }
     }
 
@@ -138,6 +157,10 @@ impl RatchetState {
             prev_send_n: self.prev_send_n,
             skipped_keys: self.skipped_keys.clone(),
             hybrid: self.hybrid,
+            pending_pairing_dh_ratchet_peer: self
+                .pending_pairing_dh_ratchet_peer
+                .map(|k| b64encode(&k))
+                .unwrap_or_default(),
         }
     }
 
@@ -148,6 +171,7 @@ impl RatchetState {
         let peer = b64decode(&dict.dh_peer_public);
         let send = b64decode(&dict.send_chain_key);
         let recv = b64decode(&dict.recv_chain_key);
+        let pending = b64decode(&dict.pending_pairing_dh_ratchet_peer);
         Ok(Self {
             root_key: b64decode(&dict.root_key).try_into().map_err(|_| "root_key")?,
             dh_self_private: b64decode(&dict.dh_self_private)
@@ -176,6 +200,11 @@ impl RatchetState {
             prev_send_n: dict.prev_send_n,
             skipped_keys: dict.skipped_keys.clone(),
             hybrid: dict.hybrid,
+            pending_pairing_dh_ratchet_peer: if pending.len() == 32 {
+                Some(pending.try_into().unwrap())
+            } else {
+                None
+            },
         })
     }
 
@@ -188,7 +217,37 @@ impl RatchetState {
         out
     }
 
+    /// Initiator first send: derive send chain without recv transition (Option B).
+    pub fn pairing_send_init(&mut self, peer_public: [u8; 32]) -> Result<(), String> {
+        self.dh_peer_public = Some(peer_public);
+        let dh_output = shared_secret(&self.dh_self_private, &peer_public);
+        let (root_key, _recv_unused) = kdf_rk(&self.root_key, &dh_output);
+
+        let (new_private, new_public) = yakr_crypto::x25519_generate_keypair();
+        self.dh_self_private = new_private;
+        self.dh_self_public = new_public;
+        let dh_output = shared_secret(&self.dh_self_private, &peer_public);
+        let (root, send) = kdf_rk(&root_key, &dh_output);
+        self.root_key = root;
+        self.send_chain_key = Some(send);
+        self.prev_send_n = self.send_n;
+        self.send_n = 0;
+        Ok(())
+    }
+
+    /// Joiner pairing complete: align recv chain with initiator's post-pairing send chain.
+    pub fn pairing_recv_init(&mut self, peer_public: [u8; 32]) -> Result<(), String> {
+        self.dh_peer_public = Some(peer_public);
+        let dh_output = shared_secret(&self.dh_self_private, &peer_public);
+        let (root, recv) = kdf_rk(&self.root_key, &dh_output);
+        self.root_key = root;
+        self.recv_chain_key = Some(recv);
+        self.recv_n = 0;
+        Ok(())
+    }
+
     fn dh_ratchet(&mut self, peer_public: [u8; 32]) {
+        self.skipped_keys.clear();
         self.dh_peer_public = Some(peer_public);
         let dh_output = shared_secret(&self.dh_self_private, &peer_public);
         let (root, recv) = kdf_rk(&self.root_key, &dh_output);
@@ -220,6 +279,9 @@ impl RatchetState {
     }
 
     pub fn encrypt(&mut self, plaintext: &[u8]) -> Result<Vec<u8>, String> {
+        if let Some(peer) = self.pending_pairing_dh_ratchet_peer.take() {
+            self.pairing_send_init(peer)?;
+        }
         let mut send_chain = self.send_chain_key.ok_or("send chain not initialized")?;
         let (message_key, next_chain) = kdf_ck(&send_chain);
         self.send_chain_key = Some(next_chain);
@@ -236,6 +298,17 @@ impl RatchetState {
     }
 
     pub fn decrypt(&mut self, payload: &[u8]) -> Result<Vec<u8>, String> {
+        let snapshot = self.clone();
+        match self.decrypt_inner(payload) {
+            Ok(plaintext) => Ok(plaintext),
+            Err(err) => {
+                *self = snapshot;
+                Err(err)
+            }
+        }
+    }
+
+    fn decrypt_inner(&mut self, payload: &[u8]) -> Result<Vec<u8>, String> {
         if payload.len() < 5 + 32 + 8 {
             return Err("ratchet payload too short".into());
         }
@@ -258,6 +331,13 @@ impl RatchetState {
             self.skip_key(&peer_public, message_n)
                 .map_err(|_| "ratchet message already received".to_string())?
         } else {
+            let gap = message_n - self.recv_n;
+            if gap > MAX_SKIP_GAP {
+                return Err("ratchet skip gap too large".into());
+            }
+            if self.skipped_keys.len() + gap as usize > MAX_SKIPPED_KEYS {
+                return Err("ratchet skipped key limit exceeded".into());
+            }
             while self.recv_n < message_n {
                 let (mk, next) = kdf_ck(&recv_chain);
                 recv_chain = next;
@@ -277,5 +357,85 @@ impl RatchetState {
         aad.extend_from_slice(&prev_n.to_be_bytes());
         aad.extend_from_slice(&message_n.to_be_bytes());
         xchacha_decrypt(&message_key, ciphertext, &aad).map_err(|e| format!("{e:?}"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    fn vectors_path(file: &str) -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../docs/spec/test-vectors-v1")
+            .join(file)
+    }
+
+    #[test]
+    fn double_ratchet_bootstrap_vector() {
+        #[derive(serde::Deserialize)]
+        struct Vector {
+            name: String,
+            master_secret_hex: String,
+            alice_dh_self_private_hex: String,
+            alice_dh_self_public_hex: String,
+            bob_dh_self_private_hex: String,
+            bob_dh_self_public_hex: String,
+            alice_root_key_hex: String,
+            alice_send_chain_hex: String,
+            alice_recv_chain_hex: String,
+            plaintext_hex: String,
+            header_dh_public_hex: String,
+            header_prev_n: u32,
+            header_message_n: u32,
+        }
+
+        let raw = std::fs::read_to_string(vectors_path("double_ratchet.json")).expect("read vectors");
+        let vectors: Vec<Vector> = serde_json::from_str(&raw).expect("parse");
+        let vector = vectors
+            .into_iter()
+            .find(|v| v.name == "double-ratchet-bootstrap-v1")
+            .expect("bootstrap vector");
+
+        let master: [u8; 32] = hex::decode(&vector.master_secret_hex)
+            .unwrap()
+            .try_into()
+            .unwrap();
+        let root = hkdf_sha256(&master, ROOT_INFO, b"");
+        assert_eq!(hex::encode(root), vector.alice_root_key_hex);
+        assert_eq!(
+            hex::encode(hkdf_sha256(&root, SEND_CHAIN_INFO, b"")),
+            vector.alice_send_chain_hex
+        );
+        assert_eq!(
+            hex::encode(hkdf_sha256(&root, RECV_CHAIN_INFO, b"")),
+            vector.alice_recv_chain_hex
+        );
+
+        let alice_private: [u8; 32] = hex::decode(&vector.alice_dh_self_private_hex)
+            .unwrap()
+            .try_into()
+            .unwrap();
+        let bob_private: [u8; 32] = hex::decode(&vector.bob_dh_self_private_hex)
+            .unwrap()
+            .try_into()
+            .unwrap();
+        let mut alice = RatchetState::from_master(&master, true, false, Some(alice_private));
+        let mut bob = RatchetState::from_master(&master, false, false, Some(bob_private));
+        assert_eq!(hex::encode(alice.dh_self_public), vector.alice_dh_self_public_hex);
+        assert_eq!(hex::encode(bob.dh_self_public), vector.bob_dh_self_public_hex);
+
+        let plaintext = hex::decode(&vector.plaintext_hex).unwrap();
+        let ciphertext = alice.encrypt(&plaintext).unwrap();
+        assert_eq!(&ciphertext[..5], RATCHET_MAGIC);
+        assert_eq!(
+            hex::encode(&ciphertext[5..37]),
+            vector.header_dh_public_hex
+        );
+        let prev_n = u32::from_be_bytes(ciphertext[37..41].try_into().unwrap());
+        let message_n = u32::from_be_bytes(ciphertext[41..45].try_into().unwrap());
+        assert_eq!(prev_n, vector.header_prev_n);
+        assert_eq!(message_n, vector.header_message_n);
+        assert_eq!(bob.decrypt(&ciphertext).unwrap(), plaintext);
     }
 }
