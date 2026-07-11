@@ -1,4 +1,6 @@
+use std::fs;
 use std::path::PathBuf;
+
 use clap::{Parser, Subcommand};
 use reqwest::blocking::Client;
 use base64::{engine::general_purpose::URL_SAFE, Engine as _};
@@ -8,9 +10,11 @@ use yakr_core::{
     pairing::{build_pairing_request, inviter_complete_pairing, joiner_complete_pairing},
     session::Session,
     store::FileLocalStore,
-    Contact, Identity,
+    Identity,
 };
 use yakr_crypto::x25519_generate_keypair;
+
+mod interop;
 
 #[derive(Parser)]
 #[command(name = "yakr", about = "Yakr reference client (Rust)")]
@@ -28,6 +32,8 @@ enum Commands {
         home: Option<PathBuf>,
         #[arg(long)]
         force: bool,
+        #[arg(long)]
+        classical: bool,
     },
     Show {
         #[arg(long)]
@@ -52,15 +58,81 @@ enum Commands {
         #[arg(long)]
         home: Option<PathBuf>,
     },
+    Interop {
+        #[command(subcommand)]
+        command: InteropCommands,
+    },
 }
 
-fn home_dir(home: Option<PathBuf>, name: &str) -> PathBuf {
+#[derive(Subcommand)]
+enum InteropCommands {
+    Init {
+        #[arg(short, long)]
+        name: String,
+        #[arg(long)]
+        home: Option<PathBuf>,
+        #[arg(long)]
+        force: bool,
+        #[arg(long, default_value_t = true)]
+        classical: bool,
+    },
+    CreateInvite {
+        #[arg(long)]
+        name: String,
+        #[arg(long)]
+        home: Option<PathBuf>,
+        #[arg(long, default_value = "http://127.0.0.1:8080")]
+        rendezvous: String,
+        #[arg(long)]
+        out: PathBuf,
+        #[arg(long, default_value_t = true)]
+        classical: bool,
+    },
+    JoinerRequest {
+        #[arg(long)]
+        name: String,
+        #[arg(long)]
+        home: Option<PathBuf>,
+        #[arg(long)]
+        invite: PathBuf,
+        #[arg(long)]
+        out_request: PathBuf,
+        #[arg(long)]
+        out_secrets: PathBuf,
+    },
+    JoinerComplete {
+        #[arg(long)]
+        name: String,
+        #[arg(long)]
+        home: Option<PathBuf>,
+        #[arg(long)]
+        invite: PathBuf,
+        #[arg(long)]
+        request: PathBuf,
+        #[arg(long)]
+        secrets: PathBuf,
+        #[arg(long)]
+        response: PathBuf,
+    },
+    InviterComplete {
+        #[arg(long)]
+        name: String,
+        #[arg(long)]
+        home: Option<PathBuf>,
+        #[arg(long)]
+        invite: PathBuf,
+        #[arg(long)]
+        request: PathBuf,
+        #[arg(long)]
+        out_response: PathBuf,
+    },
+}
+
+pub(crate) fn home_dir(home: Option<PathBuf>, name: &str) -> PathBuf {
     home.unwrap_or_else(|| {
         std::env::var("YAKR_HOME")
             .map(PathBuf::from)
-            .unwrap_or_else(|_| {
-                dirs_home().join(".yakr").join(name)
-            })
+            .unwrap_or_else(|_| dirs_home().join(".yakr").join(name))
     })
 }
 
@@ -70,18 +142,30 @@ fn dirs_home() -> PathBuf {
         .unwrap_or_else(|_| PathBuf::from("."))
 }
 
-fn store_at(home: Option<PathBuf>, name: &str) -> FileLocalStore {
+pub(crate) fn store_at(home: Option<PathBuf>, name: &str) -> FileLocalStore {
     FileLocalStore::new(home_dir(home, name))
 }
 
-fn load_identity(store: &FileLocalStore) -> Result<Identity, String> {
+pub(crate) fn load_identity(store: &FileLocalStore) -> Result<Identity, String> {
     store
         .load_identity()?
         .ok_or_else(|| "no identity; run `yakr init` first".into())
 }
 
-fn b64encode(data: &[u8]) -> String {
+pub(crate) fn b64encode(data: &[u8]) -> String {
     URL_SAFE.encode(data).trim_end_matches('=').to_string()
+}
+
+pub(crate) fn b64decode_str(value: &str) -> Result<Vec<u8>, String> {
+    let rem = value.len() % 4;
+    let padded = if rem == 0 {
+        value.to_string()
+    } else {
+        format!("{value}{}", "=".repeat(4 - rem))
+    };
+    URL_SAFE
+        .decode(padded)
+        .map_err(|e| e.to_string())
 }
 
 fn main() {
@@ -94,29 +178,25 @@ fn main() {
 
 fn run(cli: Cli) -> Result<(), String> {
     match cli.command {
-        Commands::Init { name, home, force } => {
-            let store = store_at(home, &name);
-            if store.identity_path().exists() && !force {
-                return Err(format!(
-                    "identity already exists at {}",
-                    store.identity_path().display()
-                ));
-            }
-            let identity = Identity::generate(&name, true);
-            store.save_identity(&identity)?;
-            println!("Initialized identity '{name}' at {}", store.root.display());
-        }
+        Commands::Init {
+            name,
+            home,
+            force,
+            classical,
+        } => interop::run_init(&name, home, force, classical),
         Commands::Show { home } => {
             let store = store_at(home, &default_name()?);
             let identity = load_identity(&store)?;
             println!("name: {}", identity.name);
             println!("device_id: {}", identity.device_id());
+            Ok(())
         }
         Commands::ExportPublic { home } => {
             let store = store_at(home, &default_name()?);
             let _ = load_identity(&store)?;
             let path = store.root.join("public.json");
-            println!("{}", std::fs::read_to_string(path).map_err(|e| e.to_string())?);
+            println!("{}", fs::read_to_string(path).map_err(|e| e.to_string())?);
+            Ok(())
         }
         Commands::Send {
             contact,
@@ -135,6 +215,7 @@ fn run(cli: Cli) -> Result<(), String> {
             post_blob(&relay, &relay_json)?;
             store.save_contact(&session.into_contact())?;
             println!("sent to {contact} (msg_id={})", encrypted.msg_id);
+            Ok(())
         }
         Commands::Fetch {
             contact,
@@ -190,9 +271,53 @@ fn run(cli: Cli) -> Result<(), String> {
             }
             store.save_contact(&contact_rec)?;
             println!("fetched {found} message(s) from {contact}");
+            Ok(())
         }
+        Commands::Interop { command } => match command {
+            InteropCommands::Init {
+                name,
+                home,
+                force,
+                classical,
+            } => interop::run_init(&name, home, force, classical),
+            InteropCommands::CreateInvite {
+                name,
+                home,
+                rendezvous,
+                out,
+                classical,
+            } => interop::run_create_invite(home, &name, &rendezvous, &out, classical),
+            InteropCommands::JoinerRequest {
+                name,
+                home,
+                invite,
+                out_request,
+                out_secrets,
+            } => interop::run_joiner_request(home, &name, &invite, &out_request, &out_secrets),
+            InteropCommands::JoinerComplete {
+                name,
+                home,
+                invite,
+                request,
+                secrets,
+                response,
+            } => interop::run_joiner_complete(
+                home,
+                &name,
+                &invite,
+                &request,
+                &secrets,
+                &response,
+            ),
+            InteropCommands::InviterComplete {
+                name,
+                home,
+                invite,
+                request,
+                out_response,
+            } => interop::run_inviter_complete(home, &name, &invite, &request, &out_response),
+        },
     }
-    Ok(())
 }
 
 fn default_name() -> Result<String, String> {
@@ -211,14 +336,20 @@ fn post_blob(relay: &str, blob: &RelayBlobJson) -> Result<(), String> {
     Ok(())
 }
 
-#[allow(dead_code)]
-fn pair_demo() {
-    let alice = Identity::generate("alice", false);
-    let bob = Identity::generate("bob", false);
-    let invite = create_invite(&alice, "http://test", 60_000, false).unwrap();
-    let (request, secrets) = build_pairing_request(&bob, &invite, "bob").unwrap();
-    let (ephemeral, _) = x25519_generate_keypair();
-    let (response, _) =
-        inviter_complete_pairing(&alice, &invite, &request, ephemeral, None).unwrap();
-    let _bob_contact = joiner_complete_pairing(&bob, &invite, &request, &secrets, &response).unwrap();
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pair_demo() {
+        let alice = Identity::generate("alice", false);
+        let bob = Identity::generate("bob", false);
+        let invite = create_invite(&alice, "http://test", 60_000, false).unwrap();
+        let (request, secrets) = build_pairing_request(&bob, &invite, "bob").unwrap();
+        let (ephemeral, _) = x25519_generate_keypair();
+        let (response, _) =
+            inviter_complete_pairing(&alice, &invite, &request, ephemeral, None).unwrap();
+        let _bob_contact =
+            joiner_complete_pairing(&bob, &invite, &request, &secrets, &response).unwrap();
+    }
 }

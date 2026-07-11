@@ -21,7 +21,7 @@ Phase 9 proved a narrow crypto/encoding interop slice. Phase 11 closes the gap b
 | # | Criterion | Status | Notes |
 |---|-----------|--------|-------|
 | 1 | Python and Rust implement the **same normative pairing and ratchet path** | **Done (WP1)** | Rust Option B parity; cross-lang CI in WP2 |
-| 2 | **Python↔Rust interoperability** succeeds in **both role directions** (inviter/joiner × send/fetch) | **Open** | Manual smoke only; no CI cross-lang test; Rust CLI lacks `invite` pairing commands |
+| 2 | **Python↔Rust interoperability** succeeds in **both role directions** (inviter/joiner × send/fetch) | **Done (WP2)** | `test_phase11_cross_lang.py` + CI |
 | 3 | **All normative wire structures** have frozen vectors | **Partial** | `pairing_transcript.json`, `double_ratchet.json` exist but are **not** in `interop_verifier.verify_all_vectors()`; `yakr-protocol-v1.md` §8 table omits them; audit remaining §3–§5 structures (outer blob, receipt inner, pairing CBOR wire) |
 | 4 | **Negative vectors** define rejection behaviour | **Open** | Adversarial tests exist in pytest (`test_cbor_fuzz.py`, ratchet tests) but no published `test-vectors-v1/negative/` artefacts for third parties |
 | 5 | **Delivery semantics** are no longer draft | **Open** | [delivery-state-machine.md](./delivery-state-machine.md) still marked Draft; reference behaviour largely implemented (P0-2–P0-4) |

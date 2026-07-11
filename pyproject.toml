@@ -24,4 +24,5 @@ pythonpath = ["packages/yakr-core/src", "packages/yakr-relay/src", "packages/yak
 asyncio_mode = "auto"
 markers = [
     "homelab: integration tests against real CHARLIE_URL + DENNIS_URL relays",
+    "cross_lang: Python↔Rust pairing and relay interop (Phase 11)",
 ]

@@ -36,11 +36,7 @@ impl MailboxTagDeriver {
 
     pub fn derive(&self, direction: &str, epoch: Option<u64>) -> MailboxTag {
         let epoch_value = epoch.unwrap_or_else(|| current_epoch(self.epoch_secs));
-        let tag = yakr_crypto::derive_mailbox_tag(
-            &self.secret,
-            direction,
-            epoch_value,
-        );
+        let tag = yakr_crypto::mailbox_tag_from_secret(&self.secret, direction, epoch_value);
         MailboxTag {
             tag,
             epoch: epoch_value,
