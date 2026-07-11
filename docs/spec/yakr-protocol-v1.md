@@ -273,6 +273,8 @@ Canonical vectors live in `docs/spec/test-vectors-v1/`:
 | `delivery_profile.json` | Profile CBOR + Ed25519 signature |
 | `mailbox_tag.json` | §3.6 mailbox tag |
 | `inner_message.json` | §4.1 JSON canonical form |
+| `pairing_transcript.json` | Option B pairing transcript + classical/hybrid `master_secret` |
+| `double_ratchet.json` | Ratchet bootstrap + first-message encrypt/decrypt |
 
 Independent implementations MUST pass the interop verifier suite (see `interop/README.md`) using only this document and the vector files.
 

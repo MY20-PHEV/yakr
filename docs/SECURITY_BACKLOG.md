@@ -92,7 +92,7 @@
 |--------------|-----------------|
 | WP1 Rust pairing/ratchet parity | P2-1 (complete second implementation) |
 | WP2 Cross-lang interop CI | **Done** — `test_phase11_cross_lang.py` |
-| WP3 Conformance suite | Phase 9 gap closure |
+| WP3 Conformance suite | **Done** — pairing + ratchet in `interop_verifier` |
 | WP4 Negative vectors | P2-6 extension |
 | WP5 Delivery + errata | P0-1 (delivery state machine draft → normative) |
 
