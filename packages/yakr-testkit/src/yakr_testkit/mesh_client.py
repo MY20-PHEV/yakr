@@ -139,9 +139,13 @@ class MeshParticipant:
         send_receipts: bool = True,
         save_local: bool = True,
     ) -> list[ReceivedMessage]:
+        from yakr_cli.receipt_cmds import flush_pending_receipts, send_delivery_receipt
+
         contact = self.store.get_contact(peer)
         if contact is None:
             raise ValueError(f"{self.name} has no contact {peer}")
+
+        flush_pending_receipts(self.store, self.identity, contact_name=peer)
 
         self.store.sweep_expired_messages()
         self.store.sweep_expired_outbound()
@@ -243,10 +247,12 @@ class MeshParticipant:
                         continue
 
                     if save_local:
+                        delivered_id = message_id(outer.ciphertext)
                         self.store.atomic_commit_receive_text(
                             contact,
                             inner,
                             identity=self.identity,
+                            delivered_id=delivered_id,
                         )
                     else:
                         self.store.save_contact(contact)
@@ -260,10 +266,17 @@ class MeshParticipant:
                     )
 
                     if send_receipts:
-                        try:
-                            self._send_receipt(session, contact, outer)
-                        except BaseException:
-                            self._unreceipted.append((peer, outer))
+                        send_delivery_receipt(
+                            self.store,
+                            self.identity,
+                            peer,
+                            delivered_id,
+                        )
+                        persisted = self.store.get_contact(peer)
+                        if persisted is not None:
+                            contact.next_send_seq = persisted.next_send_seq
+                            contact.ratchet = persisted.ratchet
+                        self.store.save_contact(contact)
                     else:
                         self._unreceipted.append((peer, outer))
                 if not progressed:
@@ -274,49 +287,25 @@ class MeshParticipant:
 
     def flush_receipts(self, peer: str | None = None) -> int:
         """Send delivery receipts for messages fetched earlier with send_receipts=False."""
-        sent = 0
+        from yakr_cli.receipt_cmds import flush_pending_receipts, send_delivery_receipt
+
+        sent = flush_pending_receipts(self.store, self.identity, contact_name=peer)
         remaining: list[tuple[str, OuterBlob]] = []
         for name, outer in self._unreceipted:
             if peer is not None and name != peer:
                 remaining.append((name, outer))
                 continue
-            contact = self.store.get_contact(name)
-            if contact is None:
-                continue
-            session = Session(self.identity, contact)
-            try:
-                self._send_receipt(session, contact, outer)
+            if send_delivery_receipt(
+                self.store,
+                self.identity,
+                name,
+                message_id(outer.ciphertext),
+            ):
                 sent += 1
-            except BaseException:
+            else:
                 remaining.append((name, outer))
         self._unreceipted = remaining
         return sent
-
-    def _send_receipt(self, session: Session, contact, outer: OuterBlob) -> None:
-        from yakr_cli.receipt_cmds import _ratchet_snapshot, _restore_ratchet_snapshot
-
-        snapshot = _ratchet_snapshot(contact)
-        receipt = session.encrypt_receipt(message_id(outer.ciphertext))
-        self.store.atomic_persist_contact(contact)
-        previous = os.environ.get("YAKR_RELAY_URL")
-        os.environ["YAKR_RELAY_URL"] = self.relay_url
-        try:
-            deliver_encrypted(
-                receipt,
-                contact=contact,
-                identity=self.identity,
-                store=self.store,
-                allow_direct=False,
-            )
-        except BaseException:
-            _restore_ratchet_snapshot(contact, snapshot)
-            self.store.atomic_persist_contact(contact)
-            raise
-        finally:
-            if previous is None:
-                os.environ.pop("YAKR_RELAY_URL", None)
-            else:
-                os.environ["YAKR_RELAY_URL"] = previous
 
     def pending_count(self, peer: str | None = None) -> int:
         if peer is None:

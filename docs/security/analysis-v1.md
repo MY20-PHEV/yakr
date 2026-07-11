@@ -84,7 +84,7 @@ Global rate limiting per IP is deployment-specific and not mandated in v1. Opera
 4. **Classical-only invites** remain vulnerable to future quantum break of recorded pairing transcripts; use hybrid invites when PQ libraries are available.
 5. **Presence metadata** — encrypted `type=presence` inner messages reduce exposure, but relays still observe poll timing, blob sizes, and which mailbox tags are requested. Fresh presence URLs in the cache are advisory; clients fall back to signed profile `relay_descriptors` when presence expires. Embedded relays MUST only set `relay.active=true` when a dialable `reachable` URL is verified (ADR 008).
 6. **Platform wake metadata** (optional, ADR 011) — opt-in wake registration exposes device tokens to trusted relays and the wake gateway; wake timing is more precise than poll-only. No message plaintext leaves the relay blob path. Apple/Google process silent push per their policies.
-7. **Ratchet persistence** — send/receive atomic commits land in SQLite (`atomic_commit_send`, `atomic_commit_receive_text`); receipt send after receive remains a separate step ([delivery-state-machine.md](../spec/delivery-state-machine.md)).
+7. **Ratchet persistence** — send/receive atomic commits land in SQLite (`atomic_commit_send`, `atomic_commit_receive_text`); delivery receipts are queued in the same receive transaction and flushed on the next fetch if POST fails.
 8. **Relay-visible tickets** — optional `require_tickets` exposes `issuer_signing_public` and `contact_id` to relays; per-relay pseudonymous capabilities are planned (P1-1).
 
 ## 8. Presence and Relay Reachability (Phase 10)

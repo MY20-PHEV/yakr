@@ -166,7 +166,7 @@ In a single storage transaction:
 2. Persist message row (encrypted at rest).
 3. Commit.
 
-Then send receipt (may use `pending_receipts` if POST fails).
+Then send receipt (may use `pending_receipts` if POST fails). The reference client queues `pending_receipts` in the **same transaction** as the inbound message row so a crash after commit still recovers on the next fetch flush.
 
 **Rollback:** If validation fails after ratchet decrypt, MUST rollback in-memory ratchet before returning (reference: `session.py` `_rollback()`).
 
@@ -193,7 +193,7 @@ Then send receipt (may use `pending_receipts` if POST fails).
 - [x] Restart after atomic send does not reuse ratchet keys
 - [x] Atomic receive persists `last_recv_seq` and rejects duplicate decrypt
 - [ ] Process-level crash injection (kill -9) end-to-end
-- [ ] Receipt flush after crash delivers pending receipt
+- [x] Receipt queued atomically with inbound message; flush after simulated crash delivers pending receipt
 - [x] Stale receipt does not clear unrelated `outbound_pending` (`test_receipt_apply.py`, `test_fetch_hardening.py`)
 - [x] Concurrent fetch test (serialized lock) — no double `seq` advance
 

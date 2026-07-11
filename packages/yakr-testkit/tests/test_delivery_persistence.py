@@ -142,6 +142,65 @@ def test_atomic_receive_rolls_back_on_failure(paired_stores) -> None:
     assert bob_store.list_inbound_messages("alice", bob) == []
 
 
+def test_atomic_receive_queues_receipt_with_message(paired_stores) -> None:
+    alice, bob, alice_contact, bob_contact, _alice_store, bob_store = paired_stores
+    encrypted = Session(alice, alice_contact).encrypt_text("with receipt queue")
+    inner = Session(bob, bob_contact).decrypt_outer(encrypted.outer_blob)
+    delivered_id = encrypted.msg_id
+
+    bob_store.atomic_commit_receive_text(
+        bob_contact,
+        inner,
+        identity=bob,
+        delivered_id=delivered_id,
+    )
+
+    assert bob_store.list_pending_receipts("alice") == [("alice", delivered_id, None)]
+    assert bob_store.list_inbound_messages("alice", bob) == [(1, "with receipt queue")]
+
+
+def test_atomic_receive_rolls_back_queued_receipt_on_failure(paired_stores) -> None:
+    alice, bob, alice_contact, bob_contact, _alice_store, bob_store = paired_stores
+    encrypted = Session(alice, alice_contact).encrypt_text("receipt rollback")
+    bob_reloaded = bob_store.get_contact("alice")
+    assert bob_reloaded is not None
+    inner = Session(bob, bob_reloaded).decrypt_outer(encrypted.outer_blob)
+
+    bob_store.test_fault = "pending_receipt"
+    with pytest.raises(sqlite3.OperationalError):
+        bob_store.atomic_commit_receive_text(
+            bob_reloaded,
+            inner,
+            identity=bob,
+            delivered_id=encrypted.msg_id,
+        )
+
+    bob_store.test_fault = None
+    assert bob_store.list_pending_receipts("alice") == []
+    assert bob_store.list_inbound_messages("alice", bob) == []
+
+
+def test_decrypt_before_commit_leaves_message_refetchable(paired_stores) -> None:
+    """Simulate crash after decrypt in memory but before atomic commit."""
+    alice, bob, alice_contact, bob_contact, _alice_store, bob_store = paired_stores
+    encrypted = Session(alice, alice_contact).encrypt_text("retry after crash")
+    bob_session = Session(bob, bob_contact)
+    inner = bob_session.decrypt_outer(encrypted.outer_blob)
+    assert bob_contact.last_recv_seq == 1
+    # Process dies before persist — in-memory contact advanced but store unchanged.
+    reloaded = bob_store.get_contact("alice")
+    assert reloaded is not None
+    assert reloaded.last_recv_seq == 0
+
+    bob_store.atomic_commit_receive_text(
+        bob_contact,
+        inner,
+        identity=bob,
+        delivered_id=encrypted.msg_id,
+    )
+    assert bob_store.list_inbound_messages("alice", bob) == [(1, "retry after crash")]
+
+
 def test_contact_json_migrates_into_sqlite(tmp_path) -> None:
     alice = Identity.generate("alice")
     bob = Identity.generate("bob")
