@@ -240,6 +240,21 @@ class RatchetState:
         self.send_n += 1
         return header + ciphertext
 
+    def _restore_snapshot(self, snapshot: dict[str, str | int | bool | dict[str, str]]) -> None:
+        restored = RatchetState.from_dict(snapshot)
+        self.root_key = restored.root_key
+        self.dh_self_private = restored.dh_self_private
+        self.dh_self_public = restored.dh_self_public
+        self.dh_peer_public = restored.dh_peer_public
+        self.send_chain_key = restored.send_chain_key
+        self.recv_chain_key = restored.recv_chain_key
+        self.send_n = restored.send_n
+        self.recv_n = restored.recv_n
+        self.prev_send_n = restored.prev_send_n
+        self.skipped_keys = dict(restored.skipped_keys)
+        self.hybrid = restored.hybrid
+        self.pending_pairing_dh_ratchet_peer = restored.pending_pairing_dh_ratchet_peer
+
     def decrypt(self, payload: bytes) -> bytes:
         if len(payload) < len(RATCHET_MAGIC) + 32 + 8:
             raise ValueError("ratchet payload too short")
@@ -252,32 +267,36 @@ class RatchetState:
         offset += 8
         ciphertext = payload[offset:]
 
-        if self.dh_peer_public is None:
-            self.dh_peer_public = peer_public
-        elif self.dh_peer_public != peer_public:
-            self._dh_ratchet(peer_public)
+        snapshot = self.to_dict()
+        try:
+            if self.dh_peer_public is None:
+                self.dh_peer_public = peer_public
+            elif self.dh_peer_public != peer_public:
+                self._dh_ratchet(peer_public)
 
-        if self.recv_chain_key is None:
-            raise ValueError("recv chain not initialized")
+            if self.recv_chain_key is None:
+                raise ValueError("recv chain not initialized")
 
-        if message_n < self.recv_n:
-            try:
-                message_key = self._skip_key(peer_public, message_n)
-            except KeyError:
-                raise ValueError("ratchet message already received") from None
-        else:
-            gap = message_n - self.recv_n
-            if gap > MAX_SKIP_GAP:
-                raise ValueError("ratchet skip gap too large")
-            if len(self.skipped_keys) + gap > MAX_SKIPPED_KEYS:
-                raise ValueError("ratchet skipped key limit exceeded")
-            while self.recv_n < message_n:
-                mk, self.recv_chain_key = _kdf_ck(self.recv_chain_key)
-                self._store_skip(peer_public, self.recv_n, mk)
-                self.recv_n += 1
-            message_key, self.recv_chain_key = _kdf_ck(self.recv_chain_key)
-            self.recv_n = message_n + 1
+            if message_n < self.recv_n:
+                try:
+                    message_key = self._skip_key(peer_public, message_n)
+                except KeyError:
+                    raise ValueError("ratchet message already received") from None
+            else:
+                gap = message_n - self.recv_n
+                if gap > MAX_SKIP_GAP:
+                    raise ValueError("ratchet skip gap too large")
+                if len(self.skipped_keys) + gap > MAX_SKIPPED_KEYS:
+                    raise ValueError("ratchet skipped key limit exceeded")
+                while self.recv_n < message_n:
+                    mk, self.recv_chain_key = _kdf_ck(self.recv_chain_key)
+                    self._store_skip(peer_public, self.recv_n, mk)
+                    self.recv_n += 1
+                message_key, self.recv_chain_key = _kdf_ck(self.recv_chain_key)
+                self.recv_n = message_n + 1
 
-        aad = RATCHET_MAGIC + peer_public + struct.pack(">II", prev_n, message_n)
-        plaintext = xchacha_decrypt(message_key, ciphertext, associated_data=aad)
-        return plaintext
+            aad = RATCHET_MAGIC + peer_public + struct.pack(">II", prev_n, message_n)
+            return xchacha_decrypt(message_key, ciphertext, associated_data=aad)
+        except Exception:
+            self._restore_snapshot(snapshot)
+            raise

@@ -200,6 +200,14 @@ class Session:
         self.contact.last_recv_seq = inner.seq
         return inner
 
+    def decrypt_inbound(self, outer: OuterBlob) -> InnerMessage:
+        """Decrypt an inbound blob; auxiliary types do not advance the ratchet chain."""
+        ratchet_before = self.contact.ratchet.to_dict()
+        inner = self.decrypt_outer(outer)
+        if inner.type != "text":
+            self.contact.ratchet = RatchetState.from_dict(ratchet_before)
+        return inner
+
     def _require_fresh_session(self) -> None:
         if needs_pq_rekey(
             hybrid=self.contact.hybrid_pq,
