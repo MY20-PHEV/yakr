@@ -93,6 +93,9 @@ We aim to acknowledge public review responses within **14 days** and will publis
 
 **This call does not constitute a bug bounty.** It is an invitation for cryptographic design review on an experimental protocol.
 
+**Discussion thread:** https://github.com/MY20-PHEV/yakr/discussions/1
+
+## Out of scope (for now)
 
 - Missing features listed as deferred in SECURITY_BACKLOG (Tor, multi-device, etc.)
 - Deployment hardening of operator infrastructure (firewall, OS patching)
