@@ -16,7 +16,7 @@ fn double_ratchet_bidirectional() {
     let (request, secrets) = build_pairing_request(&bob, &invite, "bob").unwrap();
     let (inviter_ephemeral, _) = x25519_generate_keypair();
     let (response, mut alice_contact) =
-        inviter_complete_pairing(&alice, &invite, &request, inviter_ephemeral).unwrap();
+        inviter_complete_pairing(&alice, &invite, &request, inviter_ephemeral, None).unwrap();
     let mut bob_contact = joiner_complete_pairing(&bob, &invite, &request, &secrets, &response).unwrap();
 
     let mut alice_session = Session::new(alice, alice_contact).unwrap();
@@ -46,7 +46,7 @@ fn ratchet_state_persists_via_store() {
     let invite = create_invite(&alice, "http://test", 60_000, false).unwrap();
     let (request, secrets) = build_pairing_request(&bob, &invite, "bob").unwrap();
     let (ephemeral, _) = x25519_generate_keypair();
-    let (response, _) = inviter_complete_pairing(&alice, &invite, &request, ephemeral).unwrap();
+    let (response, _) = inviter_complete_pairing(&alice, &invite, &request, ephemeral, None).unwrap();
     let contact = joiner_complete_pairing(&bob, &invite, &request, &secrets, &response).unwrap();
     store.save_contact(&contact).unwrap();
 
