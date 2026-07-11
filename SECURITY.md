@@ -34,6 +34,8 @@ For design-level issues (pairing transcript, ratchet, relay authorization, TLS p
 
 - Reference [docs/SECURITY_BACKLOG.md](docs/SECURITY_BACKLOG.md) and [docs/reviews/](docs/reviews/).
 - Normative behaviour is defined in [docs/spec/yakr-protocol-v1.md](docs/spec/yakr-protocol-v1.md) and extension specs.
+- **Pairing transcript review:** [docs/spec/pairing-transcript-v1.md](docs/spec/pairing-transcript-v1.md)
+- **Session / double-ratchet review package:** [docs/security/session-ratchet-review-v1.md](docs/security/session-ratchet-review-v1.md) (test vectors in `docs/spec/test-vectors-v1/`)
 
 External reviews are welcome; see saved critiques in `docs/reviews/`.
 
