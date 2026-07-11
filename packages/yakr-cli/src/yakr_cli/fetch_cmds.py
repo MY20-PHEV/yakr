@@ -161,13 +161,19 @@ def fetch_contact_inbound(
                     if inner.type != "text":
                         continue
 
-                    store.atomic_commit_receive_text(contact, inner, identity=identity)
+                    delivered_id = message_id(outer.ciphertext)
+                    receipt_route = resolve_contact_route(store, contact, route, delivered_id)
+                    store.atomic_commit_receive_text(
+                        contact,
+                        inner,
+                        identity=identity,
+                        delivered_id=delivered_id,
+                        receipt_route=receipt_route,
+                    )
                     if not quiet:
                         console.print(f"[cyan]{contact_name}[/cyan]: {inner.body}")
                     fetched += 1
 
-                    delivered_id = message_id(outer.ciphertext)
-                    receipt_route = resolve_contact_route(store, contact, route, delivered_id)
                     if not send_delivery_receipt(
                         store,
                         identity,

@@ -287,9 +287,14 @@ class YakrMobileClient:
                             continue
                         if inner.type != "text":
                             continue
-                        self.store.atomic_commit_receive_text(contact, inner, identity=identity)
-                        messages.append(inner.body)
                         delivered_id = message_id(outer.ciphertext)
+                        self.store.atomic_commit_receive_text(
+                            contact,
+                            inner,
+                            identity=identity,
+                            delivered_id=delivered_id,
+                        )
+                        messages.append(inner.body)
                         previous = os.environ.get("YAKR_RELAY_URL")
                         os.environ["YAKR_RELAY_URL"] = self.relay_url
                         try:

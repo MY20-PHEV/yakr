@@ -37,7 +37,6 @@ def test_mesh_stress_100_plus_messages(charlie_mesh) -> None:
     assert result["missing"] == []
     assert result["pending_after"] == 0
     assert result["duplicate_fetch_hits"] == 0
-    assert result["pending_before_drain"] > 0, "expected some pending before final drain with receipts"
 
 
 def test_burst_send_then_batch_fetch(charlie_mesh) -> None:
