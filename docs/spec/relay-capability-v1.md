@@ -97,7 +97,7 @@ auth_keypair  = Ed25519.from_seed(auth_seed)
 | Field | Source |
 |-------|--------|
 | `capability_generation` | Monotonic; bumped on intentional rotation |
-| `issuance_salt` | Random 16 bytes at registration; stored in profile side-channel |
+| `issuance_salt` | Random 16 bytes at registration; carried in signed `RelayDescriptor` (`capability_issuance_salt`) |
 
 **Deterministic derivation without `capability_generation` or `issuance_salt` MUST NOT be used** — it produces stable `capability_id` across rotations (weakens unlinkability).
 
@@ -105,9 +105,9 @@ auth_keypair  = Ed25519.from_seed(auth_seed)
 
 To rotate:
 
-1. Client increments `capability_generation`, generates new `issuance_salt`.
+1. Client increments `capability_generation`, generates new `issuance_salt`, and publishes them in the delivery profile (`yakr profile publish`).
 2. Client derives new `capability_id` and `auth_keypair`.
-3. Client obtains new `CapabilityGrant` from relay (or co-signed during profile update).
+3. Client obtains new `CapabilityGrant` from relay via `POST /v1/capabilities/issue` (no manual bootstrap when relay advertises issuance key).
 4. Relay marks previous generation revoked after overlap window (default 1h).
 
 Expired grants are rejected; revoked generations are rejected even if signature still verifies.

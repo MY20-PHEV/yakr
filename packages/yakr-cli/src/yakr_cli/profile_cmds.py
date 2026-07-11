@@ -78,7 +78,9 @@ def build_local_profile(
 ) -> DeliveryProfile:
     if store is None:
         store = _store()
-    descriptors = _authorized_descriptors(identity, store)
+    from yakr_core.capability_client import attach_profile_capability_fields
+
+    descriptors = attach_profile_capability_fields(store, _authorized_descriptors(identity, store))
     assert_publish_relays_allowed(descriptors, descriptors)
     return create_delivery_profile(
         identity,
@@ -107,8 +109,26 @@ def profile_publish(
     if direct_port is not None:
         direct_hint = f"http://127.0.0.1:{direct_port}"
 
-    profile = build_local_profile(identity, store=store, direct_hint=direct_hint, version=version)
+    from yakr_core.capability_client import (
+        attach_profile_capability_fields,
+        enrich_profile_capability_descriptors,
+        sync_profile_capability_grants,
+    )
+
+    descriptors = _authorized_descriptors(identity, store)
+    if bump_version:
+        descriptors = enrich_profile_capability_descriptors(store, descriptors)
+    else:
+        descriptors = attach_profile_capability_fields(store, descriptors)
+    assert_publish_relays_allowed(descriptors, descriptors)
+    profile = create_delivery_profile(
+        identity,
+        relay_descriptors=descriptors,
+        direct_hints=[direct_hint] if direct_hint else [],
+        version=version,
+    )
     store.save_local_profile(profile)
+    synced = sync_profile_capability_grants(store, identity, profile)
     console.print(f"[green]Published delivery profile v{profile.version}[/green]")
     if profile.relay_descriptors:
         for relay in profile.relay_descriptors:
@@ -117,6 +137,8 @@ def profile_publish(
         console.print("[yellow]No relay advertised (pair with a relay operator to add one)[/yellow]")
     if direct_hint:
         console.print(f"[cyan]Direct hint:[/cyan] {direct_hint}")
+    if synced:
+        console.print(f"[green]Synced capability grants for {len(synced)} relay(s)[/green]")
 
     if relay_locations_changed(current, profile):
         pushed = publish_own_presence(store, identity, quiet=True)

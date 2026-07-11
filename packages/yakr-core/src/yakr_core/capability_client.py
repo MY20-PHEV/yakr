@@ -19,7 +19,7 @@ from yakr_core.capability_grant import (
 )
 from yakr_core.http_client import endpoint_base_url, resolve_tls_pin_for_url, url_operator_map, yakr_get, yakr_post
 from yakr_core.identity import Contact, Identity, b64decode, b64encode
-from yakr_core.delivery_profile import mailbox_descriptors
+from yakr_core.delivery_profile import DeliveryProfile, RelayDescriptor, mailbox_descriptors
 from yakr_core.store import FileLocalStore
 
 DEFAULT_CAPABILITY_PERMISSIONS = ("post", "fetch")
@@ -155,6 +155,125 @@ def _bootstrap_ticket(
     ).to_b64()
 
 
+def _descriptor_for_relay(
+    profile: DeliveryProfile | None,
+    relay_name: str,
+) -> RelayDescriptor | None:
+    if profile is None:
+        return None
+    for descriptor in profile.relay_descriptors:
+        if descriptor.name == relay_name:
+            return descriptor
+    return None
+
+
+def capability_material_params(
+    store: FileLocalStore,
+    relay_name: str,
+    *,
+    operator_profile: DeliveryProfile | None = None,
+) -> tuple[int, bytes]:
+    """Resolve capability generation and issuance salt for a relay operator."""
+    descriptor = _descriptor_for_relay(operator_profile, relay_name)
+    if descriptor is not None and descriptor.capability_issuance_salt:
+        generation = descriptor.capability_generation or 1
+        return generation, descriptor.capability_issuance_salt
+    stored = store.load_capability_grant(relay_name)
+    if stored is not None:
+        return int(stored["capability_generation"]), b64decode(str(stored["issuance_salt_b64"]))
+    return 1, secrets.token_bytes(16)
+
+
+def enrich_descriptor_capabilities(
+    store: FileLocalStore,
+    descriptor: RelayDescriptor,
+) -> RelayDescriptor:
+    """Bump capability generation and salt for a paired relay operator descriptor."""
+    if store.get_contact(descriptor.name) is None:
+        return descriptor
+    stored = store.load_capability_grant(descriptor.name)
+    generation = 1 if stored is None else int(stored["capability_generation"]) + 1
+    if descriptor.capability_issuance_salt and descriptor.capability_generation >= generation:
+        generation = descriptor.capability_generation + 1
+    return RelayDescriptor(
+        name=descriptor.name,
+        role=descriptor.role,
+        url=descriptor.url,
+        wrap_secret=descriptor.wrap_secret,
+        tls_spki_sha256=descriptor.tls_spki_sha256,
+        capability_generation=generation,
+        capability_issuance_salt=secrets.token_bytes(16),
+    )
+
+
+def attach_profile_capability_fields(
+    store: FileLocalStore,
+    descriptors: list[RelayDescriptor],
+) -> list[RelayDescriptor]:
+    """Preserve capability rotation material from the saved local profile."""
+    current = store.load_local_profile()
+    if current is None:
+        return descriptors
+    by_name = {descriptor.name: descriptor for descriptor in current.relay_descriptors}
+    attached: list[RelayDescriptor] = []
+    for descriptor in descriptors:
+        previous = by_name.get(descriptor.name)
+        if previous is None or not previous.capability_issuance_salt:
+            attached.append(descriptor)
+            continue
+        attached.append(
+            RelayDescriptor(
+                name=descriptor.name,
+                role=descriptor.role,
+                url=descriptor.url,
+                wrap_secret=descriptor.wrap_secret,
+                tls_spki_sha256=descriptor.tls_spki_sha256 or previous.tls_spki_sha256,
+                capability_generation=previous.capability_generation,
+                capability_issuance_salt=previous.capability_issuance_salt,
+            )
+        )
+    return attached
+
+
+def enrich_profile_capability_descriptors(
+    store: FileLocalStore,
+    descriptors: list[RelayDescriptor],
+) -> list[RelayDescriptor]:
+    return [enrich_descriptor_capabilities(store, descriptor) for descriptor in descriptors]
+
+
+def sync_profile_capability_grants(
+    store: FileLocalStore,
+    identity: Identity,
+    profile: DeliveryProfile,
+) -> list[CapabilitySession]:
+    """Issue capability grants for profile descriptors that carry rotation material."""
+    sessions: list[CapabilitySession] = []
+    for descriptor in profile.relay_descriptors:
+        if not descriptor.capability_issuance_salt:
+            continue
+        operator_contact = store.get_contact(descriptor.name)
+        if operator_contact is None:
+            continue
+        if not relay_supports_capabilities(
+            descriptor.url,
+            store=store,
+            contact=operator_contact,
+            identity=identity,
+        ):
+            continue
+        session = issue_capability_from_relay(
+            descriptor.url,
+            descriptor.name,
+            identity=identity,
+            contact=operator_contact,
+            store=store,
+            operator_profile=profile,
+        )
+        sessions.append(session)
+    return sessions
+
+
 def issue_capability_from_relay(
     relay_url: str,
     relay_name: str,
@@ -164,12 +283,15 @@ def issue_capability_from_relay(
     store: FileLocalStore,
     permissions: tuple[str, ...] = DEFAULT_CAPABILITY_PERMISSIONS,
     relay_issuance_public: bytes | None = None,
+    operator_profile: DeliveryProfile | None = None,
 ) -> CapabilitySession:
     """Bootstrap a relay-signed grant via ticket, register it, and persist locally."""
     tls_pin = _relay_tls_pin(relay_url, store=store, contact=contact)
-    stored = store.load_capability_grant(relay_name)
-    generation = 1 if stored is None else stored["capability_generation"] + 1
-    issuance_salt = secrets.token_bytes(16)
+    generation, issuance_salt = capability_material_params(
+        store,
+        relay_name,
+        operator_profile=operator_profile,
+    )
     capability_id, auth_private = derive_capability_material(
         contact.master_secret,
         relay_name=relay_name,
@@ -259,6 +381,7 @@ def ensure_capability_session(
         store=store,
         permissions=permissions,
         relay_issuance_public=relay_issuance_public,
+        operator_profile=store.load_local_profile(),
     )
 
 
