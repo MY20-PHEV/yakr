@@ -13,15 +13,17 @@ pub mod inner_message;
 pub mod invite;
 pub mod mailbox;
 pub mod master;
+pub mod outer_blob;
 pub mod x25519;
 
 pub use aead::{xchacha_decrypt, xchacha_encrypt, AeadError};
 pub use delivery_profile::verify_delivery_profile;
 pub use hybrid::derive_hybrid_master;
 pub use inner_message::{
-    message_id, verify_inner_message_json, InnerMessage, InnerMessageError, InnerMessageFields,
-    MessageType,
+    message_id, verify_inner_message_json, verify_inner_receipt_json, InnerMessage,
+    InnerMessageError, InnerMessageFields, InnerReceiptFields, MessageType,
 };
+pub use outer_blob::{verify_outer_blob_relay_json, OuterBlobError, OuterBlobFields};
 pub use invite::{derive_safety_code, verify_invite_bundle};
 pub use hkdf::hkdf_sha256;
 pub use mailbox::{derive_mailbox_secret, derive_mailbox_tag, mailbox_tag_from_secret};

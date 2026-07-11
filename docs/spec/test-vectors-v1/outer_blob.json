@@ -1,0 +1,13 @@
+{
+  "name": "outer-blob-relay-v1",
+  "description": "Relay POST /v1/blobs JSON (base64url fields) round-trip per yakr-protocol-v1.md \u00a74.2",
+  "version": 1,
+  "relay_json": {
+    "mailbox_tag": "obLD1OX2BxgpOktcbX6PkBEiM0RVZneImaq7zN3u_wA",
+    "expires_at": 1700086400000,
+    "ciphertext": "WUtEUjIUyp5NOHvM81dG4EB9qqzGsopPhEXvWlFYiU25g-JAcAAAAAAAAAAAx_25ROmSXgtkYUbeg52oX8FYgW0GqkcEVt303i6eAX1rnG7x7IE6g-CFkTg"
+  },
+  "mailbox_tag_hex": "a1b2c3d4e5f60718293a4b5c6d7e8f90112233445566778899aabbccddeeff00",
+  "expires_at": 1700086400000,
+  "ciphertext_hex": "594b44523214ca9e4d387bccf35746e0407daaacc6b28a4f8445ef5a5158894db983e240700000000000000000c7fdb944e9925e0b646146de839da85fc158816d06aa470456ddf4de2e9e017d6b9c6ef1ec813a83e0859138"
+}

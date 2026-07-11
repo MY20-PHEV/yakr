@@ -1,7 +1,7 @@
 # Phase 11 — Yakr v1.0 Independent Implementation Readiness
 
 **Protocol:** `yakr-v1.0`  
-**Status:** Nearly complete — WP1–WP5 done; criterion #3 (outer blob/receipt CBOR vectors) partial  
+**Status:** Complete (WP1–WP5 + wire-structure vectors)  
 **Depends on:** Phase 10 complete; F16/R6 closed on normative pairing path ([double-ratchet.md](./double-ratchet.md) § Session bootstrap paths)
 
 ## Goal
@@ -22,10 +22,10 @@ Phase 9 proved a narrow crypto/encoding interop slice. Phase 11 closes the gap b
 |---|-----------|--------|-------|
 | 1 | Python and Rust implement the **same normative pairing and ratchet path** | **Done (WP1)** | Rust Option B parity; cross-lang CI in WP2 |
 | 2 | **Python↔Rust interoperability** succeeds in **both role directions** (inviter/joiner × send/fetch) | **Done (WP2)** | `test_phase11_cross_lang.py` + CI |
-| 3 | **All normative wire structures** have frozen vectors | **Partial** | Pairing + ratchet in `interop_verifier`; outer blob / receipt CBOR still reference-only |
+| 3 | **All normative wire structures** have frozen vectors | **Done** | Pairing, ratchet, outer blob, receipt inner JSON in `interop_verifier` |
 | 4 | **Negative vectors** define rejection behaviour | **Done (WP4)** | `test-vectors-v1/negative/` + `verify_negative_vector` in `interop_verifier` |
 | 5 | **Delivery semantics** are no longer draft | **Done (WP5)** | [delivery-state-machine.md](./delivery-state-machine.md) normative; aligned with [fetch-algorithm.md](./fetch-algorithm.md) |
-| 6 | A third party can run the **conformance suite without importing `yakr_core`** | **Partial** | `verify_all_vectors()` covers 7 positive vector files + negative pack |
+| 6 | A third party can run the **conformance suite without importing `yakr_core`** | **Done** | `verify_all_vectors()` — 9 positive files + negative pack |
 | 7 | Remaining ambiguities tracked as **errata or v1.1 work** | **Done (WP5)** | [errata-v1.md](./errata-v1.md) |
 
 ---
