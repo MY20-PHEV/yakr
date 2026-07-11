@@ -20,7 +20,7 @@
 
 | ID | Item | Spec / tracking | Status |
 |----|------|-----------------|--------|
-| P0-1 | Formal delivery state machine | [delivery-state-machine.md](spec/delivery-state-machine.md) | Draft spec |
+| P0-1 | Formal delivery state machine | [delivery-state-machine.md](spec/delivery-state-machine.md) | **Normative** (Phase 11 WP5) |
 | P0-2 | Transactional ratchet + outbound queue persist | [delivery-state-machine.md](spec/delivery-state-machine.md) §Crash safety | **Implemented** (`atomic_commit_send`) |
 | P0-3 | Transactional receive decrypt + `last_recv_seq` persist | Same | **Implemented** (`atomic_commit_receive_text`) |
 | P0-4 | Crash injection tests (send + receive) | `test_delivery_persistence.py`, `test_receive_crash_recovery.py` | **Done** (rollback, receipt queue, fetch flush recovery) |
@@ -94,7 +94,7 @@
 | WP2 Cross-lang interop CI | **Done** — `test_phase11_cross_lang.py` |
 | WP3 Conformance suite | **Done** — pairing + ratchet in `interop_verifier` |
 | WP4 Negative vectors | P2-6 extension |
-| WP5 Delivery + errata | P0-1 (delivery state machine draft → normative) |
+| WP5 Delivery + errata | P0-1 — **Done** |
 
 ---
 

@@ -16,7 +16,7 @@ When documents disagree, use this order (highest first):
 
 1. [docs/spec/yakr-protocol-v1.md](docs/spec/yakr-protocol-v1.md) — normative v1.0 wire protocol
 2. Normative extension specifications under `docs/spec/` (fetch algorithm, delivery state machine, TLS, etc.)
-3. Published errata (when issued)
+3. [docs/spec/errata-v1.md](docs/spec/errata-v1.md) — published errata and v1.1 deferrals
 4. Frozen test vectors under `docs/spec/test-vectors-v1/`
 5. [docs/REFERENCE_DESIGN.md](docs/REFERENCE_DESIGN.md) — phased implementation plan
 6. [whitepaper.md](whitepaper.md) and implementation history / ADRs
@@ -39,7 +39,8 @@ The whitepaper explains intent; the normative spec determines interoperability.
 | [docs/spec/tls-endpoints.md](docs/spec/tls-endpoints.md) | **Implemented** pairing-anchored TLS (SPKI pins in profiles) |
 | [docs/spec/ephemeral-messages.md](docs/spec/ephemeral-messages.md) | 24h ephemeral message TTL |
 | [docs/spec/fetch-algorithm.md](docs/spec/fetch-algorithm.md) | **Normative** fetch ordering, receipts, and contact state |
-| [docs/spec/delivery-state-machine.md](docs/spec/delivery-state-machine.md) | Delivery/receipt state machine (P0 draft; Phase 11 promotes to normative) |
+| [docs/spec/delivery-state-machine.md](docs/spec/delivery-state-machine.md) | **Normative** delivery/receipt state machine |
+| [docs/spec/errata-v1.md](docs/spec/errata-v1.md) | v1.0 errata and deferred extensions |
 | [docs/spec/phase-11-implementation-readiness.md](docs/spec/phase-11-implementation-readiness.md) | **Active milestone** — Python↔Rust parity, full conformance vectors |
 | [docs/spec/relay-observer-privacy-v1.md](docs/spec/relay-observer-privacy-v1.md) | **Normative** what each relay/observer learns (metadata vs E2E) |
 | [docs/spec/operator-identity-v1.md](docs/spec/operator-identity-v1.md) | **Normative** messaging vs operator vs capability issuance keys |

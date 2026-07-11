@@ -87,4 +87,5 @@ uv run pytest packages/yakr-testkit/tests/test_ratchet_adversarial.py::test_pair
 |----------|---------|
 | [SECURITY_BACKLOG.md](docs/SECURITY_BACKLOG.md) | P0–P3 tracked findings |
 | [security/analysis-v1.md](docs/security/analysis-v1.md) | Threat model draft |
-| [delivery-state-machine.md](docs/spec/delivery-state-machine.md) | Delivery semantics |
+| [delivery-state-machine.md](docs/spec/delivery-state-machine.md) | Delivery semantics (normative) |
+| [errata-v1.md](docs/spec/errata-v1.md) | v1.0 errata register |

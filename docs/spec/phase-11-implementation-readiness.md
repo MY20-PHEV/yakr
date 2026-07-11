@@ -1,7 +1,7 @@
 # Phase 11 — Yakr v1.0 Independent Implementation Readiness
 
 **Protocol:** `yakr-v1.0`  
-**Status:** Open (next major milestone)  
+**Status:** Nearly complete — WP1–WP5 done; criterion #3 (outer blob/receipt CBOR vectors) partial  
 **Depends on:** Phase 10 complete; F16/R6 closed on normative pairing path ([double-ratchet.md](./double-ratchet.md) § Session bootstrap paths)
 
 ## Goal
@@ -24,9 +24,9 @@ Phase 9 proved a narrow crypto/encoding interop slice. Phase 11 closes the gap b
 | 2 | **Python↔Rust interoperability** succeeds in **both role directions** (inviter/joiner × send/fetch) | **Done (WP2)** | `test_phase11_cross_lang.py` + CI |
 | 3 | **All normative wire structures** have frozen vectors | **Partial** | Pairing + ratchet in `interop_verifier`; outer blob / receipt CBOR still reference-only |
 | 4 | **Negative vectors** define rejection behaviour | **Done (WP4)** | `test-vectors-v1/negative/` + `verify_negative_vector` in `interop_verifier` |
-| 5 | **Delivery semantics** are no longer draft | **Open** | [delivery-state-machine.md](./delivery-state-machine.md) still marked Draft; reference behaviour largely implemented (P0-2–P0-4) |
+| 5 | **Delivery semantics** are no longer draft | **Done (WP5)** | [delivery-state-machine.md](./delivery-state-machine.md) normative; aligned with [fetch-algorithm.md](./fetch-algorithm.md) |
 | 6 | A third party can run the **conformance suite without importing `yakr_core`** | **Partial** | `verify_all_vectors()` covers 7 positive vector files + negative pack |
-| 7 | Remaining ambiguities tracked as **errata or v1.1 work** | **Partial** | [SECURITY_BACKLOG.md](../SECURITY_BACKLOG.md) tracks P2-8 and extensions; no dedicated `docs/spec/errata-v1.md` yet |
+| 7 | Remaining ambiguities tracked as **errata or v1.1 work** | **Done (WP5)** | [errata-v1.md](./errata-v1.md) |
 
 ---
 
@@ -38,8 +38,8 @@ Phase 9 proved a narrow crypto/encoding interop slice. Phase 11 closes the gap b
 | Cross-language interop tests | CI: Python inviter → Rust joiner and reverse; Rust→Python and Python→Rust send/fetch |
 | Extended interop verifier | `packages/yakr-testkit/src/yakr_testkit/interop_verifier.py` — pairing transcript + double ratchet |
 | Negative vector pack | `docs/spec/test-vectors-v1/negative/` (invite, profile, ratchet header, pairing transcript) |
-| Delivery spec promotion | [delivery-state-machine.md](./delivery-state-machine.md) → **Normative**; align with [fetch-algorithm.md](./fetch-algorithm.md) |
-| Errata register | `docs/spec/errata-v1.md` — P2-8, platform wake, capability edge cases |
+| Delivery spec promotion | [delivery-state-machine.md](./delivery-state-machine.md) — **Normative** |
+| Errata register | [errata-v1.md](./errata-v1.md) |
 | Protocol §8 update | [yakr-protocol-v1.md](./yakr-protocol-v1.md) — full vector inventory |
 | Rust CLI pairing | `yakr invite create` / `accept` (or documented pairing example binary) |
 
@@ -75,8 +75,8 @@ Phase 9 proved a narrow crypto/encoding interop slice. Phase 11 closes the gap b
 
 ### WP5 — Delivery semantics + errata
 
-1. Promote delivery state machine; resolve any conflicts with fetch algorithm.
-2. Open `errata-v1.md`; link P2-8 (`establish` non-normative), draft extensions explicitly deferred to v1.1.
+1. Promote delivery state machine; resolve any conflicts with fetch algorithm. **Done**
+2. Open `errata-v1.md`; link P2-8 (`establish` non-normative), draft extensions explicitly deferred to v1.1. **Done**
 
 ---
 
@@ -106,5 +106,6 @@ Passing Phase 11 is a **prerequisite** for opening the [CERTIFICATION.md](../../
 
 - [phase-9-interop.md](./phase-9-interop.md) — prior interop milestone (complete)
 - [pairing-transcript-v1.md](./pairing-transcript-v1.md) — normative pairing
-- [double-ratchet.md](./double-ratchet.md) — normative ratchet (pairing path)
+- [delivery-state-machine.md](./delivery-state-machine.md) — normative delivery
+- [errata-v1.md](./errata-v1.md) — v1.0 clarifications and deferrals
 - [rust/RUST_PORT.md](../../rust/RUST_PORT.md) — Rust gap analysis
