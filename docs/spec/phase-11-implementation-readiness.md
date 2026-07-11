@@ -109,9 +109,9 @@ Phase 11 exit criteria remain **closed**. The following bounded follow-ups are t
 | ID | Item | Status |
 |----|------|--------|
 | P11-1 | Live **hybrid PQ** Python↔Rust interop (both inviter directions; send/fetch/reply; restart) | **Done** — `test_phase11_cross_lang.py` |
-| P11-2 | Negative vectors: `rejection_stage`, `normative_error_code`, `persistent_state_must_change`, `retryable` | **Open** |
+| P11-2 | Negative vectors: `rejection_stage`, `normative_error_code`, `persistent_state_must_change`, `retryable` | **Done** — [negative-vector-outcomes-v1.md](../spec/negative-vector-outcomes-v1.md) |
 | P11-3 | Certification trust wording: badge disclaimer; steward **reference baseline** label vs third-party certified | **Partial** — docs; badge assets open |
-| P11-4 | External blind implementation package (spec + vectors only; no reference code) | **Open** |
+| P11-4 | External blind implementation package (spec + vectors only; no reference code) | **Done** — [interop/blind-review/](../../interop/blind-review/) |
 
 ---
 

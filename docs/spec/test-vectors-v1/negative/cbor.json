@@ -4,6 +4,10 @@
     "category": "cbor",
     "operation": "pairing_request_decode",
     "must_reject": true,
+    "rejection_stage": "pairing_request_decode",
+    "normative_error_code": "YAKR_E_CBOR_DECODE_FAILED",
+    "persistent_state_must_change": false,
+    "retryable": false,
     "cbor_hex": ""
   },
   {
@@ -11,6 +15,10 @@
     "category": "cbor",
     "operation": "pairing_response_decode",
     "must_reject": true,
+    "rejection_stage": "pairing_response_decode",
+    "normative_error_code": "YAKR_E_CBOR_DECODE_FAILED",
+    "persistent_state_must_change": false,
+    "retryable": false,
     "cbor_hex": ""
   },
   {
@@ -18,6 +26,10 @@
     "category": "cbor",
     "operation": "pairing_request_decode",
     "must_reject": true,
+    "rejection_stage": "pairing_request_decode",
+    "normative_error_code": "YAKR_E_PAIRING_REQUEST_INVALID",
+    "persistent_state_must_change": false,
+    "retryable": false,
     "error_contains": "invalid pairing request",
     "cbor_hex": "ff"
   },
@@ -26,6 +38,10 @@
     "category": "cbor",
     "operation": "pairing_response_decode",
     "must_reject": true,
+    "rejection_stage": "pairing_response_decode",
+    "normative_error_code": "YAKR_E_PAIRING_RESPONSE_INVALID",
+    "persistent_state_must_change": false,
+    "retryable": false,
     "error_contains": "invalid pairing response",
     "cbor_hex": "ff"
   }

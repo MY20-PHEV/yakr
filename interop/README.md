@@ -62,7 +62,7 @@ cargo test
 
 - [x] **Pairing transcript** — `pairing_transcript.json` classical + hybrid (`interop_verifier`, `rust/yakr-core`)
 - [x] **Double ratchet bootstrap** — `double_ratchet.json` HKDF chains + first message (`interop_verifier`, `rust/yakr-core`)
-- [x] **Negative vectors** — `test-vectors-v1/negative/` pairing, ratchet, invite, CBOR (`interop_verifier`)
+- [x] **Negative vectors** — `test-vectors-v1/negative/` with normative error codes ([negative-vector-outcomes-v1.md](../docs/spec/negative-vector-outcomes-v1.md))
 
 ### Client (minimal)
 
@@ -109,6 +109,15 @@ Phase 11 ([phase-11-implementation-readiness.md](../docs/spec/phase-11-implement
 - Normative delivery state machine and [errata-v1.md](../docs/spec/errata-v1.md)
 
 Run `verify_all_vectors("docs/spec/test-vectors-v1")` for full conformance without `yakr_core`.
+
+## Blind external review (P11-4)
+
+Package for reviewers implementing from **spec + vectors only** (no reference source):
+
+- [interop/blind-review/README.md](blind-review/README.md)
+- Bundle: `./scripts/create_blind_review_bundle.sh` → `dist/yakr-blind-review-v1.tar.gz`
+
+Normative negative outcomes: [negative-vector-outcomes-v1.md](../docs/spec/negative-vector-outcomes-v1.md).
 
 ## Version Freeze
 

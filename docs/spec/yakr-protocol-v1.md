@@ -283,7 +283,9 @@ Canonical vectors live in `docs/spec/test-vectors-v1/`:
 | `negative/invite.json` | Tampered invite signature rejection |
 | `negative/outer_blob.json` | Invalid relay outer blob JSON |
 
-Independent implementations MUST pass the interop verifier suite (see `interop/README.md`) using only this document and the vector files. `verify_all_vectors()` runs positive vectors then `negative/`.
+Negative vectors MUST include `rejection_stage`, `normative_error_code`, `persistent_state_must_change`, and `retryable` per [negative-vector-outcomes-v1.md](./negative-vector-outcomes-v1.md). The `error_contains` field is optional and for reference-verifier hints only.
+
+Independent implementations MUST pass the interop verifier suite (see `interop/README.md`) using only this document and the vector files. `verify_all_vectors()` runs positive vectors then `negative/`. External blind review (no reference code): [interop/blind-review/README.md](../../interop/blind-review/README.md).
 
 ## 9. Security Considerations
 
