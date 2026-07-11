@@ -23,9 +23,11 @@ class RelayDescriptor:
     url: str
     wrap_secret: bytes
     tls_spki_sha256: bytes = b""
+    capability_generation: int = 0
+    capability_issuance_salt: bytes = b""
 
-    def to_dict(self) -> dict[str, str | bytes]:
-        payload: dict[str, str | bytes] = {
+    def to_dict(self) -> dict[str, str | bytes | int]:
+        payload: dict[str, str | bytes | int] = {
             "name": self.name,
             "role": self.role,
             "url": self.url,
@@ -33,16 +35,21 @@ class RelayDescriptor:
         }
         if self.tls_spki_sha256:
             payload["tls_spki_sha256"] = self.tls_spki_sha256
+        if self.capability_issuance_salt:
+            payload["capability_generation"] = self.capability_generation
+            payload["capability_issuance_salt"] = self.capability_issuance_salt
         return payload
 
     @classmethod
-    def from_dict(cls, payload: dict[str, str | bytes]) -> RelayDescriptor:
+    def from_dict(cls, payload: dict[str, str | bytes | int]) -> RelayDescriptor:
         return cls(
             name=str(payload["name"]),
             role=str(payload["role"]),
             url=str(payload["url"]).rstrip("/"),
             wrap_secret=bytes(payload["wrap_secret"]),
             tls_spki_sha256=bytes(payload.get("tls_spki_sha256", b"")),
+            capability_generation=int(payload.get("capability_generation", 0)),
+            capability_issuance_salt=bytes(payload.get("capability_issuance_salt", b"")),
         )
 
     def to_relay_node(self) -> RelayNode:
