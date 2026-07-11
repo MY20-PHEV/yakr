@@ -86,20 +86,45 @@ def rust_home(root: Path, name: str) -> Path:
     return root / name
 
 
-def rust_init(root: Path, name: str) -> None:
+def rust_init(root: Path, name: str, *, classical: bool = False) -> None:
     home = rust_home(root, name)
-    run_rust(
-        [
-            "interop",
-            "init",
-            "--name",
-            name,
-            "--home",
-            str(home),
-            "--force",
-            "--classical",
-        ]
-    )
+    args = [
+        "interop",
+        "init",
+        "--name",
+        name,
+        "--home",
+        str(home),
+        "--force",
+    ]
+    if classical:
+        args.append("--classical")
+    run_rust(args)
+
+
+def rust_create_invite(
+    root: Path,
+    name: str,
+    rendezvous: str,
+    out: Path,
+    *,
+    classical: bool = False,
+) -> None:
+    args = [
+        "interop",
+        "create-invite",
+        "--name",
+        name,
+        "--home",
+        str(rust_home(root, name)),
+        "--rendezvous",
+        rendezvous,
+        "--out",
+        str(out),
+    ]
+    if classical:
+        args.append("--classical")
+    run_rust(args)
 
 
 def rust_send(root: Path, sender: str, contact: str, message: str, relay: str) -> None:

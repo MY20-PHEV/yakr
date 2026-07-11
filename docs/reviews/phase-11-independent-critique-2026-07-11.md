@@ -277,13 +277,13 @@ That validates the Phase 11 claim better than adding another internal implementa
 
 | Finding | Steward position | Tracking |
 |---------|------------------|----------|
-| Classical-only live cross-lang interop | **Accepted.** Hybrid PQ live E2E in both directions is the top technical follow-up. | [SECURITY_BACKLOG.md](../SECURITY_BACKLOG.md) P11-1 |
+| Classical-only live cross-lang interop | **Resolved (P11-1).** Hybrid PQ live E2E in both directions with reply + persisted restart. | Done — [test_phase11_cross_lang.py](../../packages/yakr-testkit/tests/test_phase11_cross_lang.py) |
 | Certification trust signalling | **Accepted.** Conformance ≠ security audit must be impossible to miss on badges and directory entries; steward listings should not look identical to third-party certification. | P11-3; [CERTIFICATION.md](../../CERTIFICATION.md), [certification/IMPLEMENTERS.md](../../certification/IMPLEMENTERS.md) |
 | “All normative wire structures” wording | **Accepted.** Milestone docs will use bounded “core v1.0 interoperability structures” language. | [phase-11-implementation-readiness.md](../spec/phase-11-implementation-readiness.md) exit criterion #3 |
 | Negative vector protocol-level outcomes | **Accepted.** Extend negative pack with `rejection_stage`, `normative_error_code`, and state expectations; keep substring checks optional for reference verifier only. | P11-2 |
 | CI green status not independently verified | **Noted.** Steward maintains CI gates; public badge/README may link to workflow status when useful. | — |
 | Blind external implementation test | **Accepted** as the highest-value validation of the Phase 11 claim. | P11-4 |
 
-**Not planned:** Reopening Phase 11 exit criteria or delaying certification applications solely on hybrid live interop — hybrid remains an extension path with vector parity today; live PQ interop is tracked explicitly.
+**Not planned:** Reopening Phase 11 exit criteria or delaying certification applications solely on hybrid live interop — hybrid live E2E is now covered in CI (P11-1 complete).
 
 See [phase-11-implementation-readiness.md § Post–Phase 11 hardening](../spec/phase-11-implementation-readiness.md#postphase-11-hardening).
