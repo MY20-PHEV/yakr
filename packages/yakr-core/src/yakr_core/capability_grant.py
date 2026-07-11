@@ -71,6 +71,8 @@ class CapabilityGrant:
     @classmethod
     def from_bytes(cls, data: bytes) -> CapabilityGrant:
         payload = cbor2.loads(data)
+        if not isinstance(payload, dict):
+            raise ValueError("invalid capability grant")
         if str(payload.get("protocol")) != GRANT_PROTOCOL:
             raise ValueError("unsupported capability grant protocol")
         return cls(

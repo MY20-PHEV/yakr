@@ -95,11 +95,12 @@ TLS connect → hash SPKI → compare to pin from:
 
 | Item | Status |
 |------|--------|
-| Normative overlap duration | Draft default 48h |
+| Normative overlap duration | **Done** — default 48h |
 | Profile refresh on TLS failure | Partial (network refresh exists) |
 | Explicit pin revocation list in profile | Not implemented |
-| Compromise playbook in homelab-relay.md | TODO |
-| Tests: pin rotation without re-pair | **Partial** — `test_tls_pin_rotation.py` |
+| Compromise playbook in homelab-relay.md | **Done** |
+| Tests: pin rotation without re-pair | **Done** — `test_tls_pin_rotation.py` |
+| Tests: compromise recovery (pin + wrap) | **Done** — `test_tls_compromise_recovery.py` |
 
 ## References
 

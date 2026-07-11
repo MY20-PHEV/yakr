@@ -59,6 +59,8 @@ class PairingRequest:
     @classmethod
     def from_bytes(cls, data: bytes) -> PairingRequest:
         payload = cbor2.loads(data)
+        if not isinstance(payload, dict):
+            raise ValueError("invalid pairing request")
         return cls(
             invite_secret=bytes(payload["invite_secret"]),
             joiner_name=str(payload["joiner_name"]),
@@ -88,6 +90,8 @@ class PairingResponse:
     @classmethod
     def from_bytes(cls, data: bytes) -> PairingResponse:
         payload = cbor2.loads(data)
+        if not isinstance(payload, dict):
+            raise ValueError("invalid pairing response")
         return cls(
             inviter_ephemeral_public=bytes(payload["inviter_ephemeral_public"]),
             transcript_hash=bytes(payload["transcript_hash"]),

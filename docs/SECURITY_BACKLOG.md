@@ -28,7 +28,7 @@
 | P0-6 | Concurrent fetch serialization policy | `FileLocalStore.fetch_lock()` | **Implemented** (CLI, mesh, mobile) |
 | P0-7 | Stale receipt handling normative test | `test_fetch_hardening.py`, `test_receipt_apply.py` | **Implemented** |
 | P0-8 | Profile rollback / replay protection audit | [profile-replay-policy.md](spec/profile-replay-policy.md) | **Implemented** |
-| P0-9 | TLS pin rotation + relay key compromise recovery | [tls-pin-lifecycle.md](spec/tls-pin-lifecycle.md) | **Partial** (spec + rotation test) |
+| P0-9 | TLS pin rotation + relay key compromise recovery | [tls-pin-lifecycle.md](spec/tls-pin-lifecycle.md) | **Done** (playbook, rotation + compromise recovery tests; explicit `revoked_pins[]` still future) |
 
 ## P1 — Identity and authorisation privacy
 
@@ -49,8 +49,8 @@
 | P2-2 | Complete pairing transcript construction doc | [pairing-transcript-v1.md](spec/pairing-transcript-v1.md) | **Partial** (normative draft + vectors) |
 | P2-3 | PQ downgrade prevention (no silent classical after hybrid) | **Done** — `validate_pairing_request_for_invite` |
 | P2-4 | Protocol version downgrade policy | **Done** — `invite.protocol` in transcript |
-| P2-5 | Skipped-key limits + DoS bounds | [double-ratchet.md](spec/double-ratchet.md) — verify |
-| P2-6 | Malicious-input test vectors + CBOR fuzz | Open |
+| P2-5 | Skipped-key limits + DoS bounds | [double-ratchet.md](spec/double-ratchet.md) | **Done** (`MAX_SKIP_GAP`/`MAX_SKIPPED_KEYS` + tests) |
+| P2-6 | Malicious-input test vectors + CBOR fuzz | `test_cbor_fuzz.py`, dict guards on CBOR parsers | **Done** |
 | P2-7 | Label ratchet "experimental, not audited" in docs | **Done** — `double-ratchet.md` |
 
 ## P3 — Real mobile evidence
