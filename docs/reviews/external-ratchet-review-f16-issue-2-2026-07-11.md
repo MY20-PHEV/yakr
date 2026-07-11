@@ -74,4 +74,4 @@ Architecturally cleaner than arbitrary periodic rotation; may require pairing tr
 
 - Issue: https://github.com/MY20-PHEV/yakr/issues/2
 - Discussion: https://github.com/MY20-PHEV/yakr/discussions/1
-- Backlog: P2-1 partial; F16 open with external confirmation
+- Backlog: P2-1 partial; **F16 closed** (pairing path, Option B); establish path deferred
