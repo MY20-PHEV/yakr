@@ -4,6 +4,18 @@
 
 **Remember:** A relay is an **operator role**, not a second chat device. Your phone stays the messaging identity; the homelab/VPS only stores opaque blobs.
 
+## Three identities (do not merge)
+
+| Identity | Example name | Keys | Purpose |
+|----------|--------------|------|---------|
+| **Messaging** | `alice` | Owner signing key in `YAKR_HOME` | Chat, pairing, E2E profiles |
+| **Relay operator** | `alice-ops` | `relays/alice-ops/identity.json` + TLS cert | Signed relay descriptor, TLS pin in profiles |
+| **Capability issuance** | (no display name) | `relays/alice-ops/relay-issuance/` | Signs short-lived relay grants |
+
+Capability-authenticated blob POST/fetch **must not** expose Alice's global `contact_id` or owner signing key — only per-relay `capability_id` and grant-bound `auth_public`. See [operator-identity-v1.md](spec/operator-identity-v1.md) for compromise playbooks.
+
+`yakr relay create` writes `manifest.json` with `capability_issuance_public_sha256` so you can verify deploy matches the bundle before friends rely on `/healthz`.
+
 ## Choose your path
 
 ```text
@@ -196,6 +208,7 @@ See [relay-authorization.md](spec/relay-authorization.md).
 
 ## Related docs
 
+- [operator-identity-v1.md](spec/operator-identity-v1.md) — three keys, wire privacy, compromise response
 - [relay-authorization.md](spec/relay-authorization.md) — advertise vs use
 - [relay-failover.md](spec/relay-failover.md) — ordered mailbox POST
 - [fetch-algorithm.md](spec/fetch-algorithm.md) — per-contact fetch (default) vs `--wide`

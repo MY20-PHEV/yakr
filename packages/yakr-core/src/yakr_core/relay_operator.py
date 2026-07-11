@@ -6,6 +6,7 @@ import json
 import secrets
 import shutil
 import time
+import hashlib
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -36,9 +37,11 @@ class RelayOperatorManifest:
     wrap_secret: bytes
     operator_home: str
     created_at: int
+    capability_issuance_public_b64: str = ""
+    capability_issuance_public_sha256: str = ""
 
     def to_dict(self) -> dict[str, str | int]:
-        return {
+        payload: dict[str, str | int] = {
             "version": self.version,
             "operator_name": self.operator_name,
             "owner_name": self.owner_name,
@@ -48,6 +51,10 @@ class RelayOperatorManifest:
             "operator_home": self.operator_home,
             "created_at": self.created_at,
         }
+        if self.capability_issuance_public_b64:
+            payload["capability_issuance_public_b64"] = self.capability_issuance_public_b64
+            payload["capability_issuance_public_sha256"] = self.capability_issuance_public_sha256
+        return payload
 
     @classmethod
     def from_dict(cls, payload: dict[str, str | int]) -> RelayOperatorManifest:
@@ -60,6 +67,8 @@ class RelayOperatorManifest:
             wrap_secret=b64decode(str(payload["wrap_secret"])),
             operator_home=str(payload["operator_home"]),
             created_at=int(payload["created_at"]),
+            capability_issuance_public_b64=str(payload.get("capability_issuance_public_b64", "")),
+            capability_issuance_public_sha256=str(payload.get("capability_issuance_public_sha256", "")),
         )
 
 
@@ -247,7 +256,8 @@ def create_relay_operator(
     write_endpoint_tls_files(operator, operator_home / "relay-tls")
     spki_path = operator_home / "relay-tls" / "spki_sha256.hex"
     spki_path.write_text(endpoint_tls_spki_sha256(operator).hex() + "\n", encoding="utf-8")
-    write_relay_issuance_keys(operator_home)
+    _, issuance_public = write_relay_issuance_keys(operator_home)
+    issuance_fingerprint = hashlib.sha256(issuance_public).hexdigest()
 
     public_url = public_url.rstrip("/")
     descriptor = relay_descriptor_for_operator(
@@ -283,6 +293,8 @@ def create_relay_operator(
         wrap_secret=wrap_secret,
         operator_home=f"relays/{operator_name}",
         created_at=int(time.time() * 1000),
+        capability_issuance_public_b64=b64encode(issuance_public),
+        capability_issuance_public_sha256=issuance_fingerprint,
     )
     manifest_path(operator_home).write_text(
         json.dumps(manifest.to_dict(), indent=2),
@@ -359,6 +371,8 @@ def refresh_operator_public_url(
         wrap_secret=manifest.wrap_secret,
         operator_home=manifest.operator_home,
         created_at=manifest.created_at,
+        capability_issuance_public_b64=manifest.capability_issuance_public_b64,
+        capability_issuance_public_sha256=manifest.capability_issuance_public_sha256,
     )
     manifest_path(operator_home).write_text(
         json.dumps(updated_manifest.to_dict(), indent=2),
