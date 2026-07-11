@@ -2,6 +2,26 @@
 
 **Audience:** Someone in a Yakr cell who wants **always-on mailboxes** for friends — without opening **443** on a home router or running a central platform.
 
+**Quick start (VPS / homelab):**
+
+```bash
+# One-time: messaging identity
+yakr identity init --name alice
+
+# Create operator bundle + deploy + capability bootstrap
+./scripts/homelab_relay_deploy.sh \
+  --create \
+  --operator alice-ops \
+  --vps user@203.0.113.10 \
+  --public-url https://relay.example:8090
+
+# Publish relay to paired contacts
+yakr profile publish
+yakr profile push bob
+```
+
+Equivalent CLI steps: `yakr relay create` → `yakr relay deploy` → `yakr relay capability-bootstrap` → `yakr profile publish`.
+
 **Remember:** A relay is an **operator role**, not a second chat device. Your phone stays the messaging identity; the homelab/VPS only stores opaque blobs.
 
 ## Three identities (do not merge)

@@ -28,7 +28,7 @@ The whitepaper explains intent; the normative spec determines interoperability.
 | Document | Description |
 |----------|-------------|
 | [whitepaper.md](whitepaper.md) | Conceptual protocol whitepaper (Draft v0.1) |
-| [CERTIFICATION.md](CERTIFICATION.md) | **Yakr Protocol Certified** conformance program (draft) |
+| [CERTIFICATION.md](CERTIFICATION.md) | **Yakr Protocol Certified** program (**open**) |
 | [NOTICE.md](NOTICE.md) | Name, UK IPO search summary, independence disclaimers |
 | [docs/REFERENCE_DESIGN.md](docs/REFERENCE_DESIGN.md) | Phased reference implementation plan |
 | [docs/spec/yakr-protocol-v1.md](docs/spec/yakr-protocol-v1.md) | Normative v1.0 protocol spec |
@@ -40,8 +40,10 @@ The whitepaper explains intent; the normative spec determines interoperability.
 | [docs/spec/ephemeral-messages.md](docs/spec/ephemeral-messages.md) | 24h ephemeral message TTL |
 | [docs/spec/fetch-algorithm.md](docs/spec/fetch-algorithm.md) | **Normative** fetch ordering, receipts, and contact state |
 | [docs/spec/delivery-state-machine.md](docs/spec/delivery-state-machine.md) | **Normative** delivery/receipt state machine |
+| [certification/README.md](certification/README.md) | Certification application process and fees |
+| [docs/spec/phase-11-implementation-readiness.md](docs/spec/phase-11-implementation-readiness.md) | Phase 11 milestone (**complete**) |
 | [docs/spec/errata-v1.md](docs/spec/errata-v1.md) | v1.0 errata and deferred extensions |
-| [docs/spec/phase-11-implementation-readiness.md](docs/spec/phase-11-implementation-readiness.md) | **Active milestone** — Python↔Rust parity, full conformance vectors |
+| [docs/homelab-relay.md](docs/homelab-relay.md) | **Homelab relay runbook** — quick deploy script + 8090/VPS |
 | [docs/spec/relay-observer-privacy-v1.md](docs/spec/relay-observer-privacy-v1.md) | **Normative** what each relay/observer learns (metadata vs E2E) |
 | [docs/spec/operator-identity-v1.md](docs/spec/operator-identity-v1.md) | **Normative** messaging vs operator vs capability issuance keys |
 | [docs/SECURITY_BACKLOG.md](docs/SECURITY_BACKLOG.md) | Security hardening backlog (P0–P3) |
@@ -52,11 +54,14 @@ The whitepaper explains intent; the normative spec determines interoperability.
 | [docs/spec/mesh-testing-and-resilience.md](docs/spec/mesh-testing-and-resilience.md) | Mesh stress and relay outage test status |
 | [docs/html/index.html](docs/html/index.html) | Visual protocol guide (HTML + flowcharts) |
 | [docs/demo-vps-charlie.md](docs/demo-vps-charlie.md) | Alice/Bob local + Charlie on VPS demo |
-| [docs/homelab-relay.md](docs/homelab-relay.md) | **Homelab relay runbook** — 8090 at home, Tailscale, or VPS |
 
 ## Relay operator CLI
 
 ```bash
+# Or use the all-in-one homelab script:
+./scripts/homelab_relay_deploy.sh --create --operator alice-ops \
+  --vps user@203.0.113.10 --public-url https://relay.example:8090
+
 yakr relay create alice-ops --public-url https://relay.example:8090   # operator identity + pairing
 yakr relay deploy alice-ops --vps user@203.0.113.10                   # VPS via deploy script
 yakr relay status alice-ops
@@ -67,9 +72,7 @@ See [docs/homelab-relay.md](docs/homelab-relay.md).
 
 ## Status
 
-**Phase 10 complete** — Yakr Protocol v1.0, test vectors, security analysis, interop verifier, presence/TLS/failover, `yakr fetch --all`, and relay embed (see [docs/spec/phase-10-presence.md](docs/spec/phase-10-presence.md)).
-
-**Steward model:** open spec and reference code; third parties ship messengers and relay hosting. [CERTIFICATION.md](CERTIFICATION.md) describes the **Yakr Protocol Certified** program (applications not yet open).
+**Phase 11 complete** — independent implementation readiness (Python↔Rust interop, full vectors, normative delivery). [CERTIFICATION.md](CERTIFICATION.md) is **open** for applications.
 
 | Document | Description |
 |----------|-------------|

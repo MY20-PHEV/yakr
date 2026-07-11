@@ -40,15 +40,23 @@ No endorsement, partnership, or affiliation with these entities is implied. If y
 - Links to this repository and the normative spec
 - Independent product names that do not include **Yakr Certified** or confusingly similar marks
 
-## Planned web presence (domains not yet registered by steward)
+## Registered domains (steward)
 
-When registered, canonical URLs are intended to be:
+Registered **8 July 2026** (expiry **8 July 2027**):
 
-- **yakr.org** — specification, certification, GitHub links
-- **yakr.co.uk** — UK steward face, merch (if any)
+| Domain | Intended use |
+|--------|----------------|
+| **yakr.co.uk** | Primary UK site — spec links, steward, certification |
+| **yakr.uk** | Redirect → `yakr.co.uk` |
+| **yakr.store** | Merch shop (when launched) |
+| **yakr.info** | Redirect or lightweight mirror → `yakr.co.uk` |
+
+**yakr.org** is not registered yet; consider adding it later as the neutral protocol home if available. Until then, **yakr.co.uk** is the canonical public URL.
 
 Domain registration does not by itself establish trade mark rights; it supports a clear public home for **Yakr Protocol** separate from sound-alike businesses.
 
+**Registrar notes:** enable **Domain Guard** (or equivalent transfer lock) on **yakr.co.uk** at minimum; use registrar DNS or Cloudflare for redirects from `.uk` / `.info`.
+
 ## Questions
 
-Certification and naming inquiries: open a GitHub issue labeled `certification` (process TBD) or contact the repository owner.
+Certification and naming inquiries: open a GitHub issue using **Yakr Certification Application** (label `certification`) or see [certification/README.md](certification/README.md).
