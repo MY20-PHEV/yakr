@@ -108,9 +108,18 @@ To rotate:
 1. Client increments `capability_generation`, generates new `issuance_salt`, and publishes them in the delivery profile (`yakr profile publish`).
 2. Client derives new `capability_id` and `auth_keypair`.
 3. Client obtains new `CapabilityGrant` from relay via `POST /v1/capabilities/issue` (no manual bootstrap when relay advertises issuance key).
-4. Relay marks previous generation revoked after overlap window (default 1h).
+4. Relay marks previous capability id revoked after overlap window (default 48h; see [tls-pin-lifecycle.md](./tls-pin-lifecycle.md)).
 
-Expired grants are rejected; revoked generations are rejected even if signature still verifies.
+Expired grants are rejected; revoked capability ids are rejected after the overlap window even if the grant signature still verifies.
+
+## Revocation
+
+| Endpoint | Auth | Effect |
+|----------|------|--------|
+| `POST /v1/capabilities/issue` with `supersedes_capability_id` | Relay ticket | Starts overlap teardown for the previous capability id |
+| `POST /v1/capabilities/revoke` | Relay ticket | Immediate revocation (zero overlap) |
+
+Default overlap: **48 hours** (`DEFAULT_CAPABILITY_OVERLAP_MS` in relay reference).
 
 ## Relationship to RelayTicket v1
 
