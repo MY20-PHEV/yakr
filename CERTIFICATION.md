@@ -1,8 +1,8 @@
 # Yakr Protocol Certification Program
 
-**Status:** Draft (program not yet accepting applications)  
+**Status:** Open — accepting applications (opened 2026-07-11; Phase 11 prerequisite met)  
 **Protocol baseline:** `yakr-v1.0`  
-**Companion:** [interop/README.md](interop/README.md) · [NOTICE.md](NOTICE.md)
+**Companion:** [interop/README.md](interop/README.md) · [NOTICE.md](NOTICE.md) · [certification/README.md](certification/README.md)
 
 **Yakr Protocol** is an **open messaging protocol** (public name; short form **Yakr** in wire tags and packages). The reference Python implementation demonstrates correctness; **production messengers and relay operators are expected to be independent products**. Certification is how implementers show conformance and how users find compatible software — without a central Yakr messaging platform.
 
@@ -13,7 +13,7 @@ Formal badge name: **Yakr Protocol Certified** (short: **Yakr Certified**).
 | Dimension | Status |
 |-----------|--------|
 | Reference implementation | Broad phase coverage |
-| Protocol stability | Draft (`yakr-v1.0` interop baseline) |
+| Protocol stability | `yakr-v1.0` interop baseline (Phase 11 complete) |
 | Security maturity | **Experimental** — composition not externally audited |
 | Production recommendation | **No** |
 
@@ -88,6 +88,12 @@ For mailbox / rendezvous servers implementing `yakr-relay` semantics.
 Anyone may run conformance tests **without** a badge:
 
 ```bash
+./scripts/certification_self_test.sh
+```
+
+Or run tests individually:
+
+```bash
 uv sync --all-packages
 uv run pytest packages/yakr-testkit/tests/test_phase9_interop.py -q
 uv run pytest packages/yakr-testkit/tests/test_phase9_relay_abuse.py -q
@@ -98,12 +104,13 @@ from yakr_testkit.interop_verifier import verify_all_vectors
 verify_all_vectors("docs/spec/test-vectors-v1")
 ```
 
-**Official certification** (when the program is open) adds:
+**Official certification** adds:
 
-1. Submitted build + test report (or hosted test session)
-2. Review of relay-authorization and mobile receive-path claims
-3. Permission to use **Yakr Certified** name and badge artwork
-4. Listing in the public implementers directory (URL TBD)
+1. Submitted build + test report ([`scripts/certification_self_test.sh`](scripts/certification_self_test.sh))
+2. Completed category checklist ([`certification/client-checklist.md`](certification/client-checklist.md) or [`relay-checklist.md`](certification/relay-checklist.md))
+3. Review of relay-authorization and mobile receive-path claims
+4. Permission to use **Yakr Certified** name and [badge artwork](certification/badge/)
+5. Listing in [certification/IMPLEMENTERS.md](certification/IMPLEMENTERS.md)
 
 Self-test success does not grant trademark use.
 
@@ -127,28 +134,28 @@ Forks and independent implementations are welcome; they must not use the certifi
 
 ---
 
-## Fees (draft)
+## Fees (published 2026-07-11)
 
 Fees fund conformance review and steward costs (CI, spec maintenance, security mailbox) — **not** access to the protocol.
 
-| Tier | Audience | Draft fee model |
-|------|----------|-----------------|
-| **Open source / nonprofit** | OSS clients, research | Free listing after self-test + lightweight review |
-| **Commercial client** | App stores, enterprise messengers | One-time certification + annual renewal |
-| **Commercial relay** | Hosted relay operators | One-time certification + annual renewal |
-| **Re-certification** | Major version bump | Delta review fee |
+| Tier | Audience | Fee |
+|------|----------|-----|
+| **Open source / nonprofit** | OSS clients, research | **Free** listing after review |
+| **Commercial client** | App stores, enterprise messengers | **£500** one-time + **£200/year** renewal |
+| **Commercial relay** | Hosted relay operators | **£300** one-time + **£150/year** renewal |
+| **Re-certification** | Major version bump | **£150** delta review |
 
-Exact pricing will be published before applications open. The spec and test vectors remain **free and public** regardless.
+The spec and test vectors remain **free and public** regardless.
 
 ---
 
-## Application process (when open)
+## Application process
 
-1. **Register interest** — issue or email on the public tracker (TBD)
-2. **Self-test** — submit pytest + `verify_all_vectors` output
-3. **Category checklist** — client and/or relay form
+1. **Self-test** — `./scripts/certification_self_test.sh` (attach full output)
+2. **Checklist** — [client](certification/client-checklist.md) and/or [relay](certification/relay-checklist.md)
+3. **Apply** — GitHub issue **Yakr Certification Application** (label `certification`), or steward contact via issue labeled `certification`
 4. **Review** — steward or delegated reviewer; may request fixes or spec errata
-5. **Grant** — certificate ID, badge assets, directory listing
+5. **Grant** — certificate ID, badge assets, [IMPLEMENTERS.md](certification/IMPLEMENTERS.md) listing
 6. **Renewal** — annual re-run of vectors; revoke on fraud or spec violation
 
 Target review time (goal): 4–8 weeks for first commercial application.
