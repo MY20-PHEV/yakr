@@ -1,13 +1,28 @@
-# Tailscale homelab — Charlie + Dennis on `homelab` (100.125.109.114)
+# Tailscale homelab — Charlie + Dennis (private config required)
+#
+# Copy scripts/homelab_tailscale.local.env.example → homelab_tailscale.local.env
+# and set your Tailscale IP, SSH user, and wrap secrets. The local file is gitignored.
 #
 # Usage:
-#   source scripts/homelab_tailscale.env.sh
 #   ./scripts/run_homelab_tailscale.sh
-#
-# SSH user: devos (see docs/spec/five-peer-homelab-relay-test.md)
 
-export HOMELAB_TAILSCALE_IP="${HOMELAB_TAILSCALE_IP:-100.125.109.114}"
-export HOMELAB_SSH_USER="${HOMELAB_SSH_USER:-devos}"
+_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_LOCAL_ENV="${_SCRIPT_DIR}/homelab_tailscale.local.env"
+
+if [[ ! -f "$_LOCAL_ENV" ]]; then
+  echo "Missing $_LOCAL_ENV" >&2
+  echo "Copy scripts/homelab_tailscale.local.env.example and fill in your values." >&2
+  return 1 2>/dev/null || exit 1
+fi
+
+# shellcheck source=/dev/null
+source "$_LOCAL_ENV"
+
+: "${HOMELAB_TAILSCALE_IP:?Set HOMELAB_TAILSCALE_IP in homelab_tailscale.local.env}"
+: "${HOMELAB_SSH_USER:?Set HOMELAB_SSH_USER in homelab_tailscale.local.env}"
+: "${CHARLIE_WRAP_SECRET:?Set CHARLIE_WRAP_SECRET in homelab_tailscale.local.env}"
+: "${DENNIS_WRAP_SECRET:?Set DENNIS_WRAP_SECRET in homelab_tailscale.local.env}"
+
 export VPS_HOST="${VPS_HOST:-${HOMELAB_SSH_USER}@${HOMELAB_TAILSCALE_IP}}"
 export CHARLIE_VPS_HOST="${CHARLIE_VPS_HOST:-$VPS_HOST}"
 export DENNIS_VPS_HOST="${DENNIS_VPS_HOST:-$VPS_HOST}"
@@ -17,17 +32,9 @@ export DENNIS_URL="${DENNIS_URL:-https://${HOMELAB_TAILSCALE_IP}:8091}"
 export ALICE_OPS_PORT="${ALICE_OPS_PORT:-8092}"
 export ALICE_OPS_URL="${ALICE_OPS_URL:-https://${HOMELAB_TAILSCALE_IP}:${ALICE_OPS_PORT}}"
 
-# Operator TLS + identity (repo-local; generate with scripts/generate_operator_relay_tls.py)
-_REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+_REPO_ROOT="$(cd "${_SCRIPT_DIR}/.." && pwd)"
 export CHARLIE_OPERATOR_HOME="${CHARLIE_OPERATOR_HOME:-${_REPO_ROOT}/.tmp-homelab-operators/charlie-operator}"
 export DENNIS_OPERATOR_HOME="${DENNIS_OPERATOR_HOME:-${_REPO_ROOT}/.tmp-homelab-operators/dennis-operator}"
 
-# Wrap secrets must match the running containers (see five-peer-homelab-relay-test.md)
-export CHARLIE_WRAP_SECRET="${CHARLIE_WRAP_SECRET:-ad3_Qrz0t6T-ftW-sUFk4d8jFnZNnpFkBMm2UXE3DmY}"
-export DENNIS_WRAP_SECRET="${DENNIS_WRAP_SECRET:-FJXWbQSyAvPsI7wuGyG8_McBv9Qf-OKAFobDaobaTxQ}"
-
 export YAKR_REQUIRE_TLS=1
-
-# Homelab images deployed before POST /v1/fetch need legacy GET fetch until redeployed.
-# After `scripts/deploy_charlie_vps.sh` + `deploy_dennis_vps.sh` with current repo, unset this.
 export YAKR_LEGACY_GET_FETCH="${YAKR_LEGACY_GET_FETCH:-1}"

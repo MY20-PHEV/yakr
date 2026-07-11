@@ -8,7 +8,10 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 # shellcheck source=scripts/homelab_tailscale.env.sh
-source scripts/homelab_tailscale.env.sh
+source scripts/homelab_tailscale.env.sh || {
+  echo "Configure scripts/homelab_tailscale.local.env first (see .example)." >&2
+  exit 1
+}
 
 echo "=== Homelab Tailscale ==="
 echo "Charlie: $CHARLIE_URL"

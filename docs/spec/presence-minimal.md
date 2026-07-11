@@ -26,7 +26,7 @@ Protocol: `yakr-v1.1/presence`
 {
   "protocol": "yakr-v1.1/presence",
   "operator_name": "charlie",
-  "reachable_url": "http://100.125.109.114:8090",
+  "reachable_url": "https://relay.example:8090",
   "relay_active": true,
   "valid_until": 1710000000000
 }
