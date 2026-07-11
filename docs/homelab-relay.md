@@ -209,6 +209,40 @@ Not everyone in the cell runs a relay.
 
 See [relay-authorization.md](spec/relay-authorization.md).
 
+## TLS or relay host compromise (playbook)
+
+Use when the relay TLS key, host, or `wrap_secret` may be exposed. **No full re-pairing** if the operator signing identity is intact.
+
+### 1. Contain
+
+Stop the relay (`docker compose down` in `relays/<ops>/deploy/`).
+
+### 2. Rotate material
+
+| Asset | Action |
+|-------|--------|
+| TLS cert + key | Regenerate (`yakr relay create --force` or `write_endpoint_tls_files`) |
+| `wrap_secret` | New random 32 bytes in operator profile descriptor |
+| Capability issuance key | Regenerate `relay-issuance/` if the host was rooted |
+| Owner messaging identity | Rotate only if E2E keys are compromised |
+
+### 3. Redeploy and publish
+
+```bash
+yakr relay deploy <ops> --vps user@host
+yakr profile publish --bump-version    # owner: new pin + wrap_secret
+yakr profile push <contact>            # each peer
+yakr presence push                     # if URL changed
+```
+
+Peers accept updates when `incoming.version > stored`. Old TLS pins MUST fail against the redeployed relay.
+
+### 4. Verify
+
+From a peer: `yakr fetch <owner>` and send a test message via the recovered relay.
+
+If the **operator signing key** is lost, full re-pairing is required. See [tls-pin-lifecycle.md](spec/tls-pin-lifecycle.md) (48h overlap default) and [operator-identity-v1.md](spec/operator-identity-v1.md).
+
 ## Related docs
 
 - [operator-identity-v1.md](spec/operator-identity-v1.md) — three keys, wire privacy, compromise response

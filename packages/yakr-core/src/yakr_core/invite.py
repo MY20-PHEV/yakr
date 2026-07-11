@@ -67,6 +67,8 @@ class InviteBundle:
     @classmethod
     def from_bytes(cls, data: bytes) -> InviteBundle:
         payload = cbor2.loads(data)
+        if not isinstance(payload, dict):
+            raise ValueError("invalid invite bundle")
         return cls(
             protocol=str(payload["protocol"]),
             inviter_name=str(payload["inviter_name"]),

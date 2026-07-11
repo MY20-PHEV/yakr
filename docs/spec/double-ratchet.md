@@ -23,6 +23,19 @@ Persisted on each `Contact`:
 | `prev_send_n` | Previous chain length (header) |
 | `skipped_keys` | Out-of-order message keys |
 
+## Skipped-key bounds (normative)
+
+To limit DoS via huge forward `message_n` gaps:
+
+| Constant | Default | Behaviour |
+|----------|---------|-----------|
+| `MAX_SKIP_GAP` | 128 | Reject decrypt when `message_n - recv_n` exceeds this |
+| `MAX_SKIPPED_KEYS` | 256 | Reject when storing more skipped chain keys would exceed this |
+
+Implementations MUST clear `skipped_keys` on DH ratchet step (new peer public key).
+
+Violations surface as decrypt failure (`DecryptError` at session layer).
+
 ## Bootstrap (pairing)
 
 From pairwise `master_secret`:
