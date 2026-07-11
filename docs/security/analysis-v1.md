@@ -118,22 +118,23 @@ Presence does not provide anonymity against a global observer correlating poll t
 
 Users who **opt in** to platform wake delegate a wake capability to relays they already trust for blob storage. A wake gateway and the platform provider (APNs/FCM) see device handles and wake timing, not ciphertext. Users who need minimum third-party metadata SHOULD leave wake disabled and rely on poll-only delivery.
 
-### 8.5 Relay-observer privacy (draft)
+### 8.5 Relay-observer privacy
 
-What observers learn depends on deployment mode. **Default reference path: single-hop mailbox** (`POST`/`GET` same relay).
+Normative table: **[relay-observer-privacy-v1.md](../spec/relay-observer-privacy-v1.md)**.
 
-| Observation | Mailbox relay (single-hop default) | Entry relay (optional two-hop) | Network observer | Wake gateway (opt-in) |
-|-------------|-----------------------------------|----------------------------------|------------------|------------------------|
-| Client IP on store/fetch | Store: poster IP; fetch: poller IP | Entry: poster; mailbox: may differ | TLS metadata, timing | N/A |
-| Mailbox tag | **Yes** (fetch path / logs) | Mailbox relay: yes; entry: tag may be wrapped | Hidden under TLS to relay only | No |
-| Blob size | Yes | Yes | Approximate | No |
-| Sender identity key | **Must be no** (E2E) | **Must be no** | No | No |
-| Recipient identity key | **Must be no** | **Must be no** | No | No |
-| Plaintext content | **No** | **No** | No | No |
-| Timing / volume | Yes | Yes | Yes | Wake timing |
-| Stable relay ticket identity | Yes if `require_tickets` (`issuer_signing_public`, `contact_id`) | Same | No | Device token if wake enabled |
+Summary for the default **single-hop mailbox** path:
 
-**Wording standard:** say *relays do not receive plaintext identifiers or decrypt contents* — not *relays never know who sent or fetched* (network and operator context may deanonymise).
+| Observation | Mailbox relay | Network observer | Wake gateway (opt-in) |
+|-------------|---------------|------------------|------------------------|
+| Poster / fetcher IP | Yes | TLS metadata only | N/A |
+| Mailbox tag | Yes | No (inside TLS) | No |
+| Blob size | Yes | Approximate | No |
+| Plaintext / identity keys | **No** | **No** | **No** |
+| Ticket `contact_id` | Yes (legacy ticket mode) | No | No |
+| `capability_id` | Yes (capability mode) | No | No |
+| Timing / volume | Yes | Yes | Wake timing |
+
+**Wording standard:** say *relays do not receive plaintext identifiers or decrypt contents* — not *relays never know who sent or fetched* (network and operator context may deanonymise). See the normative spec for two-hop entry/mailbox split and auth-mode columns.
 
 ## 9. Review Checklist
 

@@ -37,7 +37,7 @@
 | P1-1 | Replace stable `contact_id` in relay tickets | [ADR 012](adr/012-relay-capability-tokens.md), [relay-capability-v1.md](spec/relay-capability-v1.md) | **Partial** (auto-detect via `/healthz`; operator contact auth) |
 | P1-2 | Per-relay pseudonymous capability tokens | ADR 012 + `derive_capability_material` | **Partial** (profile `capability_generation` + `issuance_salt`; publish syncs grant) |
 | P1-3 | Separate operator identity from relay client capability | | Design |
-| P1-4 | Relay-observer privacy table | [security/analysis-v1.md](security/analysis-v1.md) §8.5 | Draft |
+| P1-4 | Relay-observer privacy table | [relay-observer-privacy-v1.md](spec/relay-observer-privacy-v1.md) | **Done** |
 | P1-5 | `POST /v1/fetch` (tags in body, not URL path) | Reduces infra log leakage | **Done** (default; `YAKR_LEGACY_GET_FETCH=1` for GET) |
 | P1-6 | Capability / wake token revocation lifecycle | [platform-wake-v1.md](spec/platform-wake-v1.md) | Partial spec |
 
