@@ -7,7 +7,9 @@
 
 ## Purpose
 
-Pairing establishes the long-term `master_secret`, `contact_id`, initial ratchet state, and exchanged delivery profiles. This document specifies **exactly which bytes are hashed and mixed** so an external reviewer can answer:
+Pairing establishes the long-term `master_secret`, `contact_id`, initial ratchet state, and exchanged delivery profiles. **Invite pairing is the normative production bootstrap** for v1.0 sessions with an active DH ratchet ([double-ratchet.md](./double-ratchet.md) § Session bootstrap paths). `Contact.establish()` is out of scope here.
+
+This document specifies **exactly which bytes are hashed and mixed** so an external reviewer can answer:
 
 - Are long-term identities bound to ephemeral keys?
 - Can two parties derive the same secret while disagreeing about the peer?
