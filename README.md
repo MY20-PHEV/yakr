@@ -41,6 +41,7 @@ The whitepaper explains intent; the normative spec determines interoperability.
 | [docs/spec/fetch-algorithm.md](docs/spec/fetch-algorithm.md) | **Normative** fetch ordering, receipts, and contact state |
 | [docs/spec/delivery-state-machine.md](docs/spec/delivery-state-machine.md) | Delivery/receipt state machine (P0 draft) |
 | [docs/spec/relay-observer-privacy-v1.md](docs/spec/relay-observer-privacy-v1.md) | **Normative** what each relay/observer learns (metadata vs E2E) |
+| [docs/spec/operator-identity-v1.md](docs/spec/operator-identity-v1.md) | **Normative** messaging vs operator vs capability issuance keys |
 | [docs/SECURITY_BACKLOG.md](docs/SECURITY_BACKLOG.md) | Security hardening backlog (P0–P3) |
 | [docs/target-audience.md](docs/target-audience.md) | Target audience and positioning (draft) |
 | [docs/reviews/external-critique-2026-07-10.md](docs/reviews/external-critique-2026-07-10.md) | External protocol review (reference) |
