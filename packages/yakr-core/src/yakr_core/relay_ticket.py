@@ -44,6 +44,8 @@ class RelayTicket:
     @classmethod
     def from_bytes(cls, data: bytes) -> RelayTicket:
         payload = cbor2.loads(data)
+        if not isinstance(payload, dict):
+            raise ValueError("invalid relay ticket")
         return cls(
             issuer_signing_public=bytes(payload["issuer_signing_public"]),
             relay_name=str(payload["relay_name"]),

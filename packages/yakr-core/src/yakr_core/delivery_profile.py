@@ -118,6 +118,8 @@ class DeliveryProfile:
     @classmethod
     def from_bytes(cls, data: bytes) -> DeliveryProfile:
         payload = cbor2.loads(data)
+        if not isinstance(payload, dict):
+            raise ValueError("invalid delivery profile")
         mailbox_params = payload["mailbox_params"]
         return cls(
             protocol=str(payload["protocol"]),

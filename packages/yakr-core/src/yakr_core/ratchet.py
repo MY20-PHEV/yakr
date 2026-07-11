@@ -9,6 +9,8 @@ from cryptography.hazmat.primitives.asymmetric import x25519
 from yakr_core.crypto import hkdf_derive, x25519_shared_secret, xchacha_decrypt, xchacha_encrypt
 
 RATCHET_MAGIC = b"YKDR2"
+MAX_SKIP_GAP = 128
+MAX_SKIPPED_KEYS = 256
 ROOT_INFO = b"yakr/v1.0/double-ratchet-root"
 RK_INFO = b"yakr/v1.0/double-ratchet-rk"
 CK_INFO = b"yakr/v1.0/double-ratchet-ck"
@@ -155,6 +157,7 @@ class RatchetState:
         self.skipped_keys[key_id] = base64.urlsafe_b64encode(message_key).decode("ascii").rstrip("=")
 
     def _dh_ratchet(self, peer_public: bytes) -> None:
+        self.skipped_keys.clear()
         self.dh_peer_public = peer_public
         dh_self = _load_private(self.dh_self_private)
         dh_output = x25519_shared_secret(dh_self, peer_public)
@@ -212,6 +215,11 @@ class RatchetState:
             except KeyError:
                 raise ValueError("ratchet message already received") from None
         else:
+            gap = message_n - self.recv_n
+            if gap > MAX_SKIP_GAP:
+                raise ValueError("ratchet skip gap too large")
+            if len(self.skipped_keys) + gap > MAX_SKIPPED_KEYS:
+                raise ValueError("ratchet skipped key limit exceeded")
             while self.recv_n < message_n:
                 mk, self.recv_chain_key = _kdf_ck(self.recv_chain_key)
                 self._store_skip(peer_public, self.recv_n, mk)
