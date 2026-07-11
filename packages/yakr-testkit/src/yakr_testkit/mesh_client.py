@@ -209,7 +209,7 @@ class MeshParticipant:
                 for item in pending:
                     outer = OuterBlob.from_relay_json(item)
                     try:
-                        inner = session.decrypt_outer(outer)
+                        inner = session.decrypt_inbound(outer)
                     except DuplicateSeqError:
                         still_pending.append(item)
                         continue
