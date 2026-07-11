@@ -20,6 +20,7 @@ from yakr_core.capability_grant import (
 from yakr_core.http_client import endpoint_base_url, resolve_tls_pin_for_url, url_operator_map, yakr_get, yakr_post
 from yakr_core.identity import Contact, Identity, b64decode, b64encode
 from yakr_core.delivery_profile import DeliveryProfile, RelayDescriptor, mailbox_descriptors
+from yakr_core.relay_ticket import issue_relay_ticket
 from yakr_core.store import FileLocalStore
 
 DEFAULT_CAPABILITY_PERMISSIONS = ("post", "fetch")
@@ -409,6 +410,7 @@ def relay_name_for_url(
     relay_url: str,
     network: dict | None = None,
     *,
+    store: FileLocalStore | None = None,
     default: str = "relay",
 ) -> str:
     normalized = endpoint_base_url(relay_url)
@@ -416,6 +418,10 @@ def relay_name_for_url(
         for node in network.values():
             if endpoint_base_url(node.url) == normalized:
                 return node.name
+    if store is not None:
+        operator = url_operator_map(store).get(normalized)
+        if operator is not None:
+            return operator
     return os.environ.get("YAKR_RELAY_NAME", default)
 
 
