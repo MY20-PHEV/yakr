@@ -1,0 +1,32 @@
+[
+  {
+    "name": "pairing-request-empty-cbor",
+    "category": "cbor",
+    "operation": "pairing_request_decode",
+    "must_reject": true,
+    "cbor_hex": ""
+  },
+  {
+    "name": "pairing-response-empty-cbor",
+    "category": "cbor",
+    "operation": "pairing_response_decode",
+    "must_reject": true,
+    "cbor_hex": ""
+  },
+  {
+    "name": "pairing-request-invalid-cbor",
+    "category": "cbor",
+    "operation": "pairing_request_decode",
+    "must_reject": true,
+    "error_contains": "invalid pairing request",
+    "cbor_hex": "ff"
+  },
+  {
+    "name": "pairing-response-invalid-cbor",
+    "category": "cbor",
+    "operation": "pairing_response_decode",
+    "must_reject": true,
+    "error_contains": "invalid pairing response",
+    "cbor_hex": "ff"
+  }
+]

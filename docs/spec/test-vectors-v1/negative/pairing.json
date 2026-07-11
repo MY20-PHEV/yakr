@@ -1,0 +1,54 @@
+[
+  {
+    "name": "pairing-classical-unexpected-kem",
+    "category": "pairing",
+    "operation": "pairing_validate",
+    "must_reject": true,
+    "error_contains": "unexpected kem ciphertext",
+    "invite_protocol": "yakr-v0.4",
+    "invite_secret_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "invite_kem_public_hex": "",
+    "request_invite_secret_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "joiner_ratchet_public_hex": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "kem_ciphertext_hex": "0001"
+  },
+  {
+    "name": "pairing-hybrid-missing-kem",
+    "category": "pairing",
+    "operation": "pairing_validate",
+    "must_reject": true,
+    "error_contains": "hybrid invite requires kem",
+    "invite_protocol": "yakr-v0.6",
+    "invite_secret_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "invite_kem_public_hex": "9c8818c38c8ed636b1c79b592e4632c8a06df4d50821894e0e67449044030035",
+    "request_invite_secret_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "joiner_ratchet_public_hex": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "kem_ciphertext_hex": ""
+  },
+  {
+    "name": "pairing-invite-secret-mismatch",
+    "category": "pairing",
+    "operation": "pairing_validate",
+    "must_reject": true,
+    "error_contains": "pairing invite secret mismatch",
+    "invite_protocol": "yakr-v0.4",
+    "invite_secret_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "invite_kem_public_hex": "",
+    "request_invite_secret_hex": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "joiner_ratchet_public_hex": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "kem_ciphertext_hex": ""
+  },
+  {
+    "name": "pairing-missing-joiner-ratchet-public",
+    "category": "pairing",
+    "operation": "pairing_validate",
+    "must_reject": true,
+    "error_contains": "pairing request missing joiner ratchet public key",
+    "invite_protocol": "yakr-v0.4",
+    "invite_secret_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "invite_kem_public_hex": "",
+    "request_invite_secret_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "joiner_ratchet_public_hex": "aa",
+    "kem_ciphertext_hex": ""
+  }
+]

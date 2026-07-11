@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from yakr_testkit.interop_verifier import (
+    verify_all_negative_vectors,
     verify_all_vectors,
     verify_delivery_profile_vector,
     verify_double_ratchet_vector,
@@ -12,6 +13,7 @@ from yakr_testkit.interop_verifier import (
     verify_inner_message_vector,
     verify_invite_vector,
     verify_mailbox_tag_vector,
+    verify_negative_vector,
     verify_pairing_transcript_vector,
 )
 
@@ -72,3 +74,23 @@ def test_interop_double_ratchet_independent() -> None:
     vectors = json.loads((VECTORS / "double_ratchet.json").read_text(encoding="utf-8"))
     for vector in vectors:
         assert verify_double_ratchet_vector(vector)
+
+
+def test_interop_negative_vectors_all() -> None:
+    verify_all_negative_vectors(VECTORS)
+
+
+def test_interop_negative_pairing_independent() -> None:
+    import json
+
+    vectors = json.loads((VECTORS / "negative" / "pairing.json").read_text(encoding="utf-8"))
+    for vector in vectors:
+        assert verify_negative_vector(vector, vectors_dir=VECTORS)
+
+
+def test_interop_negative_ratchet_independent() -> None:
+    import json
+
+    vectors = json.loads((VECTORS / "negative" / "ratchet.json").read_text(encoding="utf-8"))
+    for vector in vectors:
+        assert verify_negative_vector(vector, vectors_dir=VECTORS)

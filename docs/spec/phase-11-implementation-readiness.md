@@ -23,9 +23,9 @@ Phase 9 proved a narrow crypto/encoding interop slice. Phase 11 closes the gap b
 | 1 | Python and Rust implement the **same normative pairing and ratchet path** | **Done (WP1)** | Rust Option B parity; cross-lang CI in WP2 |
 | 2 | **Python↔Rust interoperability** succeeds in **both role directions** (inviter/joiner × send/fetch) | **Done (WP2)** | `test_phase11_cross_lang.py` + CI |
 | 3 | **All normative wire structures** have frozen vectors | **Partial** | Pairing + ratchet in `interop_verifier`; outer blob / receipt CBOR still reference-only |
-| 4 | **Negative vectors** define rejection behaviour | **Open** | Adversarial tests exist in pytest (`test_cbor_fuzz.py`, ratchet tests) but no published `test-vectors-v1/negative/` artefacts for third parties |
+| 4 | **Negative vectors** define rejection behaviour | **Done (WP4)** | `test-vectors-v1/negative/` + `verify_negative_vector` in `interop_verifier` |
 | 5 | **Delivery semantics** are no longer draft | **Open** | [delivery-state-machine.md](./delivery-state-machine.md) still marked Draft; reference behaviour largely implemented (P0-2–P0-4) |
-| 6 | A third party can run the **conformance suite without importing `yakr_core`** | **Partial** | `verify_all_vectors()` covers 7 vector files including pairing/ratchet path |
+| 6 | A third party can run the **conformance suite without importing `yakr_core`** | **Partial** | `verify_all_vectors()` covers 7 positive vector files + negative pack |
 | 7 | Remaining ambiguities tracked as **errata or v1.1 work** | **Partial** | [SECURITY_BACKLOG.md](../SECURITY_BACKLOG.md) tracks P2-8 and extensions; no dedicated `docs/spec/errata-v1.md` yet |
 
 ---
