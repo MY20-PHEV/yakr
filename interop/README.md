@@ -56,6 +56,11 @@ cargo test
 - [x] Returns 429 when per-tag blob cap exceeded (`rust/yakr-relay`)
 - [x] Does not decrypt ciphertext (`rust/yakr-relay`)
 
+### Pairing and session (normative path)
+
+- [x] **Pairing transcript** — `pairing_transcript.json` classical + hybrid (`interop_verifier`, `rust/yakr-core`)
+- [x] **Double ratchet bootstrap** — `double_ratchet.json` HKDF chains + first message (`interop_verifier`, `rust/yakr-core`)
+
 ### Client (minimal)
 
 - [x] Pairwise master derivation (classical or hybrid) matches vectors (`rust/yakr-core`)
@@ -68,10 +73,12 @@ cargo test
 from yakr_testkit.interop_verifier import (
     verify_all_vectors,
     verify_delivery_profile_vector,
+    verify_double_ratchet_vector,
     verify_hybrid_kex_vector,
     verify_inner_message_vector,
     verify_invite_vector,
     verify_mailbox_tag_vector,
+    verify_pairing_transcript_vector,
 )
 
 verify_all_vectors("docs/spec/test-vectors-v1")

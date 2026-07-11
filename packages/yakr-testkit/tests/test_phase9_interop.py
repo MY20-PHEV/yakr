@@ -7,10 +7,12 @@ import pytest
 from yakr_testkit.interop_verifier import (
     verify_all_vectors,
     verify_delivery_profile_vector,
+    verify_double_ratchet_vector,
     verify_hybrid_kex_vector,
     verify_inner_message_vector,
     verify_invite_vector,
     verify_mailbox_tag_vector,
+    verify_pairing_transcript_vector,
 )
 
 VECTORS = Path(__file__).resolve().parents[3] / "docs" / "spec" / "test-vectors-v1"
@@ -54,3 +56,19 @@ def test_interop_inner_message_independent() -> None:
 
     vector = json.loads((VECTORS / "inner_message.json").read_text(encoding="utf-8"))
     assert verify_inner_message_vector(vector)
+
+
+def test_interop_pairing_transcript_independent() -> None:
+    import json
+
+    vectors = json.loads((VECTORS / "pairing_transcript.json").read_text(encoding="utf-8"))
+    for vector in vectors:
+        assert verify_pairing_transcript_vector(vector)
+
+
+def test_interop_double_ratchet_independent() -> None:
+    import json
+
+    vectors = json.loads((VECTORS / "double_ratchet.json").read_text(encoding="utf-8"))
+    for vector in vectors:
+        assert verify_double_ratchet_vector(vector)
