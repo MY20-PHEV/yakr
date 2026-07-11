@@ -3,7 +3,7 @@
 **Protocol:** `yakr-v1.0`  
 **Status:** Implemented — **experimental; not externally audited** (see [SECURITY_BACKLOG.md](../SECURITY_BACKLOG.md) P2-7, [session-ratchet-review-v1.md](../security/session-ratchet-review-v1.md) P2-1)
 
-> **F16 (2026-07-11):** External review [issue #2](https://github.com/MY20-PHEV/yakr/issues/2) confirms the X25519 DH ratchet is **inactive during normal bidirectional traffic**; only pairing-derived symmetric chains advance. Resolution pending (symmetric-only labelling vs pairing-time DH init). See [external-ratchet-review-f16-issue-2-2026-07-11.md](../reviews/external-ratchet-review-f16-issue-2-2026-07-11.md).
+> **F16 (resolved 2026-07-11):** Maintainer chose **Option B** (pairing-time DH init). Pairing exchanges ratchet public keys in the transcript; inviter/joiner asymmetry drives the first DH epoch. `Contact.establish` remains symmetric-chain-only until a future revision. See [external-ratchet-review-f16-issue-2-2026-07-11.md](../reviews/external-ratchet-review-f16-issue-2-2026-07-11.md).
 
 ## Overview
 
@@ -48,7 +48,22 @@ send_chain  = HKDF(root, "yakr/v1.0/double-ratchet-send")
 recv_chain  = HKDF(root, "yakr/v1.0/double-ratchet-recv")
 ```
 
-Initiator keeps `(send, recv)`. Joiner swaps chains. Each side generates an X25519 ratchet key pair.
+Initiator keeps `(send, recv)`. Joiner swaps chains. Each side generates an X25519 ratchet key pair (joiner in `PairingRequest`; inviter in `PairingResponse`).
+
+## Pairing-time DH init (Option B)
+
+After `from_master`, pairing completes asymmetric ratchet bootstrap so the first encrypted traffic can rotate DH epochs without breaking send-before-receive mesh delivery:
+
+| Role | At `complete_pairing` | On first `encrypt` |
+|------|----------------------|-------------------|
+| **Inviter** | Store `pending_pairing_dh_ratchet_peer = joiner_ratchet_public`; keep bootstrap `recv_chain` | `_pairing_send_init(joiner_ratchet_public)` — rotate `dh_self_public`, derive **send** chain only |
+| **Joiner** | `_pairing_recv_init(inviter_ratchet_public)` — set `dh_peer_public`, derive **recv** chain from `DH(joiner_priv, inviter_pub)`; keep bootstrap `send_chain` | unchanged |
+
+First inviter ciphertext advertises the **post-init** `dh_self_public` (not the transcript `inviter_ratchet_public`). Joiner performs a normal pre-decrypt `_dh_ratchet` when the header key differs from stored `dh_peer_public`.
+
+Joiner may send before receiving inviter traffic (bootstrap send chain, pairing `joiner_ratchet_public` in header). Inviter decrypts with bootstrap `recv_chain` until it has received joiner traffic.
+
+`Contact.establish` does **not** run pairing-time init; DH epochs stay fixed in ping-pong until a header carries a new peer public key (which establish sessions never emit without pairing keys).
 
 ## Wire envelope
 

@@ -31,6 +31,7 @@ def test_online_and_offline_paths_same_transcript_and_master() -> None:
     alice = Identity.generate("alice")
     bob = Identity.generate("bob")
     inviter_ephemeral = x25519.X25519PrivateKey.generate()
+    inviter_ratchet = x25519.X25519PrivateKey.generate()
 
     online_invite = create_invite(alice, rendezvous_hint="https://rendezvous.test/v1")
     offline_invite = create_invite(alice, rendezvous_hint=OFFLINE_RENDEZVOUS_HINT)
@@ -46,12 +47,14 @@ def test_online_and_offline_paths_same_transcript_and_master() -> None:
             invite,
             request,
             inviter_ephemeral,
+            inviter_ratchet_private=inviter_ratchet,
         )
         offline_response, offline_contact, response_url = respond_to_pair_request(
             alice,
             invite,
             pair_request_from_url(pair_request_to_url(request)),
             inviter_ephemeral_private=inviter_ephemeral,
+            inviter_ratchet_private=inviter_ratchet,
         )
         finished = finish_offline_pairing(
             bob,

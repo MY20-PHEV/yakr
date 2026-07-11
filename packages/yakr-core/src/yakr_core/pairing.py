@@ -40,6 +40,7 @@ class PairingRequest:
     joiner_signing_public: bytes
     joiner_agreement_public: bytes
     joiner_ephemeral_public: bytes
+    joiner_ratchet_public: bytes
     joiner_profile: bytes = b""
     kem_ciphertext: bytes = b""
 
@@ -50,6 +51,7 @@ class PairingRequest:
             "joiner_signing_public": self.joiner_signing_public,
             "joiner_agreement_public": self.joiner_agreement_public,
             "joiner_ephemeral_public": self.joiner_ephemeral_public,
+            "joiner_ratchet_public": self.joiner_ratchet_public,
             "joiner_profile": self.joiner_profile,
         }
         if self.kem_ciphertext:
@@ -67,6 +69,7 @@ class PairingRequest:
             joiner_signing_public=bytes(payload["joiner_signing_public"]),
             joiner_agreement_public=bytes(payload["joiner_agreement_public"]),
             joiner_ephemeral_public=bytes(payload["joiner_ephemeral_public"]),
+            joiner_ratchet_public=bytes(payload.get("joiner_ratchet_public", b"")),
             joiner_profile=bytes(payload.get("joiner_profile", b"")),
             kem_ciphertext=bytes(payload.get("kem_ciphertext", b"")),
         )
@@ -75,6 +78,7 @@ class PairingRequest:
 @dataclass(frozen=True)
 class PairingResponse:
     inviter_ephemeral_public: bytes
+    inviter_ratchet_public: bytes
     transcript_hash: bytes
     inviter_profile: bytes = b""
 
@@ -82,6 +86,7 @@ class PairingResponse:
         return cbor2.dumps(
             {
                 "inviter_ephemeral_public": self.inviter_ephemeral_public,
+                "inviter_ratchet_public": self.inviter_ratchet_public,
                 "transcript_hash": self.transcript_hash,
                 "inviter_profile": self.inviter_profile,
             }
@@ -94,6 +99,7 @@ class PairingResponse:
             raise ValueError("invalid pairing response")
         return cls(
             inviter_ephemeral_public=bytes(payload["inviter_ephemeral_public"]),
+            inviter_ratchet_public=bytes(payload.get("inviter_ratchet_public", b"")),
             transcript_hash=bytes(payload["transcript_hash"]),
             inviter_profile=bytes(payload.get("inviter_profile", b"")),
         )
@@ -102,6 +108,7 @@ class PairingResponse:
 @dataclass(frozen=True)
 class PairingSecrets:
     ephemeral_private: x25519.X25519PrivateKey
+    ratchet_private: x25519.X25519PrivateKey
     pq_secret: bytes | None = None
 
 
@@ -113,6 +120,7 @@ def build_pairing_request(
     joiner_profile: bytes = b"",
 ) -> tuple[PairingRequest, PairingSecrets]:
     ephemeral_private = x25519.X25519PrivateKey.generate()
+    ratchet_private = x25519.X25519PrivateKey.generate()
     kem_ciphertext = b""
     pq_secret: bytes | None = None
     if invite_supports_hybrid(invite):
@@ -126,16 +134,25 @@ def build_pairing_request(
             encoding=serialization.Encoding.Raw,
             format=serialization.PublicFormat.Raw,
         ),
+        joiner_ratchet_public=ratchet_private.public_key().public_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PublicFormat.Raw,
+        ),
         joiner_profile=joiner_profile,
         kem_ciphertext=kem_ciphertext,
     )
-    return request, PairingSecrets(ephemeral_private=ephemeral_private, pq_secret=pq_secret)
+    return request, PairingSecrets(
+        ephemeral_private=ephemeral_private,
+        ratchet_private=ratchet_private,
+        pq_secret=pq_secret,
+    )
 
 
 def pairing_transcript(
     invite: InviteBundle,
     request: PairingRequest,
     inviter_ephemeral_public: bytes,
+    inviter_ratchet_public: bytes,
 ) -> bytes:
     validate_pairing_request_for_invite(invite, request)
     parts = [
@@ -147,6 +164,8 @@ def pairing_transcript(
         request.joiner_agreement_public,
         request.joiner_ephemeral_public,
         inviter_ephemeral_public,
+        request.joiner_ratchet_public,
+        inviter_ratchet_public,
     ]
     if invite_supports_hybrid(invite):
         parts.append(request.kem_ciphertext)
@@ -160,6 +179,8 @@ def validate_pairing_request_for_invite(
     """Reject PQ downgrade (hybrid invite without KEM) and classical uplift."""
     if request.invite_secret != invite.invite_secret:
         raise ValueError("pairing invite secret mismatch")
+    if len(request.joiner_ratchet_public) != 32:
+        raise ValueError("pairing request missing joiner ratchet public key")
     if invite_supports_hybrid(invite):
         if not request.kem_ciphertext:
             raise ValueError("hybrid invite requires kem ciphertext")
@@ -257,6 +278,7 @@ class PendingPairingSession:
     invite_url: str
     request_url: str
     ephemeral_private_hex: str
+    ratchet_private_hex: str
     pq_secret_hex: str | None = None
 
     def to_dict(self) -> dict[str, str | None]:
@@ -264,22 +286,32 @@ class PendingPairingSession:
             "invite_url": self.invite_url,
             "request_url": self.request_url,
             "ephemeral_private_hex": self.ephemeral_private_hex,
+            "ratchet_private_hex": self.ratchet_private_hex,
             "pq_secret_hex": self.pq_secret_hex,
         }
 
     @classmethod
     def from_dict(cls, payload: dict[str, str | None]) -> PendingPairingSession:
+        ratchet_hex = payload.get("ratchet_private_hex")
+        if not ratchet_hex:
+            raise ValueError("pending pairing session missing ratchet private key")
         return cls(
             invite_url=str(payload["invite_url"]),
             request_url=str(payload["request_url"]),
             ephemeral_private_hex=str(payload["ephemeral_private_hex"]),
+            ratchet_private_hex=str(ratchet_hex),
             pq_secret_hex=payload.get("pq_secret_hex"),
         )
 
     def secrets(self) -> PairingSecrets:
         private = x25519.X25519PrivateKey.from_private_bytes(bytes.fromhex(self.ephemeral_private_hex))
+        ratchet_private = x25519.X25519PrivateKey.from_private_bytes(bytes.fromhex(self.ratchet_private_hex))
         pq_secret = bytes.fromhex(self.pq_secret_hex) if self.pq_secret_hex else None
-        return PairingSecrets(ephemeral_private=private, pq_secret=pq_secret)
+        return PairingSecrets(
+            ephemeral_private=private,
+            ratchet_private=ratchet_private,
+            pq_secret=pq_secret,
+        )
 
 
 def _ephemeral_private_hex(key: x25519.X25519PrivateKey) -> str:
@@ -313,6 +345,7 @@ def respond_to_pair_request(
     *,
     inviter_profile: bytes = b"",
     inviter_ephemeral_private: x25519.X25519PrivateKey | None = None,
+    inviter_ratchet_private: x25519.X25519PrivateKey | None = None,
 ) -> tuple[PairingResponse, Contact, str]:
     from yakr_core.invite import verify_invite
 
@@ -326,6 +359,7 @@ def respond_to_pair_request(
         request,
         ephemeral,
         inviter_profile=inviter_profile,
+        inviter_ratchet_private=inviter_ratchet_private,
     )
     return response, contact, pair_response_to_url(response)
 
@@ -355,6 +389,7 @@ def pending_session_from_request(
         invite_url=invite_url,
         request_url=pair_request_to_url(request),
         ephemeral_private_hex=_ephemeral_private_hex(secrets.ephemeral_private),
+        ratchet_private_hex=_ephemeral_private_hex(secrets.ratchet_private),
         pq_secret_hex=pq_hex,
     )
 
@@ -366,13 +401,24 @@ def inviter_complete_pairing(
     inviter_ephemeral_private: x25519.X25519PrivateKey,
     *,
     inviter_profile: bytes = b"",
+    inviter_ratchet_private: x25519.X25519PrivateKey | None = None,
 ) -> tuple[PairingResponse, Contact]:
     validate_pairing_request_for_invite(invite, request)
     inviter_ephemeral_public = inviter_ephemeral_private.public_key().public_bytes(
         encoding=serialization.Encoding.Raw,
         format=serialization.PublicFormat.Raw,
     )
-    transcript_hash = pairing_transcript(invite, request, inviter_ephemeral_public)
+    inviter_ratchet_private = inviter_ratchet_private or x25519.X25519PrivateKey.generate()
+    inviter_ratchet_public = inviter_ratchet_private.public_key().public_bytes(
+        encoding=serialization.Encoding.Raw,
+        format=serialization.PublicFormat.Raw,
+    )
+    transcript_hash = pairing_transcript(
+        invite,
+        request,
+        inviter_ephemeral_public,
+        inviter_ratchet_public,
+    )
     pq_secret = None
     hybrid = False
     if invite_supports_hybrid(invite):
@@ -390,6 +436,13 @@ def inviter_complete_pairing(
         transcript_hash=transcript_hash,
         pq_secret=pq_secret,
     )
+    ratchet = RatchetState.from_master(
+        master,
+        is_initiator=True,
+        hybrid=hybrid,
+        ratchet_private=inviter_ratchet_private,
+    )
+    ratchet.pending_pairing_dh_ratchet_peer = request.joiner_ratchet_public
     now = int(time.time() * 1000)
     contact = Contact(
         name=request.joiner_name,
@@ -399,7 +452,7 @@ def inviter_complete_pairing(
         conversation_id=conversation_id_for(identity.name, request.joiner_name),
         contact_id=contact_id_for(request.joiner_signing_public, request.joiner_agreement_public),
         transcript_hash=transcript_hash,
-        ratchet=RatchetState.from_master(master, is_initiator=True, hybrid=hybrid),
+        ratchet=ratchet,
         delivery_profile=profile_from_pairing_bytes(
             request.joiner_profile,
             request.joiner_signing_public,
@@ -410,6 +463,7 @@ def inviter_complete_pairing(
     apply_peer_profile_ack_from_bytes(contact, inviter_profile, identity.signing_public_bytes)
     response = PairingResponse(
         inviter_ephemeral_public=inviter_ephemeral_public,
+        inviter_ratchet_public=inviter_ratchet_public,
         transcript_hash=transcript_hash,
         inviter_profile=inviter_profile,
     )
@@ -423,8 +477,15 @@ def joiner_complete_pairing(
     secrets: PairingSecrets,
     response: PairingResponse,
 ) -> Contact:
-    if response.transcript_hash != pairing_transcript(invite, request, response.inviter_ephemeral_public):
+    if response.transcript_hash != pairing_transcript(
+        invite,
+        request,
+        response.inviter_ephemeral_public,
+        response.inviter_ratchet_public,
+    ):
         raise ValueError("pairing transcript mismatch")
+    if len(response.inviter_ratchet_public) != 32:
+        raise ValueError("pairing response missing inviter ratchet public key")
     validate_pairing_request_for_invite(invite, request)
     hybrid = invite_supports_hybrid(invite)
     pq_secret = secrets.pq_secret if hybrid else None
@@ -439,6 +500,13 @@ def joiner_complete_pairing(
         pq_secret=pq_secret,
     )
     now = int(time.time() * 1000)
+    ratchet = RatchetState.from_master(
+        master,
+        is_initiator=False,
+        hybrid=hybrid,
+        ratchet_private=secrets.ratchet_private,
+    )
+    ratchet._pairing_recv_init(response.inviter_ratchet_public)
     contact = Contact(
         name=invite.inviter_name,
         signing_public=invite.signing_public,
@@ -447,7 +515,7 @@ def joiner_complete_pairing(
         conversation_id=conversation_id_for(invite.inviter_name, identity.name),
         contact_id=contact_id_for(invite.signing_public, invite.agreement_public),
         transcript_hash=response.transcript_hash,
-        ratchet=RatchetState.from_master(master, is_initiator=False, hybrid=hybrid),
+        ratchet=ratchet,
         delivery_profile=profile_from_pairing_bytes(
             response.inviter_profile,
             invite.signing_public,

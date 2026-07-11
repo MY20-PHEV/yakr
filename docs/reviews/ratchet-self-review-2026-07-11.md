@@ -31,7 +31,7 @@ The double ratchet implementation is **coherent and test-backed** for the refere
 | F13 | Post-compromise security | **N/A** | Not a design goal in v1.0 |
 | F14 | Formal verification | **Open** | No machine-checked model |
 | F15 | Rust port as security proof | **N/A** | Interop aid only per critique |
-| F16 | DH ratchet activation in live traffic | **Confirmed (external)** | Inactive in ping-pong; see [issue #2](https://github.com/MY20-PHEV/yakr/issues/2) |
+| F16 | DH ratchet activation in live traffic | **Resolved (pairing)** — Option B; establish path symmetric-only |
 
 ## Critique traceability
 
@@ -60,6 +60,6 @@ Source: [github-follow-up-critique-2026-07-10.md](./github-follow-up-critique-20
 
 - [x] Publish open review call ([Discussion #1](https://github.com/MY20-PHEV/yakr/discussions/1))
 - [x] First external response ([issue #2](https://github.com/MY20-PHEV/yakr/issues/2)) — saved in [external-ratchet-review-f16-issue-2-2026-07-11.md](./external-ratchet-review-f16-issue-2-2026-07-11.md)
-- [ ] **Decision:** Option A (symmetric-only v1.0 labelling) vs Option B (pairing-time DH init)
+- [x] **Decision:** Option B (pairing-time DH init) — implemented 2026-07-11
 - [ ] Optional: add `prev_n` validation if further review recommends
 - [ ] Optional: ProVerif/Tamarin model (out of scope unless funded)

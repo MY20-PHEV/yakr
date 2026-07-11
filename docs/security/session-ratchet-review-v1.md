@@ -123,7 +123,7 @@ Mapped errors:
 | Out-of-order wire delivery | Supported within `MAX_SKIP_GAP` at ratchet; application seq still strict | `test_ratchet_adversarial.py`, `double-ratchet.md` |
 | Skipped-key DoS | Bounded storage and gap | `test_ratchet_skipped_key_limits.py` |
 | Malicious huge sequence gaps | Rejected before chain walk | `test_ratchet_rejects_excessive_skip_gap` |
-| DH-ratchet transitions | Code path exists on new peer `dh_public` | `test_dh_ratchet_step_advances_state` (direct call); **F16:** not observed in ping-pong traffic |
+| DH-ratchet transitions | Pairing path rotates on traffic; establish path symmetric-only | `test_pairing_path_rotates_dh_epoch`, `test_dh_ratchet_step_advances_state` |
 | Duplicate DH public keys | No second DH step; same chain continues | `test_repeated_peer_dh_public_skips_ratchet` |
 | Malformed public keys | X25519 accepts any 32-byte string; low-order points not explicitly rejected | **Open** — see self-review |
 | Concurrent sends (both sides) | Each send advertises new `dh_self_public`; peer DH-steps on receive | `test_double_ratchet_bidirectional` |
@@ -161,10 +161,10 @@ Mapped errors:
 | R3 | Post-compromise recovery | Info | Documented deferral; PQ rekey is time/count policy not PCS |
 | R4 | Rust/Python parity | Med | Independent impl exists; security review ≠ language port |
 | R5 | No formal model | Info | No ProVerif/Tamarin artifact |
-| R6 | DH ratchet inactive in normal ping-pong | **High** (confirmed externally) | Symmetric chains only; header DH keys do not mix root unless peer changes advertised public — [issue #2](https://github.com/MY20-PHEV/yakr/issues/2) |
+| R6 | DH ratchet inactive in normal ping-pong | **Resolved (pairing)** — Option B pairing-time init; establish path unchanged — [issue #2](https://github.com/MY20-PHEV/yakr/issues/2) |
 
 Internal findings: [ratchet-self-review-2026-07-11.md](../reviews/ratchet-self-review-2026-07-11.md).  
-**External review:** [external-ratchet-review-f16-issue-2-2026-07-11.md](../reviews/external-ratchet-review-f16-issue-2-2026-07-11.md) — confirms F16; no exploit demonstrated; naive `_dh_ratchet` on first receive is unsafe; resolution = Option A (symmetric-only labelling) or Option B (pairing-time DH init).
+**External review:** [external-ratchet-review-f16-issue-2-2026-07-11.md](../reviews/external-ratchet-review-f16-issue-2-2026-07-11.md) — confirms F16; **Option B implemented** for pairing path.
 
 ## Test coverage map
 

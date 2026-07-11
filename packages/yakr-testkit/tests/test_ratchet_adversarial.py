@@ -133,13 +133,13 @@ def test_session_rejects_wrong_conversation_with_rollback() -> None:
     assert bob_session.contact.ratchet.to_dict() == ratchet_before
 
 
-def test_bidirectional_ping_pong_uses_symmetric_chain_only() -> None:
-    """Documents current behaviour: DH public keys and root stay fixed over many rounds."""
+def test_contact_establish_ping_pong_does_not_rotate_dh_epoch() -> None:
+    """Contact.establish has no pairing ratchet keys; DH epoch stays fixed in ping-pong."""
     alice_ratchet, bob_ratchet = _paired_ratchets()
     alice_root, bob_root = alice_ratchet.root_key, bob_ratchet.root_key
     alice_dh, bob_dh = alice_ratchet.dh_self_public, bob_ratchet.dh_self_public
 
-    for i in range(5):
+    for i in range(3):
         bob_ratchet.decrypt(alice_ratchet.encrypt(f"a{i}".encode()))
         alice_ratchet.decrypt(bob_ratchet.encrypt(f"b{i}".encode()))
 
@@ -147,3 +147,37 @@ def test_bidirectional_ping_pong_uses_symmetric_chain_only() -> None:
     assert bob_ratchet.root_key == bob_root
     assert alice_ratchet.dh_self_public == alice_dh
     assert bob_ratchet.dh_self_public == bob_dh
+
+
+def test_pairing_path_rotates_dh_epoch() -> None:
+    from yakr_core.invite import create_invite
+    from yakr_core.pairing import build_pairing_request, inviter_complete_pairing, joiner_complete_pairing
+    from yakr_core.session import Session
+    from cryptography.hazmat.primitives.asymmetric import x25519
+
+    alice = Identity.generate("alice")
+    bob = Identity.generate("bob")
+    invite = create_invite(alice, rendezvous_hint="http://test")
+    request, secrets = build_pairing_request(bob, invite, joiner_name="bob")
+    response, alice_contact = inviter_complete_pairing(
+        alice,
+        invite,
+        request,
+        x25519.X25519PrivateKey.generate(),
+    )
+    bob_contact = joiner_complete_pairing(bob, invite, request, secrets, response)
+    assert alice_contact.ratchet is not None
+    assert bob_contact.ratchet is not None
+    assert request.joiner_ratchet_public == bob_contact.ratchet.dh_self_public
+    assert response.inviter_ratchet_public == alice_contact.ratchet.dh_self_public
+    assert alice_contact.ratchet.dh_peer_public is None
+    assert bob_contact.ratchet.dh_peer_public == response.inviter_ratchet_public
+
+    alice_root = alice_contact.ratchet.root_key
+    bob_root = bob_contact.ratchet.root_key
+    alice_session = Session(alice, alice_contact)
+    bob_session = Session(bob, bob_contact)
+    bob_session.decrypt_outer(alice_session.encrypt_text("one").outer_blob)
+    alice_session.decrypt_outer(bob_session.encrypt_text("two").outer_blob)
+    assert alice_contact.ratchet.root_key != alice_root
+    assert bob_contact.ratchet.root_key != bob_root

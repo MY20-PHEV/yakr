@@ -54,19 +54,28 @@ class RatchetState:
     prev_send_n: int = 0
     skipped_keys: dict[str, str] = field(default_factory=dict)
     hybrid: bool = False
+    pending_pairing_dh_ratchet_peer: bytes | None = None
 
     @classmethod
-    def from_master(cls, master_secret: bytes, *, is_initiator: bool, hybrid: bool = False) -> RatchetState:
+    def from_master(
+        cls,
+        master_secret: bytes,
+        *,
+        is_initiator: bool,
+        hybrid: bool = False,
+        ratchet_private: x25519.X25519PrivateKey | None = None,
+    ) -> RatchetState:
         root_key = hkdf_derive(master_secret, ROOT_INFO)
         send_chain = hkdf_derive(root_key, SEND_CHAIN_INFO)
         recv_chain = hkdf_derive(root_key, RECV_CHAIN_INFO)
         if not is_initiator:
             send_chain, recv_chain = recv_chain, send_chain
-        dh_private = x25519.X25519PrivateKey.generate()
-        dh_public = _pub_bytes(dh_private)
+        if ratchet_private is None:
+            ratchet_private = x25519.X25519PrivateKey.generate()
+        dh_public = _pub_bytes(ratchet_private)
         return cls(
             root_key=root_key,
-            dh_self_private=dh_private.private_bytes(
+            dh_self_private=ratchet_private.private_bytes(
                 encoding=serialization.Encoding.Raw,
                 format=serialization.PrivateFormat.Raw,
                 encryption_algorithm=serialization.NoEncryption(),
@@ -105,6 +114,11 @@ class RatchetState:
             "prev_send_n": self.prev_send_n,
             "skipped_keys": self.skipped_keys,
             "hybrid": self.hybrid,
+            "pending_pairing_dh_ratchet_peer": (
+                base64.urlsafe_b64encode(self.pending_pairing_dh_ratchet_peer).decode("ascii").rstrip("=")
+                if self.pending_pairing_dh_ratchet_peer is not None
+                else ""
+            ),
         }
 
     @classmethod
@@ -126,6 +140,7 @@ class RatchetState:
         skipped = payload.get("skipped_keys", {})
         if not isinstance(skipped, dict):
             skipped = {}
+        pending_peer = dec(str(payload.get("pending_pairing_dh_ratchet_peer", "")))
         return cls(
             root_key=dec(str(payload["root_key"])),
             dh_self_private=dec(str(payload["dh_self_private"])),
@@ -138,6 +153,7 @@ class RatchetState:
             prev_send_n=int(payload.get("prev_send_n", 0)),
             skipped_keys={str(k): str(v) for k, v in skipped.items()},
             hybrid=bool(payload.get("hybrid", False)),
+            pending_pairing_dh_ratchet_peer=pending_peer or None,
         )
 
     def _skip_key(self, dh_public: bytes, n: int) -> bytes:
@@ -155,6 +171,37 @@ class RatchetState:
 
         key_id = f"{dh_public.hex()}:{n}"
         self.skipped_keys[key_id] = base64.urlsafe_b64encode(message_key).decode("ascii").rstrip("=")
+
+    def _pairing_send_init(self, peer_public: bytes) -> None:
+        """Initiator first send: derive send chain without recv transition."""
+        if len(peer_public) != 32:
+            raise ValueError("peer ratchet public key must be 32 bytes")
+        self.dh_peer_public = peer_public
+        dh_self = _load_private(self.dh_self_private)
+        dh_output = x25519_shared_secret(dh_self, peer_public)
+        root_key, _recv_unused = _kdf_rk(self.root_key, dh_output)
+
+        new_private = x25519.X25519PrivateKey.generate()
+        self.dh_self_private = new_private.private_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PrivateFormat.Raw,
+            encryption_algorithm=serialization.NoEncryption(),
+        )
+        self.dh_self_public = _pub_bytes(new_private)
+        dh_output = x25519_shared_secret(new_private, peer_public)
+        self.root_key, self.send_chain_key = _kdf_rk(root_key, dh_output)
+        self.prev_send_n = self.send_n
+        self.send_n = 0
+
+    def _pairing_recv_init(self, peer_public: bytes) -> None:
+        """Responder pairing: align recv chain with initiator's post-pairing send chain."""
+        if len(peer_public) != 32:
+            raise ValueError("peer ratchet public key must be 32 bytes")
+        self.dh_peer_public = peer_public
+        dh_self = _load_private(self.dh_self_private)
+        dh_output = x25519_shared_secret(dh_self, peer_public)
+        self.root_key, self.recv_chain_key = _kdf_rk(self.root_key, dh_output)
+        self.recv_n = 0
 
     def _dh_ratchet(self, peer_public: bytes) -> None:
         self.skipped_keys.clear()
@@ -180,6 +227,10 @@ class RatchetState:
         return RATCHET_MAGIC + self.dh_self_public + struct.pack(">II", prev_n, message_n)
 
     def encrypt(self, plaintext: bytes) -> bytes:
+        if self.pending_pairing_dh_ratchet_peer is not None:
+            peer = self.pending_pairing_dh_ratchet_peer
+            self.pending_pairing_dh_ratchet_peer = None
+            self._pairing_send_init(peer)
         if self.send_chain_key is None:
             raise ValueError("send chain not initialized")
         message_key, self.send_chain_key = _kdf_ck(self.send_chain_key)
@@ -228,4 +279,5 @@ class RatchetState:
             self.recv_n = message_n + 1
 
         aad = RATCHET_MAGIC + peer_public + struct.pack(">II", prev_n, message_n)
-        return xchacha_decrypt(message_key, ciphertext, associated_data=aad)
+        plaintext = xchacha_decrypt(message_key, ciphertext, associated_data=aad)
+        return plaintext

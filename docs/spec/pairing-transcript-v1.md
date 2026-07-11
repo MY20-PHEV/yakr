@@ -72,6 +72,7 @@ Pairing messages are CBOR maps encoded with `cbor2.dumps`. Decoders MUST reject 
 | `joiner_signing_public` | bytes(32) | yes |
 | `joiner_agreement_public` | bytes(32) | yes |
 | `joiner_ephemeral_public` | bytes(32) | yes |
+| `joiner_ratchet_public` | bytes(32) | yes |
 | `joiner_profile` | bytes | no (default empty) |
 | `kem_ciphertext` | bytes | hybrid only (ML-KEM-768 ciphertext) |
 
@@ -80,6 +81,7 @@ Pairing messages are CBOR maps encoded with `cbor2.dumps`. Decoders MUST reject 
 | Key | Type | Required |
 |-----|------|----------|
 | `inviter_ephemeral_public` | bytes(32) | yes |
+| `inviter_ratchet_public` | bytes(32) | yes |
 | `transcript_hash` | bytes(32) | yes |
 | `inviter_profile` | bytes | no (default empty) |
 
@@ -135,18 +137,21 @@ See §Wire encoding. Joiner MUST reject if `transcript_hash` does not recompute 
 1. `verify_invite(invite)` (if not already verified)
 2. `validate_pairing_request_for_invite(invite, request)` — secret match, PQ policy
 3. Generate or reuse inviter ephemeral X25519 keypair
-4. `transcript_hash = pairing_transcript(invite, request, inviter_ephemeral_public)`
-5. Decapsulate `kem_ciphertext` if hybrid; `derive_pair_master`
-6. Verify `joiner_profile` signature if present
-7. Emit `PairingResponse` with `transcript_hash`
+4. Generate inviter ratchet X25519 keypair; `inviter_ratchet_public` is the **pre-send** public key (included in transcript)
+5. `transcript_hash = pairing_transcript(invite, request, inviter_ephemeral_public, inviter_ratchet_public)`
+6. Decapsulate `kem_ciphertext` if hybrid; `derive_pair_master`
+7. Verify `joiner_profile` signature if present
+8. Initialise inviter ratchet with deferred send-side DH step (`pending_pairing_dh_ratchet_peer = joiner_ratchet_public`)
+9. Emit `PairingResponse` with `transcript_hash`
 
 ### Joiner (on response)
 
 1. Decode `PairingResponse` (from URL or bytes)
-2. Recompute `pairing_transcript(invite, request, response.inviter_ephemeral_public)` — **reject on mismatch**
+2. Recompute `pairing_transcript(invite, request, response.inviter_ephemeral_public, response.inviter_ratchet_public)` — **reject on mismatch**
 3. `validate_pairing_request_for_invite` (defence in depth)
 4. `derive_pair_master_joiner` with joiner-held `pq_secret` if hybrid
-5. Verify `inviter_profile` signature if present
+5. Initialise joiner ratchet recv chain via `_pairing_recv_init(inviter_ratchet_public)`
+6. Verify `inviter_profile` signature if present
 
 ## Transcript hash (normative)
 
@@ -161,7 +166,9 @@ parts = [
     request.joiner_signing_public,     // 32 bytes
     request.joiner_agreement_public,   // 32 bytes
     request.joiner_ephemeral_public,   // 32 bytes
+    request.joiner_ratchet_public,     // 32 bytes
     inviter_ephemeral_public,          // 32 bytes
+    inviter_ratchet_public,            // 32 bytes
 ]
 if invite_supports_hybrid(invite):
     parts.append(request.kem_ciphertext)   // ML-KEM-768 ciphertext (1088 bytes)
@@ -197,6 +204,7 @@ Hybrid invites MUST include non-empty `kem_ciphertext` in the request; classical
 | Inviter long-term identity | Yes | `invite.signing_public`, `invite.agreement_public` in hash |
 | Joiner long-term identity | Yes | `joiner_signing_public`, `joiner_agreement_public` in hash |
 | Ephemeral contributions | Yes | Both ephemeral public keys in hash |
+| Ratchet public keys | Yes | `joiner_ratchet_public`, `inviter_ratchet_public` in hash |
 | Invite freshness | Partial | `invite_secret` uniqueness per invite |
 | PQ negotiation | Yes (hybrid) | `kem_ciphertext` appended when hybrid |
 | Protocol version string | Yes | `invite.protocol` as first transcript field |
@@ -259,7 +267,7 @@ After `master_secret`:
 | `conversation_id` | `pairwise_{sorted_names}` — lexical sort of display names, e.g. `pairwise_alice_bob` |
 | `contact_id` | `SHA-256(signing_public \|\| agreement_public)` per peer (32 bytes) |
 | `transcript_hash` | stored on `Contact` |
-| `ratchet` | `RatchetState.from_master(master_secret, hybrid=…)` |
+| `ratchet` | `RatchetState.from_master(master_secret, hybrid=…)` then pairing-time init (see [double-ratchet.md](./double-ratchet.md) §Pairing-time DH init) |
 
 `conversation_id` is a local display/session grouping key, not a global identifier. Distinct pairings with the same display names but different long-term keys produce different `contact_id` and `master_secret`.
 
