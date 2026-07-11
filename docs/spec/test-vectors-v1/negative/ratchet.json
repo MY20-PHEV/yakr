@@ -1,0 +1,48 @@
+[
+  {
+    "name": "ratchet-payload-too-short",
+    "category": "ratchet",
+    "operation": "ratchet_decrypt",
+    "must_reject": true,
+    "error_contains": "too short",
+    "bootstrap_vector": "double-ratchet-bootstrap-v1",
+    "side": "bob",
+    "payload_hex": "594b445200000000000000000000000000000000"
+  },
+  {
+    "name": "ratchet-invalid-magic",
+    "category": "ratchet",
+    "operation": "ratchet_decrypt",
+    "must_reject": true,
+    "error_contains": "invalid ratchet header",
+    "bootstrap_vector": "double-ratchet-bootstrap-v1",
+    "side": "bob",
+    "payload_hex": "424144212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121"
+  },
+  {
+    "name": "ratchet-duplicate-message",
+    "category": "ratchet",
+    "operation": "ratchet_decrypt_duplicate",
+    "must_reject": true,
+    "error_contains": "already received",
+    "bootstrap_vector": "double-ratchet-bootstrap-v1",
+    "side": "bob"
+  },
+  {
+    "name": "ratchet-skip-gap-too-large",
+    "category": "ratchet",
+    "operation": "ratchet_decrypt_skip_gap",
+    "must_reject": true,
+    "error_contains": "skip gap too large",
+    "bootstrap_vector": "double-ratchet-bootstrap-v1",
+    "side": "bob"
+  },
+  {
+    "name": "ratchet-tampered-ciphertext",
+    "category": "ratchet",
+    "operation": "ratchet_decrypt_tampered",
+    "must_reject": true,
+    "bootstrap_vector": "double-ratchet-bootstrap-v1",
+    "side": "bob"
+  }
+]

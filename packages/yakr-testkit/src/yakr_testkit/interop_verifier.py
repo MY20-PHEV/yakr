@@ -22,6 +22,8 @@ PAIR_MASTER_INFO = b"yakr/v0.4/pair-master"
 HYBRID_PQ_CAPABILITY = "hybrid_pq"
 
 RATCHET_MAGIC = b"YKDR2"
+MAX_SKIP_GAP = 128
+MAX_SKIPPED_KEYS = 256
 ROOT_INFO = b"yakr/v1.0/double-ratchet-root"
 RK_INFO = b"yakr/v1.0/double-ratchet-rk"
 CK_INFO = b"yakr/v1.0/double-ratchet-ck"
@@ -317,6 +319,293 @@ def verify_double_ratchet_vector(vector: dict[str, object]) -> bool:
     return decrypted == plaintext
 
 
+def _kdf_rk(root_key: bytes, dh_output: bytes) -> tuple[bytes, bytes]:
+    return _hkdf64(root_key, RK_INFO, salt=dh_output)
+
+
+def _invite_supports_hybrid(*, protocol: str, kem_public_hex: str) -> bool:
+    return protocol == "yakr-v0.6" and bool(kem_public_hex)
+
+
+def _validate_pairing_request_for_invite(vector: dict[str, object]) -> None:
+    invite_secret = bytes.fromhex(str(vector["invite_secret_hex"]))
+    request_secret = bytes.fromhex(str(vector["request_invite_secret_hex"]))
+    joiner_ratchet = bytes.fromhex(str(vector["joiner_ratchet_public_hex"]))
+    kem_ciphertext = bytes.fromhex(str(vector.get("kem_ciphertext_hex") or ""))
+    if request_secret != invite_secret:
+        raise ValueError("pairing invite secret mismatch")
+    if len(joiner_ratchet) != 32:
+        raise ValueError("pairing request missing joiner ratchet public key")
+    if _invite_supports_hybrid(
+        protocol=str(vector["invite_protocol"]),
+        kem_public_hex=str(vector.get("invite_kem_public_hex") or ""),
+    ):
+        if not kem_ciphertext:
+            raise ValueError("hybrid invite requires kem ciphertext")
+        return
+    if kem_ciphertext:
+        raise ValueError("unexpected kem ciphertext on classical invite")
+
+
+def _pairing_request_from_bytes(data: bytes) -> dict[str, object]:
+    payload = cbor2.loads(data)
+    if not isinstance(payload, dict):
+        raise ValueError("invalid pairing request")
+    return payload
+
+
+def _pairing_response_from_bytes(data: bytes) -> dict[str, object]:
+    payload = cbor2.loads(data)
+    if not isinstance(payload, dict):
+        raise ValueError("invalid pairing response")
+    return payload
+
+
+class _RatchetSession:
+    """Minimal double-ratchet receiver/sender for negative vector checks."""
+
+    def __init__(
+        self,
+        *,
+        root_key: bytes,
+        dh_self_private: bytes,
+        dh_self_public: bytes,
+        send_chain_key: bytes,
+        recv_chain_key: bytes,
+    ) -> None:
+        self.root_key = root_key
+        self.dh_self_private = dh_self_private
+        self.dh_self_public = dh_self_public
+        self.dh_peer_public: bytes | None = None
+        self.send_chain_key = send_chain_key
+        self.recv_chain_key = recv_chain_key
+        self.send_n = 0
+        self.recv_n = 0
+        self.prev_send_n = 0
+        self.skipped_keys: dict[str, bytes] = {}
+
+    @classmethod
+    def from_bootstrap_vector(cls, vector: dict[str, object], *, side: str) -> tuple[_RatchetSession, _RatchetSession]:
+        master = bytes.fromhex(str(vector["master_secret_hex"]))
+        root = _hkdf_derive(master, ROOT_INFO)
+        send_chain = _hkdf_derive(root, SEND_CHAIN_INFO)
+        recv_chain = _hkdf_derive(root, RECV_CHAIN_INFO)
+        alice_private = bytes.fromhex(str(vector["alice_dh_self_private_hex"]))
+        bob_private = bytes.fromhex(str(vector["bob_dh_self_private_hex"]))
+        alice_public = _x25519_public_from_private(alice_private)
+        bob_public = _x25519_public_from_private(bob_private)
+        alice = cls(
+            root_key=root,
+            dh_self_private=alice_private,
+            dh_self_public=alice_public,
+            send_chain_key=send_chain,
+            recv_chain_key=recv_chain,
+        )
+        bob = cls(
+            root_key=root,
+            dh_self_private=bob_private,
+            dh_self_public=bob_public,
+            send_chain_key=recv_chain,
+            recv_chain_key=send_chain,
+        )
+        if side == "alice":
+            return alice, bob
+        return bob, alice
+
+    def _skip_key(self, peer_public: bytes, message_n: int) -> bytes:
+        return self.skipped_keys[f"{peer_public.hex()}:{message_n}"]
+
+    def _store_skip(self, peer_public: bytes, message_n: int, message_key: bytes) -> None:
+        self.skipped_keys[f"{peer_public.hex()}:{message_n}"] = message_key
+
+    def _dh_ratchet(self, peer_public: bytes) -> None:
+        private_key = x25519.X25519PrivateKey.generate()
+        self.dh_self_private = private_key.private_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PrivateFormat.Raw,
+            encryption_algorithm=serialization.NoEncryption(),
+        )
+        self.dh_self_public = _x25519_public_from_private(self.dh_self_private)
+        dh_output = _x25519_shared_secret(self.dh_self_private, peer_public)
+        self.root_key, self.send_chain_key = _kdf_rk(self.root_key, dh_output)
+        self.prev_send_n = self.send_n
+        self.send_n = 0
+        self.dh_peer_public = peer_public
+
+    def _snapshot(self) -> dict[str, object]:
+        return {
+            "root_key": self.root_key,
+            "dh_self_private": self.dh_self_private,
+            "dh_self_public": self.dh_self_public,
+            "dh_peer_public": self.dh_peer_public,
+            "send_chain_key": self.send_chain_key,
+            "recv_chain_key": self.recv_chain_key,
+            "send_n": self.send_n,
+            "recv_n": self.recv_n,
+            "prev_send_n": self.prev_send_n,
+            "skipped_keys": dict(self.skipped_keys),
+        }
+
+    def _restore(self, snapshot: dict[str, object]) -> None:
+        self.root_key = bytes(snapshot["root_key"])
+        self.dh_self_private = bytes(snapshot["dh_self_private"])
+        self.dh_self_public = bytes(snapshot["dh_self_public"])
+        self.dh_peer_public = snapshot["dh_peer_public"]
+        self.send_chain_key = snapshot["send_chain_key"]
+        self.recv_chain_key = snapshot["recv_chain_key"]
+        self.send_n = int(snapshot["send_n"])
+        self.recv_n = int(snapshot["recv_n"])
+        self.prev_send_n = int(snapshot["prev_send_n"])
+        self.skipped_keys = dict(snapshot["skipped_keys"])
+
+    def encrypt(self, plaintext: bytes) -> bytes:
+        if self.send_chain_key is None:
+            raise ValueError("send chain not initialized")
+        message_key, self.send_chain_key = _hkdf64(self.send_chain_key, CK_INFO, salt=b"")
+        aad = RATCHET_MAGIC + self.dh_self_public + struct.pack(">II", self.prev_send_n, self.send_n)
+        ciphertext = _xchacha_encrypt(message_key, plaintext, associated_data=aad)
+        header = RATCHET_MAGIC + self.dh_self_public + struct.pack(">II", self.prev_send_n, self.send_n)
+        self.send_n += 1
+        return header + ciphertext
+
+    def decrypt(self, payload: bytes) -> bytes:
+        if len(payload) < len(RATCHET_MAGIC) + 32 + 8:
+            raise ValueError("ratchet payload too short")
+        if not payload.startswith(RATCHET_MAGIC):
+            raise ValueError("invalid ratchet header")
+        offset = len(RATCHET_MAGIC)
+        peer_public = payload[offset : offset + 32]
+        offset += 32
+        prev_n, message_n = struct.unpack(">II", payload[offset : offset + 8])
+        offset += 8
+        ciphertext = payload[offset:]
+
+        snapshot = self._snapshot()
+        try:
+            if self.dh_peer_public is None:
+                self.dh_peer_public = peer_public
+            elif self.dh_peer_public != peer_public:
+                self._dh_ratchet(peer_public)
+
+            if self.recv_chain_key is None:
+                raise ValueError("recv chain not initialized")
+
+            if message_n < self.recv_n:
+                try:
+                    message_key = self._skip_key(peer_public, message_n)
+                except KeyError:
+                    raise ValueError("ratchet message already received") from None
+            else:
+                gap = message_n - self.recv_n
+                if gap > MAX_SKIP_GAP:
+                    raise ValueError("ratchet skip gap too large")
+                if len(self.skipped_keys) + gap > MAX_SKIPPED_KEYS:
+                    raise ValueError("ratchet skipped key limit exceeded")
+                while self.recv_n < message_n:
+                    mk, self.recv_chain_key = _hkdf64(self.recv_chain_key, CK_INFO, salt=b"")
+                    self._store_skip(peer_public, self.recv_n, mk)
+                    self.recv_n += 1
+                message_key, self.recv_chain_key = _hkdf64(self.recv_chain_key, CK_INFO, salt=b"")
+                self.recv_n = message_n + 1
+
+            aad = RATCHET_MAGIC + peer_public + struct.pack(">II", prev_n, message_n)
+            return _xchacha_decrypt(message_key, ciphertext, associated_data=aad)
+        except Exception:
+            self._restore(snapshot)
+            raise
+
+
+def _load_bootstrap_vector(vectors_dir: Path, name: str) -> dict[str, object]:
+    vectors = json.loads((vectors_dir / "double_ratchet.json").read_text(encoding="utf-8"))
+    for vector in vectors:
+        if vector.get("name") == name:
+            return vector
+    raise KeyError(f"bootstrap vector not found: {name}")
+
+
+def _run_negative_operation(vector: dict[str, object], *, vectors_dir: Path) -> None:
+    operation = str(vector["operation"])
+    if operation == "pairing_validate":
+        _validate_pairing_request_for_invite(vector)
+        return
+    if operation == "pairing_request_decode":
+        _pairing_request_from_bytes(bytes.fromhex(str(vector["cbor_hex"])))
+        return
+    if operation == "pairing_response_decode":
+        _pairing_response_from_bytes(bytes.fromhex(str(vector["cbor_hex"])))
+        return
+    if operation == "invite_verify":
+        if verify_invite_vector(vector):
+            raise ValueError("invite signature verified unexpectedly")
+        raise ValueError("invite signature rejected")
+    if operation in {
+        "ratchet_decrypt",
+        "ratchet_decrypt_duplicate",
+        "ratchet_decrypt_skip_gap",
+        "ratchet_decrypt_tampered",
+    }:
+        bootstrap = _load_bootstrap_vector(vectors_dir, str(vector["bootstrap_vector"]))
+        side = str(vector.get("side", "bob"))
+        local, peer = _RatchetSession.from_bootstrap_vector(bootstrap, side=side)
+        if operation == "ratchet_decrypt":
+            local.decrypt(bytes.fromhex(str(vector["payload_hex"])))
+            return
+        if operation == "ratchet_decrypt_duplicate":
+            message = peer.encrypt(b"negative-vector-once")
+            local.decrypt(message)
+            local.decrypt(message)
+            return
+        if operation == "ratchet_decrypt_skip_gap":
+            import secrets
+
+            first = peer.encrypt(b"negative-vector-first")
+            local.decrypt(first)
+            peer_public = first[len(RATCHET_MAGIC) : len(RATCHET_MAGIC) + 32]
+            future_n = local.recv_n + MAX_SKIP_GAP + 1
+            forged = (
+                RATCHET_MAGIC
+                + peer_public
+                + struct.pack(">II", 0, future_n)
+                + secrets.token_bytes(32)
+            )
+            local.decrypt(forged)
+            return
+        message = peer.encrypt(b"negative-vector-tampered")
+        tampered = bytearray(message)
+        tampered[-1] ^= 0xFF
+        local.decrypt(bytes(tampered))
+        return
+    raise ValueError(f"unknown negative vector operation: {operation}")
+
+
+def verify_negative_vector(vector: dict[str, object], *, vectors_dir: str | Path) -> bool:
+    """Return True when the vector is rejected as expected."""
+    root = Path(vectors_dir)
+    try:
+        _run_negative_operation(vector, vectors_dir=root)
+    except Exception as exc:
+        if not vector.get("must_reject", True):
+            return False
+        expected = vector.get("error_contains")
+        if expected and str(expected) not in str(exc):
+            return False
+        return True
+    return False
+
+
+def verify_all_negative_vectors(vectors_dir: str | Path) -> None:
+    root = Path(vectors_dir)
+    negative_dir = root / "negative"
+    if not negative_dir.is_dir():
+        raise FileNotFoundError(f"negative vector directory missing: {negative_dir}")
+    for path in sorted(negative_dir.glob("*.json")):
+        data = json.loads(path.read_text(encoding="utf-8"))
+        items = data if isinstance(data, list) else [data]
+        for item in items:
+            if not verify_negative_vector(item, vectors_dir=root):
+                raise AssertionError(f"negative vector failed: {path.name} ({item.get('name', 'unnamed')})")
+
+
 def verify_all_vectors(vectors_dir: str | Path) -> None:
     root = Path(vectors_dir)
     checks = [
@@ -334,3 +623,4 @@ def verify_all_vectors(vectors_dir: str | Path) -> None:
         for item in items:
             if not verifier(item):
                 raise AssertionError(f"vector failed: {filename} ({item.get('name', 'unnamed')})")
+    verify_all_negative_vectors(root)

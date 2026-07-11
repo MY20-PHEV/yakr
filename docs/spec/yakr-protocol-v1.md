@@ -275,8 +275,12 @@ Canonical vectors live in `docs/spec/test-vectors-v1/`:
 | `inner_message.json` | §4.1 JSON canonical form |
 | `pairing_transcript.json` | Option B pairing transcript + classical/hybrid `master_secret` |
 | `double_ratchet.json` | Ratchet bootstrap + first-message encrypt/decrypt |
+| `negative/pairing.json` | Pairing request validation rejections (PQ downgrade, secret mismatch) |
+| `negative/cbor.json` | Invalid pairing request/response CBOR |
+| `negative/ratchet.json` | Ratchet header, duplicate, skip-gap, and AEAD tamper rejections |
+| `negative/invite.json` | Tampered invite signature rejection |
 
-Independent implementations MUST pass the interop verifier suite (see `interop/README.md`) using only this document and the vector files.
+Independent implementations MUST pass the interop verifier suite (see `interop/README.md`) using only this document and the vector files. `verify_all_vectors()` runs positive vectors then `negative/`.
 
 ## 9. Security Considerations
 

@@ -60,6 +60,7 @@ cargo test
 
 - [x] **Pairing transcript** — `pairing_transcript.json` classical + hybrid (`interop_verifier`, `rust/yakr-core`)
 - [x] **Double ratchet bootstrap** — `double_ratchet.json` HKDF chains + first message (`interop_verifier`, `rust/yakr-core`)
+- [x] **Negative vectors** — `test-vectors-v1/negative/` pairing, ratchet, invite, CBOR (`interop_verifier`)
 
 ### Client (minimal)
 
@@ -71,6 +72,7 @@ cargo test
 
 ```python
 from yakr_testkit.interop_verifier import (
+    verify_all_negative_vectors,
     verify_all_vectors,
     verify_delivery_profile_vector,
     verify_double_ratchet_vector,
@@ -78,10 +80,12 @@ from yakr_testkit.interop_verifier import (
     verify_inner_message_vector,
     verify_invite_vector,
     verify_mailbox_tag_vector,
+    verify_negative_vector,
     verify_pairing_transcript_vector,
 )
 
 verify_all_vectors("docs/spec/test-vectors-v1")
+verify_all_negative_vectors("docs/spec/test-vectors-v1")
 ```
 
 ## Reporting Issues
@@ -97,7 +101,7 @@ Interop failures should include:
 Phase 9 interop is complete for crypto primitives. **Phase 11** ([phase-11-implementation-readiness.md](../docs/spec/phase-11-implementation-readiness.md)) adds:
 
 - `pairing_transcript.json` and `double_ratchet.json` in the standalone verifier
-- Published negative vectors under `test-vectors-v1/negative/`
+- Published negative vectors under `test-vectors-v1/negative/` (**done**)
 - CI-gated Python↔Rust pairing and send/fetch in both directions (`test_phase11_cross_lang.py`)
 
 Until Phase 11 closes, independent implementers should treat pairing/ratchet vectors as authoritative but verify them with reference testkit tests or by porting the verifier functions yourself.
