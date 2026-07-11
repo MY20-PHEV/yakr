@@ -39,7 +39,60 @@ For design-level issues (pairing transcript, ratchet, relay authorization, TLS p
 
 External reviews are welcome; see saved critiques in `docs/reviews/`.
 
-## Out of scope (for now)
+## Open review call — DH ratchet epoch rotation (F16 / R6)
+
+**Status:** Open — seeking independent analysis  
+**Backlog:** P2-1 (partial)  
+**Posted:** 2026-07-11
+
+### Summary
+
+Yakr v1.0 uses an X25519 double ratchet (`YKDR2` wire format). Internal self-review found that in **normal bidirectional ping-pong traffic**, the **DH ratchet epoch does not rotate**: `root_key` and `dh_self_public` stay fixed while only the symmetric send/recv chains advance.
+
+We are **not** claiming this is exploitable today. We **are** asking whether it meets the project's forward-secrecy goals and how it compares to Signal-style double-ratchet behaviour.
+
+### Evidence
+
+| Item | Location |
+|------|----------|
+| Self-review finding F16 | [docs/reviews/ratchet-self-review-2026-07-11.md](docs/reviews/ratchet-self-review-2026-07-11.md) |
+| Review package R6 | [docs/security/session-ratchet-review-v1.md](docs/security/session-ratchet-review-v1.md) |
+| Regression test | `packages/yakr-testkit/tests/test_ratchet_adversarial.py` → `test_bidirectional_ping_pong_uses_symmetric_chain_only` |
+| Reference implementation | `packages/yakr-core/src/yakr_core/ratchet.py` — `decrypt()` sets `dh_peer_public` on first message without calling `_dh_ratchet`; DH step only runs when a **subsequent** header carries a **different** `dh_public` |
+| Normative spec | [docs/spec/double-ratchet.md](docs/spec/double-ratchet.md) |
+
+Reproduce locally:
+
+```bash
+uv run pytest packages/yakr-testkit/tests/test_ratchet_adversarial.py::test_bidirectional_ping_pong_uses_symmetric_chain_only -v
+```
+
+### Questions for reviewers
+
+1. **Forward secrecy:** Is per-message key derivation from a fixed DH epoch (symmetric chain only) sufficient for Yakr's stated threat model, or is DH epoch rotation required?
+2. **Specification gap:** Is the current `decrypt()` first-message behaviour (record peer, skip `_dh_ratchet`) intentional, an implementation bug, or a spec/impl mismatch vs [double-ratchet.md](docs/spec/double-ratchet.md)?
+3. **Comparison:** How does this differ from the Signal double ratchet's receive-side DH step, and what breaks if Yakr adopted that model?
+4. **Attack surface:** Can an observer or malicious relay leverage a long-lived DH epoch in ways that symmetric chain ratcheting does not mitigate?
+5. **Remediation:** If change is warranted, should rotation happen on first receive, before first reply, or on another trigger? What is the minimal wire-compatible fix?
+
+### How to respond
+
+| Finding type | Channel |
+|--------------|---------|
+| **Design analysis, spec feedback, F16/R6 assessment** | Public [GitHub Discussion](https://github.com/MY20-PHEV/yakr/discussions) (preferred) or comment on a linked issue — cite `F16` / `R6` in the title |
+| **Exploitable break of confidentiality or authentication** | **Private** — [GitHub Security Advisory](https://github.com/MY20-PHEV/yakr/security/advisories/new) (do not file public issues for weaponisable bugs) |
+
+Please include:
+
+- protocol version (`yakr-v1.0`);
+- whether you recomputed [double_ratchet.json](docs/spec/test-vectors-v1/double_ratchet.json) or walked `ratchet.py`;
+- impact assessment (design concern vs practical attack);
+- recommended spec or implementation change, if any.
+
+We aim to acknowledge public review responses within **14 days** and will publish a short summary of accepted findings in `docs/reviews/` (with credit if desired).
+
+**This call does not constitute a bug bounty.** It is an invitation for cryptographic design review on an experimental protocol.
+
 
 - Missing features listed as deferred in SECURITY_BACKLOG (Tor, multi-device, etc.)
 - Deployment hardening of operator infrastructure (firewall, OS patching)
