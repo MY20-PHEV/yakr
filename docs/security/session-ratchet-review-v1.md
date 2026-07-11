@@ -161,9 +161,10 @@ Mapped errors:
 | R3 | Post-compromise recovery | Info | Documented deferral; PQ rekey is time/count policy not PCS |
 | R4 | Rust/Python parity | Med | Independent impl exists; security review ≠ language port |
 | R5 | No formal model | Info | No ProVerif/Tamarin artifact |
-| R6 | DH ratchet not reached in normal ping-pong | **High** | Root/`dh_self` fixed; forward secrecy within epoch relies on symmetric chain only — see F16 |
+| R6 | DH ratchet inactive in normal ping-pong | **High** (confirmed externally) | Symmetric chains only; header DH keys do not mix root unless peer changes advertised public — [issue #2](https://github.com/MY20-PHEV/yakr/issues/2) |
 
-Internal findings: [ratchet-self-review-2026-07-11.md](../reviews/ratchet-self-review-2026-07-11.md).
+Internal findings: [ratchet-self-review-2026-07-11.md](../reviews/ratchet-self-review-2026-07-11.md).  
+**External review:** [external-ratchet-review-f16-issue-2-2026-07-11.md](../reviews/external-ratchet-review-f16-issue-2-2026-07-11.md) — confirms F16; no exploit demonstrated; naive `_dh_ratchet` on first receive is unsafe; resolution = Option A (symmetric-only labelling) or Option B (pairing-time DH init).
 
 ## Test coverage map
 
