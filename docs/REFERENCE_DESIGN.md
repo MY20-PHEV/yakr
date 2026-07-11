@@ -896,20 +896,43 @@ Track unresolved items here; close with ADRs in `docs/adr/`.
 | Phase 7 | Balanced mode hides size class in ciphertext |
 | Phase 8 | Two Android phones deliver offline via relay |
 | Phase 9 | Independent client passes interop suite |
+| Phase 11 | Python↔Rust pairing + ratchet interop; full vector + negative conformance |
+
+---
+
+## Phase 11 — Yakr v1.0 Independent Implementation Readiness
+
+**Depends on:** Phase 10; F16 closed on pairing path  
+**Status:** Open — **current major milestone**  
+**Spec:** [phase-11-implementation-readiness.md](spec/phase-11-implementation-readiness.md)
+
+### Goal
+
+Python and Rust both implement the normative invite-pairing + double-ratchet path; cross-language interop is CI-gated; conformance vectors and negative cases are complete; delivery semantics are normative; ambiguities live in errata or v1.1 backlog.
+
+### Exit criteria
+
+- [ ] Python and Rust implement the same normative pairing and ratchet path
+- [ ] Python↔Rust interoperability in both role directions
+- [ ] All normative wire structures have frozen vectors
+- [ ] Negative vectors define rejection behaviour
+- [ ] Delivery semantics are no longer draft
+- [ ] Third-party conformance suite runs without importing `yakr_core`
+- [ ] Remaining ambiguities tracked as errata or v1.1 work
 
 ---
 
 ## 9. Immediate Next Steps
 
-Phase 1–9 are complete. Phase 10 is complete except future ADR work.
+Phase 1–10 are complete. **Phase 11** is the active milestone — see [phase-11-implementation-readiness.md](spec/phase-11-implementation-readiness.md).
 
-**Security hardening (P0–P3)** takes priority over new transports — see [SECURITY_BACKLOG.md](SECURITY_BACKLOG.md) and [delivery-state-machine.md](spec/delivery-state-machine.md). Current focus:
+**After Phase 11** (or in parallel where isolated):
 
-1. **Homelab** — deploy Charlie with HTTPS (`deploy_charlie_vps.sh` + `generate_operator_relay_tls.py`); prefer **8090** or Tailscale over home **443** ([homelab-relay.md](homelab-relay.md)); use `yakr presence push` on IP change
-2. **CLI polish** — optional background `resend`/`receipts` worker
-3. **Transports** — Tor dial strings with same TLS pin model; Meshtastic/LoRaWAN mesh adapters ([ADR 010](adr/010-offline-mesh-transports.md))
-4. **Ephemeral cloud relay** (future) — one-click deploy/teardown of containerized `yakr-relay` in user's AWS/GCP account with profile baked in ([ADR 009](adr/009-ephemeral-cloud-relay.md))
-5. **Offline mesh** (future) — Meshtastic gateway bridge + blob fragmentation; LoRaWAN paired gateway ([ADR 010](adr/010-offline-mesh-transports.md))
+1. **Homelab** — deploy Charlie with HTTPS; `yakr presence push` on IP change ([homelab-relay.md](homelab-relay.md))
+2. **Certification program** — open applications once Phase 11 exit criteria pass ([CERTIFICATION.md](../CERTIFICATION.md))
+3. **Transports** — Tor, Meshtastic/LoRaWAN ([ADR 010](adr/010-offline-mesh-transports.md))
+4. **Ephemeral cloud relay** ([ADR 009](adr/009-ephemeral-cloud-relay.md))
+5. **P2-8** — migrate or deprecate `Contact.establish()` for production
 
 **Explicit non-goal (v1):** multi-device identity sync (same person on phone + laptop with live shared inbox). One `YAKR_HOME` = one messaging identity. Always-on delivery uses **relay operators**, not a second signed-in client. See [multi-device.md](spec/multi-device.md) for future notes only.
 
