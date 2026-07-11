@@ -15,7 +15,7 @@ build/
 .tmp-profile-demo/
 .tmp-hybrid-demo/
 .tmp-relay-group-demo/
-# Homelab operator TLS material (local only — not committed)
+scripts/homelab_tailscale.local.env
 .tmp-homelab-operators/
 NOTICE.md
 data/
