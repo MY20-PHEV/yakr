@@ -12,7 +12,7 @@ Phase 9 proved a narrow crypto/encoding interop slice. Phase 11 closes the gap b
 
 **In scope:** pairing transcript (Option B), ratchet bootstrap and message encrypt/decrypt, mailbox tag + outer blob relay path, delivery semantics normative status, published negative vectors, standalone conformance runner.
 
-**Out of scope (tracked elsewhere):** certification program opening ([CERTIFICATION.md](../../CERTIFICATION.md)), external security audit, full CLI parity, multi-device, platform wake, Tor/mesh transports, `Contact.establish()` production path ([P2-8](../SECURITY_BACKLOG.md)).
+**Out of scope (tracked elsewhere):** external security audit, full CLI parity, multi-device, platform wake, Tor/mesh transports, `Contact.establish()` production path ([P2-8](../SECURITY_BACKLOG.md)). Certification program: [CERTIFICATION.md](../../CERTIFICATION.md) (**open**).
 
 ---
 
@@ -98,7 +98,7 @@ cd rust && cargo test cross_lang
 
 ## Relationship to certification
 
-Passing Phase 11 is a **prerequisite** for opening the [CERTIFICATION.md](../../CERTIFICATION.md) application process with integrity. It does not imply production security maturity ([SECURITY_BACKLOG.md](../SECURITY_BACKLOG.md)).
+Phase 11 is complete. The [CERTIFICATION.md](../../CERTIFICATION.md) application process opened **2026-07-11**. Certification attests to wire compatibility, not production security maturity ([SECURITY_BACKLOG.md](../SECURITY_BACKLOG.md)).
 
 ---
 

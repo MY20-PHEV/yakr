@@ -8,7 +8,7 @@ Third-party clients can verify conformance against the reference implementation 
 
 No import of `yakr_core` is required. The reference interop verifier lives at `packages/yakr-testkit/src/yakr_testkit/interop_verifier.py`.
 
-For official **Yakr Certified** badge use (trademark, listing, review), see [CERTIFICATION.md](../CERTIFICATION.md). Self-test alone does not grant badge rights.
+For official **Yakr Certified** badge use (trademark, listing, review), see [CERTIFICATION.md](../CERTIFICATION.md) (**open**). Self-test alone does not grant badge rights.
 
 ## Quick Start
 

@@ -1,0 +1,83 @@
+name: Yakr Certification Application
+description: Apply for Yakr Protocol Certified status (client and/or relay v1.0)
+title: "[Certification] "
+labels:
+  - certification
+body:
+  - type: markdown
+    value: |
+      Apply for **Yakr Protocol Certified** status. Read [CERTIFICATION.md](https://github.com/MY20-PHEV/yakr/blob/main/CERTIFICATION.md) and run `./scripts/certification_self_test.sh` before submitting.
+
+      Self-test success does not grant badge use until review completes.
+
+  - type: checkboxes
+    id: categories
+    attributes:
+      label: Category
+      options:
+        - label: Yakr Certified — Client v1.0
+        - label: Yakr Certified — Relay v1.0
+    validations:
+      required: true
+
+  - type: input
+    id: product_name
+    attributes:
+      label: Product name
+      description: Public name of your client app, CLI, or relay service
+      placeholder: Example Messenger / relay.example.com
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version / build
+      description: Git commit, release tag, or app store build number under review
+      placeholder: v1.0.0 / abc1234
+    validations:
+      required: true
+
+  - type: dropdown
+    id: license_tier
+    attributes:
+      label: Fee tier
+      options:
+        - Open source / nonprofit (free listing)
+        - Commercial client
+        - Commercial relay
+    validations:
+      required: true
+
+  - type: textarea
+    id: self_test
+    attributes:
+      label: Self-test output
+      description: Paste the full output of `./scripts/certification_self_test.sh` (or attach as gist)
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: checklist
+    attributes:
+      label: Category checklist
+      description: |
+        Client: link or paste completed [client-checklist.md](https://github.com/MY20-PHEV/yakr/blob/main/certification/client-checklist.md)
+        Relay: link or paste completed [relay-checklist.md](https://github.com/MY20-PHEV/yakr/blob/main/certification/relay-checklist.md)
+    validations:
+      required: true
+
+  - type: input
+    id: repo_url
+    attributes:
+      label: Source repository or product URL
+      placeholder: https://github.com/org/yakr-client
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Additional notes
+      description: Optional extensions claimed (hybrid PQ, presence, TLS pins), deployment model, or questions for the reviewer
