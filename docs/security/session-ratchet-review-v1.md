@@ -48,7 +48,7 @@ send_chain   = HKDF-SHA256(root_key, info = "yakr/v1.0/double-ratchet-send", ...
 recv_chain   = HKDF-SHA256(root_key, info = "yakr/v1.0/double-ratchet-recv", ...)
 ```
 
-Initiator (inviter in pairing, or lexicographically smaller name in `Contact.establish`) keeps `(send_chain, recv_chain)`. Joiner swaps chains.
+Initiator on the **normative pairing path** is the inviter; joiner swaps send/recv chains. On the non-normative `Contact.establish` path only, the lexicographically smaller display name is initiator (tests / `contact-add`).
 
 Each side generates a fresh X25519 ratchet keypair `(dh_self_private, dh_self_public)`. `dh_peer_public` starts unset until the first received header.
 
@@ -161,7 +161,7 @@ Mapped errors:
 | R3 | Post-compromise recovery | Info | Documented deferral; PQ rekey is time/count policy not PCS |
 | R4 | Rust/Python parity | Med | Independent impl exists; security review ≠ language port |
 | R5 | No formal model | Info | No ProVerif/Tamarin artifact |
-| R6 | DH ratchet inactive in normal ping-pong | **Resolved (pairing)** — Option B pairing-time init; establish path unchanged — [issue #2](https://github.com/MY20-PHEV/yakr/issues/2) |
+| R6 | DH ratchet inactive in normal ping-pong | **Closed (pairing path)** — Option B; `establish` non-normative — [issue #2](https://github.com/MY20-PHEV/yakr/issues/2) (closed) |
 
 Internal findings: [ratchet-self-review-2026-07-11.md](../reviews/ratchet-self-review-2026-07-11.md).  
 **External review:** [external-ratchet-review-f16-issue-2-2026-07-11.md](../reviews/external-ratchet-review-f16-issue-2-2026-07-11.md) — confirms F16; **Option B implemented** for pairing path.
@@ -182,7 +182,7 @@ Internal findings: [ratchet-self-review-2026-07-11.md](../reviews/ratchet-self-r
 1. Read this document and [double-ratchet.md](../spec/double-ratchet.md).
 2. Recompute [double_ratchet.json](../spec/test-vectors-v1/double_ratchet.json) and [pairing_transcript.json](../spec/test-vectors-v1/pairing_transcript.json).
 3. Walk `pairing_transcript()` → `RatchetState.from_master` → `encrypt`/`decrypt` in `pairing.py` / `ratchet.py`.
-4. **F16 / R6:** Evaluate whether ping-pong traffic without DH epoch rotation meets your forward-secrecy bar; compare to Signal double-ratchet receive-side DH step.
+4. **F16 / R6 (closed on pairing path):** Confirm Option B pairing-time init matches [double-ratchet.md](../spec/double-ratchet.md) § Session bootstrap paths. `Contact.establish` remains out of scope for active DH ratchet (P2-8).
 5. Evaluate session rollback in `Session.decrypt_outer`.
 6. File findings via [SECURITY.md](../../SECURITY.md) (private advisory).
 

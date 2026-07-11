@@ -68,10 +68,10 @@ Architecturally cleaner than arbitrary periodic rotation; may require pairing tr
 | Save review in `docs/reviews/` | Done (this file) |
 | Update review package wording | Done |
 | Protocol change | **Option B implemented** (pairing transcript + asymmetric ratchet init) |
-| Close F16 | **Closed for pairing path**; `Contact.establish` symmetric-only behaviour documented |
+| Close F16 | **Closed** (pairing path, issue #2). `Contact.establish` classified non-normative in spec |
 
 ## Tracking
 
 - Issue: https://github.com/MY20-PHEV/yakr/issues/2
 - Discussion: https://github.com/MY20-PHEV/yakr/discussions/1
-- Backlog: P2-1 partial; **F16 closed** (pairing path, Option B); establish path deferred
+- Backlog: P2-1 partial; **F16 closed** (pairing path); P2-8 tracks `Contact.establish` future

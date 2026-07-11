@@ -45,7 +45,8 @@
 
 | ID | Item | Status |
 |----|------|--------|
-| P2-1 | Independent session / ratchet review | [session-ratchet-review-v1.md](security/session-ratchet-review-v1.md) | **Partial** (F16 resolved via Option B for pairing; establish path documented) |
+| P2-1 | Independent session / ratchet review | [session-ratchet-review-v1.md](security/session-ratchet-review-v1.md) | **Partial** — F16 closed (pairing path); see P2-8 for `establish` |
+| P2-8 | `Contact.establish` vs pairing parity | [double-ratchet.md](spec/double-ratchet.md) § Session bootstrap paths | **Open** — migrate to Option B bootstrap or deprecate for production |
 | P2-2 | Complete pairing transcript construction doc | [pairing-transcript-v1.md](spec/pairing-transcript-v1.md) | **Done** (normative spec, classical + hybrid vectors, transport equivalence tests) |
 | P2-3 | PQ downgrade prevention (no silent classical after hybrid) | **Done** — `validate_pairing_request_for_invite` |
 | P2-4 | Protocol version downgrade policy | **Done** — `invite.protocol` in transcript |
