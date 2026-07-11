@@ -115,6 +115,7 @@ The whitepaper explains intent; the normative spec determines interoperability.
 | [docs/target-audience.md](docs/target-audience.md) | Target audience and positioning (draft) |
 | [docs/reviews/external-critique-2026-07-10.md](docs/reviews/external-critique-2026-07-10.md) | External protocol review (reference) |
 | [docs/reviews/github-follow-up-critique-2026-07-10.md](docs/reviews/github-follow-up-critique-2026-07-10.md) | Follow-up review after GitHub publication |
+| [docs/reviews/phase-11-independent-critique-2026-07-11.md](docs/reviews/phase-11-independent-critique-2026-07-11.md) | Phase 11 completion review + post-milestone follow-ups |
 | [docs/spec/double-ratchet.md](docs/spec/double-ratchet.md) | X25519 double ratchet |
 | [docs/spec/mesh-testing-and-resilience.md](docs/spec/mesh-testing-and-resilience.md) | Mesh stress and relay outage test status |
 | [docs/html/index.html](docs/html/index.html) | Visual protocol guide (HTML + flowcharts) |

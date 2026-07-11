@@ -36,4 +36,8 @@ The normative spec and test vectors remain free. Fees fund conformance review an
 
 Requires an approved application. See [CERTIFICATION.md § Badge and trademark](../CERTIFICATION.md#badge-and-trademark).
 
+**Every certified badge use must include** (or link to) this disclaimer:
+
+> Certification indicates interoperability and protocol-conformance review only. It is not a security audit, product endorsement, or assurance of production suitability.
+
 Allowed without certification: factual “implements Yakr protocol v1.0” wording and links to this repository.

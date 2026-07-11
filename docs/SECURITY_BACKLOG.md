@@ -1,7 +1,7 @@
 # Security and Protocol Hardening Backlog
 
 **Status:** Living document  
-**Source:** [External review 2026-07-10](reviews/external-critique-2026-07-10.md), [GitHub follow-up 2026-07-10](reviews/github-follow-up-critique-2026-07-10.md)  
+**Source:** [External review 2026-07-10](reviews/external-critique-2026-07-10.md), [GitHub follow-up 2026-07-10](reviews/github-follow-up-critique-2026-07-10.md), [Phase 11 review 2026-07-11](reviews/phase-11-independent-critique-2026-07-11.md)  
 **Purpose:** Track P0–P3 work before new transports or features
 
 ## Maturity labels (project-wide)
@@ -77,6 +77,7 @@
 | Soften relay identity prose in whitepaper §3.1 | Done |
 | Save external critique | [reviews/external-critique-2026-07-10.md](reviews/external-critique-2026-07-10.md) |
 | Save GitHub follow-up critique | [reviews/github-follow-up-critique-2026-07-10.md](reviews/github-follow-up-critique-2026-07-10.md) |
+| Save Phase 11 independent critique | [reviews/phase-11-independent-critique-2026-07-11.md](reviews/phase-11-independent-critique-2026-07-11.md) |
 | Apache-2.0 code licence + CC BY docs | [LICENSE](../LICENSE), [DOCUMENTATION-LICENSE.md](DOCUMENTATION-LICENSE.md) |
 | Document precedence in README | Done |
 | SECURITY.md vulnerability reporting | [SECURITY.md](../SECURITY.md) |
@@ -96,6 +97,20 @@
 | WP4 Negative vectors | P2-6 extension — **Done** |
 | WP5 Delivery + errata | P0-1 — **Done** |
 | Wire-structure vectors | `outer_blob.json`, `inner_receipt.json` — **Done** |
+
+---
+
+## Post–Phase 11 hardening (milestone closed)
+
+**Review:** [phase-11-independent-critique-2026-07-11.md](reviews/phase-11-independent-critique-2026-07-11.md)  
+**Tracking:** [phase-11-implementation-readiness.md § Post–Phase 11 hardening](spec/phase-11-implementation-readiness.md#postphase-11-hardening)
+
+| ID | Item | Status |
+|----|------|--------|
+| P11-1 | Hybrid PQ live Python↔Rust interop (both inviter directions) | **Open** |
+| P11-2 | Protocol-level negative vector outcomes (not exception substrings) | **Open** |
+| P11-3 | Certification trust wording + steward reference-baseline label | **Open** |
+| P11-4 | Blind external implementation review package | **Open** |
 
 ---
 

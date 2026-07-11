@@ -19,6 +19,8 @@ Formal badge name: **Yakr Protocol Certified** (short: **Yakr Certified**).
 
 See [docs/SECURITY_BACKLOG.md](docs/SECURITY_BACKLOG.md). Certification attests to **wire compatibility**, not production security.
 
+> **Certification is not a security audit.** Badge and directory listings indicate interoperability and protocol-conformance review only — not product endorsement, operational security, or production suitability. See [phase-11-independent-critique-2026-07-11.md](docs/reviews/phase-11-independent-critique-2026-07-11.md) (finding §2).
+
 ---
 
 ## What certification means
@@ -202,3 +204,4 @@ See also: [whitepaper.md](whitepaper.md) §2.1 (target users), [docs/security/an
 - [interop/README.md](interop/README.md)
 - [docs/spec/relay-authorization.md](docs/spec/relay-authorization.md)
 - [docs/adr/008-nat-reachability-and-mobile-delivery.md](docs/adr/008-nat-reachability-and-mobile-delivery.md)
+- [docs/reviews/phase-11-independent-critique-2026-07-11.md](docs/reviews/phase-11-independent-critique-2026-07-11.md)
