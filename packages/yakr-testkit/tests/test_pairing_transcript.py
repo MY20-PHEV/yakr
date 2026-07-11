@@ -51,6 +51,7 @@ def _request_from_vector(vector: dict) -> PairingRequest:
         joiner_signing_public=bytes.fromhex(vector["joiner_signing_public_hex"]),
         joiner_agreement_public=bytes.fromhex(vector["joiner_agreement_public_hex"]),
         joiner_ephemeral_public=bytes.fromhex(vector["joiner_ephemeral_public_hex"]),
+        joiner_ratchet_public=bytes.fromhex(vector["joiner_ratchet_public_hex"]),
         joiner_profile=b"",
         kem_ciphertext=kem_ciphertext,
     )
@@ -61,8 +62,9 @@ def test_pairing_transcript_vectors() -> None:
         invite = _invite_from_vector(vector)
         request = _request_from_vector(vector)
         inviter_ephemeral_public = bytes.fromhex(vector["inviter_ephemeral_public_hex"])
+        inviter_ratchet_public = bytes.fromhex(vector["inviter_ratchet_public_hex"])
 
-        transcript = pairing_transcript(invite, request, inviter_ephemeral_public)
+        transcript = pairing_transcript(invite, request, inviter_ephemeral_public, inviter_ratchet_public)
         assert transcript.hex() == vector["expected_transcript_hash_hex"]
 
         inv_agree = x25519.X25519PrivateKey.from_private_bytes(

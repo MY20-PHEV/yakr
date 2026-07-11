@@ -39,11 +39,42 @@ For design-level issues (pairing transcript, ratchet, relay authorization, TLS p
 
 External reviews are welcome; see saved critiques in `docs/reviews/`.
 
-## Open review call — DH ratchet epoch rotation (F16 / R6)
+## F16 / R6 — DH ratchet epoch rotation (resolved)
 
-**Status:** Open — **first external review received** ([issue #2](https://github.com/MY20-PHEV/yakr/issues/2))  
-**Backlog:** P2-1 (partial)  
-**Posted:** 2026-07-11
+**Status:** **Resolved** — Option B implemented (2026-07-11)  
+**Decision:** [issue #2](https://github.com/MY20-PHEV/yakr/issues/2) Option B — pairing-time DH init  
+**Backlog:** P2-1 (F16 closed for pairing path)
+
+### Summary
+
+External review confirmed that pre-Option-B pairing sessions advanced only symmetric chains while X25519 header keys were inert. **Option B** adds `joiner_ratchet_public` / `inviter_ratchet_public` to the pairing transcript and asymmetric ratchet bootstrap at `complete_pairing`:
+
+- Inviter defers send-side DH init until first `encrypt` (preserves joiner-first / send-before-receive).
+- Joiner runs recv-side init at pairing complete.
+
+Pairing-path traffic now rotates `root_key` and `dh_self_public` during normal bidirectional messaging. `Contact.establish` remains symmetric-chain-only (documented in [double-ratchet.md](docs/spec/double-ratchet.md)).
+
+### Evidence
+
+| Item | Location |
+|------|----------|
+| External review | [docs/reviews/external-ratchet-review-f16-issue-2-2026-07-11.md](docs/reviews/external-ratchet-review-f16-issue-2-2026-07-11.md) |
+| Pairing transcript spec | [docs/spec/pairing-transcript-v1.md](docs/spec/pairing-transcript-v1.md) |
+| Double ratchet spec | [docs/spec/double-ratchet.md](docs/spec/double-ratchet.md) |
+| Regression tests | `test_pairing_path_rotates_dh_epoch`, `test_contact_establish_ping_pong_does_not_rotate_dh_epoch` in `test_ratchet_adversarial.py` |
+| Reference implementation | `packages/yakr-core/src/yakr_core/ratchet.py` — `_pairing_send_init`, `_pairing_recv_init`, `pending_pairing_dh_ratchet_peer` |
+
+```bash
+uv run pytest packages/yakr-testkit/tests/test_ratchet_adversarial.py::test_pairing_path_rotates_dh_epoch -v
+```
+
+**Discussion thread:** https://github.com/MY20-PHEV/yakr/discussions/1  
+**External review:** https://github.com/MY20-PHEV/yakr/issues/2
+
+## Open review call — DH ratchet epoch rotation (F16 / R6) — closed
+
+<details>
+<summary>Historical open review call (2026-07-11)</summary>
 
 ### Summary
 
@@ -53,53 +84,9 @@ External review ([issue #2](https://github.com/MY20-PHEV/yakr/issues/2)) **confi
 
 > Normal sessions advance only the pairing-derived symmetric chains. The X25519 ratchet keys exchanged in message headers do not contribute to the root key unless a peer independently changes its advertised public key.
 
-We are **not** claiming this is exploitable today. Resolution is pending: either **label v1.0 as symmetric-only** or **revise pairing/session initialisation** so normal traffic drives DH transitions (see saved review).
+We are **not** claiming this is exploitable today. Resolution was Option B (pairing-time DH init).
 
-### Evidence
-
-| Item | Location |
-|------|----------|
-| Self-review finding F16 | [docs/reviews/ratchet-self-review-2026-07-11.md](docs/reviews/ratchet-self-review-2026-07-11.md) |
-| External review (issue #2) | [docs/reviews/external-ratchet-review-f16-issue-2-2026-07-11.md](docs/reviews/external-ratchet-review-f16-issue-2-2026-07-11.md) |
-| Review package R6 | [docs/security/session-ratchet-review-v1.md](docs/security/session-ratchet-review-v1.md) |
-| Regression test | `packages/yakr-testkit/tests/test_ratchet_adversarial.py` → `test_bidirectional_ping_pong_uses_symmetric_chain_only` |
-| Reference implementation | `packages/yakr-core/src/yakr_core/ratchet.py` — `decrypt()` sets `dh_peer_public` on first message without calling `_dh_ratchet`; DH step only runs when a **subsequent** header carries a **different** `dh_public` |
-| Normative spec | [docs/spec/double-ratchet.md](docs/spec/double-ratchet.md) |
-
-Reproduce locally:
-
-```bash
-uv run pytest packages/yakr-testkit/tests/test_ratchet_adversarial.py::test_bidirectional_ping_pong_uses_symmetric_chain_only -v
-```
-
-### Questions for reviewers
-
-1. **Forward secrecy:** Is per-message key derivation from a fixed DH epoch (symmetric chain only) sufficient for Yakr's stated threat model, or is DH epoch rotation required?
-2. **Specification gap:** Is the current `decrypt()` first-message behaviour (record peer, skip `_dh_ratchet`) intentional, an implementation bug, or a spec/impl mismatch vs [double-ratchet.md](docs/spec/double-ratchet.md)?
-3. **Comparison:** How does this differ from the Signal double ratchet's receive-side DH step, and what breaks if Yakr adopted that model?
-4. **Attack surface:** Can an observer or malicious relay leverage a long-lived DH epoch in ways that symmetric chain ratcheting does not mitigate?
-5. **Remediation:** If change is warranted, should rotation happen on first receive, before first reply, or on another trigger? What is the minimal wire-compatible fix?
-
-### How to respond
-
-| Finding type | Channel |
-|--------------|---------|
-| **Design analysis, spec feedback, F16/R6 assessment** | Public [GitHub Discussion](https://github.com/MY20-PHEV/yakr/discussions) (preferred) or comment on a linked issue — cite `F16` / `R6` in the title |
-| **Exploitable break of confidentiality or authentication** | **Private** — [GitHub Security Advisory](https://github.com/MY20-PHEV/yakr/security/advisories/new) (do not file public issues for weaponisable bugs) |
-
-Please include:
-
-- protocol version (`yakr-v1.0`);
-- whether you recomputed [double_ratchet.json](docs/spec/test-vectors-v1/double_ratchet.json) or walked `ratchet.py`;
-- impact assessment (design concern vs practical attack);
-- recommended spec or implementation change, if any.
-
-We aim to acknowledge public review responses within **14 days** and will publish a short summary of accepted findings in `docs/reviews/` (with credit if desired).
-
-**This call does not constitute a bug bounty.** It is an invitation for cryptographic design review on an experimental protocol.
-
-**Discussion thread:** https://github.com/MY20-PHEV/yakr/discussions/1  
-**External review:** https://github.com/MY20-PHEV/yakr/issues/2
+</details>
 
 ## Out of scope (for now)
 

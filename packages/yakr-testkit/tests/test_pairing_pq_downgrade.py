@@ -46,12 +46,13 @@ def test_classical_invite_rejects_unexpected_kem_ciphertext() -> None:
         joiner_signing_public=bytes(32),
         joiner_agreement_public=bytes(32),
         joiner_ephemeral_public=bytes(32),
+        joiner_ratchet_public=bytes(32),
         kem_ciphertext=bytes(16),
     )
     with pytest.raises(ValueError, match="unexpected kem ciphertext"):
         validate_pairing_request_for_invite(invite, request)
     with pytest.raises(ValueError, match="unexpected kem ciphertext"):
-        pairing_transcript(invite, request, bytes(32))
+        pairing_transcript(invite, request, bytes(32), bytes(32))
 
 
 def test_hybrid_invite_requires_kem_ciphertext() -> None:
@@ -62,9 +63,10 @@ def test_hybrid_invite_requires_kem_ciphertext() -> None:
         joiner_signing_public=bytes(32),
         joiner_agreement_public=bytes(32),
         joiner_ephemeral_public=bytes(32),
+        joiner_ratchet_public=bytes(32),
         kem_ciphertext=b"",
     )
     with pytest.raises(ValueError, match="hybrid invite requires kem"):
         validate_pairing_request_for_invite(invite, request)
     with pytest.raises(ValueError, match="hybrid invite requires kem"):
-        pairing_transcript(invite, request, bytes(32))
+        pairing_transcript(invite, request, bytes(32), bytes(32))
