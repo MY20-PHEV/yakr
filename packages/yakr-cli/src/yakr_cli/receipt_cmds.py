@@ -17,16 +17,14 @@ logger = logging.getLogger(__name__)
 receipts_app = typer.Typer(help="Delivery receipt queue and flush")
 
 
-def _ratchet_snapshot(contact) -> tuple[dict, int]:
+def _ratchet_snapshot(contact) -> dict:
     if contact.ratchet is None:
         raise ValueError("contact missing ratchet state")
-    return contact.ratchet.to_dict(), contact.next_send_seq
+    return contact.ratchet.to_dict()
 
 
-def _restore_ratchet_snapshot(contact, snapshot: tuple[dict, int]) -> None:
-    ratchet_dict, send_seq = snapshot
-    contact.ratchet = RatchetState.from_dict(ratchet_dict)
-    contact.next_send_seq = send_seq
+def _restore_ratchet_snapshot(contact, snapshot: dict) -> None:
+    contact.ratchet = RatchetState.from_dict(snapshot)
 
 
 def _store() -> FileLocalStore:
@@ -61,8 +59,10 @@ def send_delivery_receipt(
         raise ValueError(f"unknown contact: {contact_name}")
 
     session = Session(identity, contact)
-    snapshot = _ratchet_snapshot(contact)
+    ratchet_snapshot = _ratchet_snapshot(contact)
+    send_seq_before = contact.next_send_seq
     receipt = session.encrypt_receipt(delivered_id)
+    _restore_ratchet_snapshot(contact, ratchet_snapshot)
     store.atomic_persist_contact(contact)
     reverse_route = _reverse_route(route)
     try:
@@ -77,7 +77,8 @@ def send_delivery_receipt(
         store.delete_pending_receipt(contact_name, delivered_id)
         return True
     except (RuntimeError, httpx.HTTPError, ValueError) as exc:
-        _restore_ratchet_snapshot(contact, snapshot)
+        _restore_ratchet_snapshot(contact, ratchet_snapshot)
+        contact.next_send_seq = send_seq_before
         store.atomic_persist_contact(contact)
         logger.warning("receipt delivery to %s failed: %s", contact_name, exc)
         store.save_pending_receipt(contact_name, delivered_id, route=route)

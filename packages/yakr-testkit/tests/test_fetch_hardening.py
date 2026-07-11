@@ -55,6 +55,26 @@ def test_stale_receipt_does_not_clear_unrelated_pending(tmp_path: Path) -> None:
         mesh.stop()
 
 
+def test_receipt_send_does_not_advance_ratchet_send_n(tmp_path: Path) -> None:
+    """Delivery receipts use application seq but must not advance ratchet send_n."""
+    mesh = build_charlie_mesh(tmp_path)
+    try:
+        mesh.alice.send("bob", "hello")
+        bob_contact = mesh.bob.store.get_contact("alice")
+        assert bob_contact is not None
+        before_send_n = bob_contact.ratchet.send_n
+
+        mesh.bob.fetch("alice", send_receipts=True)
+        mesh.alice.drain_receipts()
+        after = mesh.bob.store.get_contact("alice")
+        assert after is not None
+        assert after.ratchet is not None
+        assert after.ratchet.send_n == before_send_n
+        assert mesh.alice.pending_count("bob") == 0
+    finally:
+        mesh.stop()
+
+
 def test_receipt_failure_restores_ratchet(tmp_path: Path) -> None:
     mesh = build_charlie_mesh(tmp_path)
     try:
