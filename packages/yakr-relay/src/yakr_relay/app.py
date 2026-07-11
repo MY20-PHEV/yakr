@@ -73,6 +73,12 @@ class CapabilityIssueRequest(BaseModel):
     issuance_salt: str
     permissions: list[str]
     ticket: str | None = None
+    supersedes_capability_id: str | None = None
+
+
+class CapabilityRevokeRequest(BaseModel):
+    capability_id: str
+    ticket: str
 
 
 class FetchRequest(BaseModel):
@@ -192,10 +198,11 @@ def create_app(
     runtime: RelayRuntime | None = None,
     *,
     pairing_store: PairingStore | None = None,
+    capability_store: CapabilityGrantStore | None = None,
 ) -> FastAPI:
     runtime = runtime or RelayRuntime(role="mailbox", wrap_secret=None, name="relay")
     pairing_store = pairing_store or PairingStore(store.root)
-    capability_store = CapabilityGrantStore(store.root / "capabilities")
+    capability_store = capability_store or CapabilityGrantStore(store.root / "capabilities")
     app = FastAPI(title="Yakr Relay", version="0.3.0")
 
     @app.get("/healthz")
@@ -230,6 +237,8 @@ def create_app(
                 permissions=tuple(request.permissions),
                 auth_public=auth_public,
             )
+            if request.supersedes_capability_id:
+                capability_store.revoke_with_overlap(_b64decode(request.supersedes_capability_id))
             capability_store.register(
                 grant,
                 relay_signing_public=runtime.relay_issuance_public,
@@ -255,6 +264,18 @@ def create_app(
         except Exception as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return {"status": "registered", "capability_id": _b64encode(grant.capability_id)}
+
+    @app.post("/v1/capabilities/revoke", status_code=200)
+    def revoke_capability(request: CapabilityRevokeRequest) -> dict[str, str]:
+        _check_bootstrap_ticket(request.ticket, runtime=runtime)
+        try:
+            capability_id = _b64decode(request.capability_id)
+            if len(capability_id) != 16:
+                raise ValueError("capability_id must be 16 bytes")
+            capability_store.revoke_immediately(capability_id)
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {"status": "revoked", "capability_id": request.capability_id}
 
     @app.post("/v1/blobs", status_code=201)
     async def store_blob(request: Request, payload: BlobStoreRequest) -> dict[str, str]:
