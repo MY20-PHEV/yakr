@@ -1,14 +1,79 @@
 # Yakr Protocol
 
-A decentralised, social-relay, post-quantum messaging protocol — from *yakking* (talking), without a central platform.
+**A decentralised, social-relay, post-quantum messaging protocol — from *yakking* (talking), without a central messaging platform.**
 
-**What makes Yakr Protocol different:** **Your relay network is your pairing graph.** End-to-end encrypted mail is stored and forwarded only on mailboxes run by people you have pairwise paired with, not on a central operator or an open global relay pool. Phones that cannot accept inbound connections (cellular, NAT, iOS) **poll outbound** to those paired relays; peers discover relay URLs and TLS pins through **signed delivery profiles** in the trust graph. Production messengers and relay hosts are independent products; this repository holds the **open spec, reference implementation, and certification program**.
+> **Project maturity:** Reference implementation phases are largely complete; **protocol stability is draft** and **security maturity is experimental** (no external audit; not recommended for production). See [SECURITY.md](SECURITY.md) and [docs/SECURITY_BACKLOG.md](docs/SECURITY_BACKLOG.md).
+
+## In one sentence
+
+**Your relay network is your pairing graph.**
+
+Instead of sending messages through one central provider—or through an open global relay pool—Yakr stores and forwards end-to-end encrypted messages through relays operated by people, homes and organisations in the users' pairwise trust graph. Phones that cannot accept inbound connections (cellular, NAT, iOS) **poll outbound** to those paired relays; peers discover relay URLs and TLS pins through **signed delivery profiles** in the trust graph.
+
+## Why Yakr?
+
+- **No central messaging service** — the protocol does not depend on one provider holding the network together.
+- **No open global relay pool** — relay discovery and authorisation come from pairwise relationships and signed delivery profiles.
+- **Offline delivery** — recipients poll trusted relays, so both peers do not need to be online at the same time.
+- **Post-quantum pairing** — the v1.0 profile supports hybrid classical and post-quantum key establishment.
+- **Open protocol, separate products** — this repository defines the specification, reference implementations and conformance work; production messengers and hosted relay services are independent products.
+
+## How a message moves
+
+```text
+Alice encrypts
+      │
+      ▼
+paired social relay stores an opaque blob
+      │
+      ▼
+Bob polls outbound, fetches, and decrypts locally
+```
+
+Relays can validate protocol structure, authorisation, limits and expiry, but they do not receive message plaintext.
+
+## What this repository is
+
+This repository contains:
+
+- the normative Yakr v1.0 protocol specification
+- Python reference implementations of the protocol, relay and CLI
+- an independent Rust reference stack
+- frozen test vectors and interoperability tooling
+- security analysis, threat-model documentation and the **Yakr Protocol Certified** program (**open**)
+
+It is **not** an official consumer messenger and does not aim to hide the platform-specific work required to ship production Android, iOS or desktop clients.
+
+## Start here
+
+| You are interested in… | Start with… |
+|---|---|
+| The idea and design goals | [whitepaper.md](whitepaper.md) |
+| Implementing the protocol | [docs/spec/yakr-protocol-v1.md](docs/spec/yakr-protocol-v1.md) |
+| The phased reference design | [docs/REFERENCE_DESIGN.md](docs/REFERENCE_DESIGN.md) |
+| Interoperability and conformance | [interop/README.md](interop/README.md) |
+| Certification applications | [certification/README.md](certification/README.md) and [CERTIFICATION.md](CERTIFICATION.md) |
+| Current security status | [SECURITY.md](SECURITY.md) and [docs/SECURITY_BACKLOG.md](docs/SECURITY_BACKLOG.md) |
+| Running a relay | [docs/homelab-relay.md](docs/homelab-relay.md) |
+| Phase 11 readiness (**complete**) | [docs/spec/phase-11-implementation-readiness.md](docs/spec/phase-11-implementation-readiness.md) |
+| Published errata | [docs/spec/errata-v1.md](docs/spec/errata-v1.md) |
+
+## Review and contributions welcome
+
+Yakr is especially looking for:
+
+- cryptographic and protocol-design review
+- independent implementations in other languages
+- Python↔Rust interoperability testing
+- adversarial test cases and negative vectors
+- privacy and relay-observer analysis
+- specification wording that depends too heavily on the reference code
+
+See [SECURITY.md](SECURITY.md) for responsible vulnerability reporting. Design discussion and non-sensitive protocol review are welcome in GitHub issues and discussions.
 
 Not affiliated with unrelated sound-alike businesses — see [NOTICE.md](NOTICE.md).
 
 **Web:** [yakr.co.uk](https://yakr.co.uk) (registered; DNS pending) · Merch: [yakr.store](https://yakr.store) (future) · **Source:** [github.com/MY20-PHEV/yakr](https://github.com/MY20-PHEV/yakr)
-
-> **Project maturity:** Reference implementation phases are largely complete; **protocol stability is draft** and **security maturity is experimental** (no external audit; not recommended for production). See [docs/SECURITY_BACKLOG.md](docs/SECURITY_BACKLOG.md) and [SECURITY.md](SECURITY.md).
 
 ## Document precedence
 
@@ -78,16 +143,6 @@ See [docs/homelab-relay.md](docs/homelab-relay.md).
 |----------|-------------|
 | [CERTIFICATION.md](CERTIFICATION.md) | Certified client/relay program and badge rules |
 | [interop/README.md](interop/README.md) | Third-party self-test checklist |
-
-## Quick Summary
-
-**Yakr Protocol** delivers end-to-end encrypted messages through **pairing-gated social relays** — friends' VPS, homelab, or org-operated mailboxes — with **no central message server** and no requirement that both peers be online at once.
-
-```text
-Alice encrypts → paired relay stores opaque blob → offline Bob polls outbound to fetch
-```
-
-Implementers: see [interop/README.md](interop/README.md) and [CERTIFICATION.md](CERTIFICATION.md).
 
 ## Relay-less peers (first-class)
 
