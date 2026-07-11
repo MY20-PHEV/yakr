@@ -15,6 +15,8 @@ When space is tight, pair the badge with `certification-disclaimer-line.svg` or 
 
 **Minimum size:** 132px width (do not crop the disclaimer line). Do not remove or alter disclaimer text.
 
+**Preview locally:** open [preview.html](./preview.html) in a browser.
+
 ## Steward reference baseline (not third-party certified)
 
 | File | Use |

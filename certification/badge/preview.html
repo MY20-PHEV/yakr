@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Yakr certification badges — preview</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; background: #f8fafc; color: #111; }
+    h1 { font-size: 1.25rem; }
+    section { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1.25rem; margin: 1rem 0; }
+    h2 { font-size: 0.95rem; margin: 0 0 1rem; color: #475569; }
+    .row { display: flex; flex-wrap: wrap; gap: 1.5rem; align-items: center; }
+    img { display: block; max-width: 100%; height: auto; }
+    .on-dark { background: #0f172a; padding: 1rem; border-radius: 6px; }
+    p { font-size: 0.85rem; color: #64748b; margin: 0.75rem 0 0; }
+  </style>
+</head>
+<body>
+  <h1>Yakr certification badge preview</h1>
+  <p>Local preview only. Assets live in <code>certification/badge/</code>.</p>
+
+  <section>
+    <h2>Third-party certified (after review)</h2>
+    <div class="row">
+      <div>
+        <img src="yakr-certified-client.svg" alt="Yakr Certified Client" width="220" />
+        <p>Client v1.0</p>
+      </div>
+      <div>
+        <img src="yakr-certified-relay.svg" alt="Yakr Certified Relay" width="220" />
+        <p>Relay v1.0</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Steward reference baseline (not third-party certified)</h2>
+    <div class="row on-dark">
+      <div>
+        <img src="yakr-reference-baseline-client.svg" alt="Reference baseline client" width="220" />
+      </div>
+      <div>
+        <img src="yakr-reference-baseline-relay.svg" alt="Reference baseline relay" width="220" />
+      </div>
+    </div>
+    <p>Gray bordered style — distinct from certified badges.</p>
+  </section>
+
+  <section>
+    <h2>Disclaimer line (optional adjacent text)</h2>
+    <img src="certification-disclaimer-line.svg" alt="Certification disclaimer" width="320" />
+  </section>
+</body>
+</html>
