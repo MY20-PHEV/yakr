@@ -153,12 +153,15 @@ Peers learn **URL + TLS pin** from your signed profile. They only need **outboun
 
 ### 5. Hardening (internet-facing)
 
+Homelab bundles from `yakr relay create` already run with **`--require-capabilities`** (no `contact_id` on blob/fetch). Tickets are used only to bootstrap the first capability grant via `POST /v1/capabilities/issue`.
+
 ```bash
-# optional on relay container:
-yakr-relay serve ... --require-tickets
+# default in relays/<name>/deploy/docker-compose.yml:
+#   --require-capabilities
+#   --relay-issuance-private-key=/relay-issuance/issuance.key
 ```
 
-Plus reverse-proxy rate limits if exposed to the open internet.
+Legacy ticket-only mode (`--require-tickets` + `YAKR_REQUIRE_TICKETS=1`) remains for older relays without issuance keys.
 
 ## Path B — Tailscale (no port forward)
 
