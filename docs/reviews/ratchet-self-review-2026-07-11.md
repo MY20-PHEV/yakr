@@ -31,7 +31,7 @@ The double ratchet implementation is **coherent and test-backed** for the refere
 | F13 | Post-compromise security | **N/A** | Not a design goal in v1.0 |
 | F14 | Formal verification | **Open** | No machine-checked model |
 | F15 | Rust port as security proof | **N/A** | Interop aid only per critique |
-| F16 | DH ratchet activation in live traffic | **Resolved (pairing)** — Option B; establish path symmetric-only |
+| F16 | DH ratchet activation in live traffic | **Closed (pairing path)** — Option B; `establish` non-normative per spec |
 
 ## Critique traceability
 

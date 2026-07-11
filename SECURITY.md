@@ -39,20 +39,24 @@ For design-level issues (pairing transcript, ratchet, relay authorization, TLS p
 
 External reviews are welcome; see saved critiques in `docs/reviews/`.
 
-## F16 / R6 — DH ratchet epoch rotation (resolved)
+## F16 / R6 — DH ratchet epoch rotation (closed)
 
-**Status:** **Resolved** — Option B implemented (2026-07-11)  
-**Decision:** [issue #2](https://github.com/MY20-PHEV/yakr/issues/2) Option B — pairing-time DH init  
-**Backlog:** P2-1 (F16 closed for pairing path)
+**Status:** **Closed** (pairing path resolved, 2026-07-11)  
+**Decision:** [issue #2](https://github.com/MY20-PHEV/yakr/issues/2) — Option B (pairing-time DH init)  
+**Discussion:** [#1](https://github.com/MY20-PHEV/yakr/discussions/1) (closed)
 
-### Summary
+### What was fixed
 
-External review confirmed that pre-Option-B pairing sessions advanced only symmetric chains while X25519 header keys were inert. **Option B** adds `joiner_ratchet_public` / `inviter_ratchet_public` to the pairing transcript and asymmetric ratchet bootstrap at `complete_pairing`:
+External review confirmed that pre-Option-B **pairing** sessions advanced only symmetric chains while X25519 header keys were inert. **Option B** adds `joiner_ratchet_public` / `inviter_ratchet_public` to the pairing transcript and asymmetric ratchet bootstrap:
 
 - Inviter defers send-side DH init until first `encrypt` (preserves joiner-first / send-before-receive).
 - Joiner runs recv-side init at pairing complete.
 
-Pairing-path traffic now rotates `root_key` and `dh_self_public` during normal bidirectional messaging. `Contact.establish` remains symmetric-chain-only (documented in [double-ratchet.md](docs/spec/double-ratchet.md)).
+Pairing-path traffic now rotates `root_key` and `dh_self_public` during normal bidirectional messaging.
+
+### What was not in scope for #2
+
+`Contact.establish()` remains **symmetric-chain-only** — a non-normative compatibility path for tests and manual bootstrap, not transcript-bound production pairing. It is documented, not hidden. Universal “Double Ratchet” branding for all v1.0 session creation awaits either migrating `establish` to the same model or deprecating it ([double-ratchet.md](docs/spec/double-ratchet.md), backlog P2-8).
 
 ### Evidence
 
@@ -69,24 +73,7 @@ uv run pytest packages/yakr-testkit/tests/test_ratchet_adversarial.py::test_pair
 ```
 
 **Discussion thread:** https://github.com/MY20-PHEV/yakr/discussions/1  
-**External review:** https://github.com/MY20-PHEV/yakr/issues/2
-
-## Open review call — DH ratchet epoch rotation (F16 / R6) — closed
-
-<details>
-<summary>Historical open review call (2026-07-11)</summary>
-
-### Summary
-
-Yakr v1.0 uses an X25519 double ratchet (`YKDR2` wire format). Internal self-review found that in **normal bidirectional ping-pong traffic**, the **DH ratchet does not activate**: `root_key` and `dh_self_public` stay fixed while only the pairing-derived symmetric send/recv chains advance.
-
-External review ([issue #2](https://github.com/MY20-PHEV/yakr/issues/2)) **confirms F16** as a design issue (not a demonstrated exploit). Precise wording:
-
-> Normal sessions advance only the pairing-derived symmetric chains. The X25519 ratchet keys exchanged in message headers do not contribute to the root key unless a peer independently changes its advertised public key.
-
-We are **not** claiming this is exploitable today. Resolution was Option B (pairing-time DH init).
-
-</details>
+**External review:** https://github.com/MY20-PHEV/yakr/issues/2 (closed)
 
 ## Out of scope (for now)
 
