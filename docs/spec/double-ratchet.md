@@ -1,7 +1,9 @@
 # Double Ratchet — X25519 DH
 
 **Protocol:** `yakr-v1.0`  
-**Status:** Implemented — **experimental; not externally audited** (see [SECURITY_BACKLOG.md](../SECURITY_BACKLOG.md) P2-7, review package [session-ratchet-review-v1.md](../security/session-ratchet-review-v1.md) P2-1)
+**Status:** Implemented — **experimental; not externally audited** (see [SECURITY_BACKLOG.md](../SECURITY_BACKLOG.md) P2-7, [session-ratchet-review-v1.md](../security/session-ratchet-review-v1.md) P2-1)
+
+> **F16 (2026-07-11):** External review [issue #2](https://github.com/MY20-PHEV/yakr/issues/2) confirms the X25519 DH ratchet is **inactive during normal bidirectional traffic**; only pairing-derived symmetric chains advance. Resolution pending (symmetric-only labelling vs pairing-time DH init). See [external-ratchet-review-f16-issue-2-2026-07-11.md](../reviews/external-ratchet-review-f16-issue-2-2026-07-11.md).
 
 ## Overview
 
