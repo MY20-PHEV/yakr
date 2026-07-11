@@ -8,10 +8,11 @@ from pathlib import Path
 import httpx
 
 from yakr_core.capability_client import (
-    capabilities_enabled,
     capability_headers_for_request,
     ensure_capability_session,
     relay_name_for_url,
+    relay_supports_capabilities,
+    resolve_capability_contact,
 )
 from yakr_core.http_client import yakr_get, yakr_post
 
@@ -419,6 +420,29 @@ def resolve_contact_route(
     return None
 
 
+def _relay_capability_context(
+    relay_url: str,
+    *,
+    store: FileLocalStore | None,
+    identity: Identity | None,
+    peer_contact: Contact | None,
+    network: dict[str, RelayNode] | None = None,
+) -> tuple[bool, Contact | None]:
+    if store is None or identity is None or peer_contact is None:
+        return False, peer_contact
+    if not relay_supports_capabilities(
+        relay_url,
+        store=store,
+        contact=peer_contact,
+        identity=identity,
+    ):
+        return False, peer_contact
+    auth_contact = resolve_capability_contact(store, relay_url, peer_contact, network)
+    if auth_contact is None:
+        return False, peer_contact
+    return True, auth_contact
+
+
 def send_encrypted(
     encrypted: EncryptedMessage,
     *,
@@ -432,13 +456,19 @@ def send_encrypted(
     _ = (route, network)
     relay_name = relay_name_for_url(relay_url, network)
     payload = encrypted.outer_blob.to_relay_json()
-    headers: dict[str, str] = {}
-    if capabilities_enabled() and identity is not None and contact is not None and store is not None:
+    use_capabilities, auth_contact = _relay_capability_context(
+        relay_url,
+        store=store,
+        identity=identity,
+        peer_contact=contact,
+        network=network,
+    )
+    if use_capabilities and identity is not None and auth_contact is not None and store is not None:
         session = ensure_capability_session(
             relay_url,
             relay_name,
             identity=identity,
-            contact=contact,
+            contact=auth_contact,
             store=store,
             permissions=("post",),
         )
@@ -682,10 +712,15 @@ def fetch_relay_blobs(
     """Poll each relay URL; skip unreachable hosts and merge unique ciphertexts."""
     items: list[dict[str, str | int]] = []
     seen: set[str] = set()
-    use_capabilities = capabilities_enabled() and identity is not None and contact is not None and store is not None
     for fetch_base in fetch_bases:
         try:
             relay_name = relay_name_for_url(fetch_base)
+            use_capabilities, auth_contact = _relay_capability_context(
+                fetch_base,
+                store=store,
+                identity=identity,
+                peer_contact=contact,
+            )
             if legacy_get_fetch():
                 response = yakr_get(
                     f"{fetch_base.rstrip('/')}/v1/blobs/{mailbox_tag_b64}",
@@ -702,12 +737,12 @@ def fetch_relay_blobs(
                         fetch_payload["ticket"] = ticket
                 body = json.dumps(fetch_payload).encode("utf-8")
                 headers: dict[str, str] = {"Content-Type": "application/json"}
-                if use_capabilities:
+                if use_capabilities and identity is not None and auth_contact is not None and store is not None:
                     session = ensure_capability_session(
                         fetch_base,
                         relay_name,
                         identity=identity,
-                        contact=contact,
+                        contact=auth_contact,
                         store=store,
                         permissions=("fetch",),
                     )

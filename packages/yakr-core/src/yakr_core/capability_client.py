@@ -17,16 +17,108 @@ from yakr_core.capability_grant import (
     issue_capability_grant,
     verify_capability_grant,
 )
-from yakr_core.http_client import endpoint_base_url, resolve_tls_pin_for_url, yakr_post
+from yakr_core.http_client import endpoint_base_url, resolve_tls_pin_for_url, url_operator_map, yakr_get, yakr_post
 from yakr_core.identity import Contact, Identity, b64decode, b64encode
 from yakr_core.delivery_profile import mailbox_descriptors
 from yakr_core.store import FileLocalStore
 
 DEFAULT_CAPABILITY_PERMISSIONS = ("post", "fetch")
+CAPABILITY_PROBE_TTL_MS = 5 * 60 * 1000
+_capability_probe_cache: dict[str, tuple[int, bytes | None]] = {}
+
+
+def capabilities_forced() -> bool:
+    return os.environ.get("YAKR_USE_CAPABILITIES", "").lower() in {"1", "true", "yes"}
+
+
+def capabilities_disabled() -> bool:
+    return os.environ.get("YAKR_DISABLE_CAPABILITIES", "").lower() in {"1", "true", "yes"}
 
 
 def capabilities_enabled() -> bool:
-    return os.environ.get("YAKR_USE_CAPABILITIES", "").lower() in {"1", "true", "yes"}
+    """Legacy alias: force capability mode via environment."""
+    return capabilities_forced()
+
+
+def probe_relay_issuance_public(
+    relay_url: str,
+    *,
+    store: FileLocalStore | None = None,
+    contact: Contact | None = None,
+    identity: Identity | None = None,
+    now_ms: int | None = None,
+) -> bytes | None:
+    """Return relay capability issuance public key when advertised on /healthz."""
+    normalized = endpoint_base_url(relay_url)
+    now = int(time.time() * 1000) if now_ms is None else now_ms
+    cached = _capability_probe_cache.get(normalized)
+    if cached is not None and now - cached[0] <= CAPABILITY_PROBE_TTL_MS:
+        return cached[1]
+    issuance_public: bytes | None = None
+    try:
+        response = yakr_get(
+            f"{normalized}/healthz",
+            store=store,
+            contact=contact,
+            identity=identity,
+            timeout=5.0,
+        )
+        if response.status_code == 200:
+            raw = response.json().get("capability_issuance_public")
+            if raw:
+                decoded = b64decode(str(raw))
+                if len(decoded) == 32:
+                    issuance_public = decoded
+    except (OSError, ValueError, KeyError):
+        issuance_public = None
+    _capability_probe_cache[normalized] = (now, issuance_public)
+    return issuance_public
+
+
+def relay_supports_capabilities(
+    relay_url: str,
+    *,
+    store: FileLocalStore | None = None,
+    contact: Contact | None = None,
+    identity: Identity | None = None,
+) -> bool:
+    if capabilities_disabled():
+        return False
+    if capabilities_forced():
+        return True
+    return probe_relay_issuance_public(
+        relay_url,
+        store=store,
+        contact=contact,
+        identity=identity,
+    ) is not None
+
+
+def resolve_capability_contact(
+    store: FileLocalStore,
+    relay_url: str,
+    peer_contact: Contact | None,
+    network: dict | None = None,
+) -> Contact | None:
+    """Pick the paired contact whose master secret authorizes this relay."""
+    normalized = endpoint_base_url(relay_url)
+    operator_name = url_operator_map(store).get(normalized)
+    if operator_name is None and network is not None:
+        for node in network.values():
+            if endpoint_base_url(node.url) == normalized:
+                operator_name = node.name
+                break
+    if operator_name:
+        operator_contact = store.get_contact(operator_name)
+        if operator_contact is not None:
+            return operator_contact
+    if peer_contact is not None and peer_contact.delivery_profile is not None:
+        for descriptor in peer_contact.delivery_profile.relay_descriptors:
+            if endpoint_base_url(descriptor.url) == normalized:
+                operator_contact = store.get_contact(descriptor.name)
+                if operator_contact is not None:
+                    return operator_contact
+    return peer_contact
 
 
 @dataclass(frozen=True)
@@ -137,9 +229,16 @@ def ensure_capability_session(
     contact: Contact,
     store: FileLocalStore,
     permissions: tuple[str, ...] = DEFAULT_CAPABILITY_PERMISSIONS,
+    relay_issuance_public: bytes | None = None,
 ) -> CapabilitySession:
     """Return a valid capability session, refreshing from relay when expired."""
-    tls_pin = _relay_tls_pin(relay_url, store=store, contact=contact)
+    if relay_issuance_public is None:
+        relay_issuance_public = probe_relay_issuance_public(
+            relay_url,
+            store=store,
+            contact=contact,
+            identity=identity,
+        )
     now_ms = int(time.time() * 1000)
     stored = store.load_capability_grant(relay_name)
     if stored is not None:
@@ -147,10 +246,11 @@ def ensure_capability_session(
         auth_private = ed25519.Ed25519PrivateKey.from_private_bytes(
             b64decode(stored["auth_private_b64"])
         )
-        if grant.expires_at > now_ms + 60_000 and grant.relay_tls_spki_sha256 == tls_pin:
+        if grant.expires_at > now_ms + 60_000:
             missing = [item for item in permissions if item not in grant.permissions]
             if not missing:
                 return CapabilitySession(grant=grant, auth_private=auth_private)
+    tls_pin = _relay_tls_pin(relay_url, store=store, contact=contact)
     return issue_capability_from_relay(
         relay_url,
         relay_name,
@@ -158,6 +258,7 @@ def ensure_capability_session(
         contact=contact,
         store=store,
         permissions=permissions,
+        relay_issuance_public=relay_issuance_public,
     )
 
 

@@ -34,7 +34,7 @@
 
 | ID | Item | Notes | Status |
 |----|------|-------|--------|
-| P1-1 | Replace stable `contact_id` in relay tickets | [ADR 012](adr/012-relay-capability-tokens.md), [relay-capability-v1.md](spec/relay-capability-v1.md) | **Partial** (relay POST auth + client `YAKR_USE_CAPABILITIES`) |
+| P1-1 | Replace stable `contact_id` in relay tickets | [ADR 012](adr/012-relay-capability-tokens.md), [relay-capability-v1.md](spec/relay-capability-v1.md) | **Partial** (auto-detect via `/healthz`; operator contact auth) |
 | P1-2 | Per-relay pseudonymous capability tokens | ADR 012 + `derive_capability_material` | **Partial** |
 | P1-3 | Separate operator identity from relay client capability | | Design |
 | P1-4 | Relay-observer privacy table | [security/analysis-v1.md](security/analysis-v1.md) §8.5 | Draft |
