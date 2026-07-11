@@ -13,7 +13,7 @@ Messaging protocols fail at edge cases, not the happy path. This document gives 
 1. **At-least-once transport** — relays MAY return the same blob on every poll until expiry.
 2. **Idempotent recipient processing** — duplicate ciphertext or `seq` MUST NOT advance state twice.
 3. **Authenticated acknowledgement** — senders clear `outbound_pending` only on verified E2E `receipt` inner messages, not on relay fetch alone.
-4. **Relay confidentiality** — relays MUST NOT decrypt application plaintext; they learn mailbox tags, sizes, and timing (see [security analysis §8.5](../security/analysis-v1.md)).
+4. **Relay confidentiality** — relays MUST NOT decrypt application plaintext; they learn mailbox tags, sizes, timing, and authorization metadata (see [relay-observer-privacy-v1.md](./relay-observer-privacy-v1.md)).
 
 ## TTL layers (normative v1)
 

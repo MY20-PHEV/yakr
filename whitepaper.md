@@ -744,7 +744,7 @@ dummy traffic:
 
 ## 11. Mailbox Tags
 
-Mailbox tags allow Bob to retrieve messages without the relay knowing they are for Bob.
+Mailbox tags let Bob retrieve messages without exposing his long-term identity key to the relay. The relay still sees the tag on fetch and can correlate store/fetch timing and IP addresses — see [relay-observer privacy](docs/spec/relay-observer-privacy-v1.md).
 
 When Alice and Bob pair, they derive shared mailbox secrets.
 
@@ -968,7 +968,9 @@ packet_to_entry =
 
 ### 13.3 Relay Knowledge
 
-Entry relay should not know:
+Relays do not decrypt message plaintext or long-term identity keys. They may still learn metadata (IPs, tags, sizes, timing, authorization ids). See [docs/spec/relay-observer-privacy-v1.md](docs/spec/relay-observer-privacy-v1.md).
+
+Entry relay should not learn from ciphertext:
 
 ```text
 message content
@@ -977,7 +979,7 @@ mailbox tag meaning
 whether payload is text, receipt, or attachment
 ```
 
-Mailbox relay should not know:
+Mailbox relay should not learn from ciphertext:
 
 ```text
 original sender
