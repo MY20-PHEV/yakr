@@ -85,6 +85,16 @@ Interop failures should include:
 - Your implementation language and crypto libraries
 - Expected vs actual hex (first 16 bytes sufficient for secrets)
 
+## Phase 11 gap (in progress)
+
+Phase 9 interop is complete for crypto primitives. **Phase 11** ([phase-11-implementation-readiness.md](../docs/spec/phase-11-implementation-readiness.md)) adds:
+
+- `pairing_transcript.json` and `double_ratchet.json` in the standalone verifier
+- Published negative vectors under `test-vectors-v1/negative/`
+- CI-gated Python↔Rust pairing and send/fetch in both directions
+
+Until Phase 11 closes, independent implementers should treat pairing/ratchet vectors as authoritative but verify them with reference testkit tests or by porting the verifier functions yourself.
+
 ## Version Freeze
 
 `yakr-v1.0` vectors are frozen. New vectors require `test-vectors-v2/` and a protocol revision.
