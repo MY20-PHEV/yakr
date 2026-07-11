@@ -91,7 +91,7 @@ Phase 9 interop is complete for crypto primitives. **Phase 11** ([phase-11-imple
 
 - `pairing_transcript.json` and `double_ratchet.json` in the standalone verifier
 - Published negative vectors under `test-vectors-v1/negative/`
-- CI-gated Python↔Rust pairing and send/fetch in both directions
+- CI-gated Python↔Rust pairing and send/fetch in both directions (`test_phase11_cross_lang.py`)
 
 Until Phase 11 closes, independent implementers should treat pairing/ratchet vectors as authoritative but verify them with reference testkit tests or by porting the verifier functions yourself.
 

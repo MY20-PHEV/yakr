@@ -10,6 +10,15 @@ pub const MAILBOX_TAG_INFO: &[u8] = b"yakr/v0.1/mailbox-tag";
 
 type HmacSha256 = Hmac<Sha256>;
 
+/// HMAC tag from an already-derived per-direction mailbox secret.
+pub fn mailbox_tag_from_secret(mailbox_secret: &[u8], direction: &str, epoch: u64) -> [u8; 32] {
+    let material = format!("{direction}|{epoch}");
+    let mut mac =
+        HmacSha256::new_from_slice(mailbox_secret).expect("HMAC accepts 32-byte key");
+    mac.update(material.as_bytes());
+    mac.finalize().into_bytes().into()
+}
+
 /// Derive the mailbox HMAC key for a pairwise direction string.
 pub fn derive_mailbox_secret(master_secret: &[u8], direction: &str) -> [u8; 32] {
     let mut info = Vec::with_capacity(MAILBOX_TAG_INFO.len() + direction.len());
@@ -25,11 +34,7 @@ pub fn derive_mailbox_tag(
     epoch: u64,
 ) -> [u8; 32] {
     let mailbox_secret = derive_mailbox_secret(master_secret, direction);
-    let material = format!("{direction}|{epoch}");
-    let mut mac =
-        HmacSha256::new_from_slice(&mailbox_secret).expect("HMAC accepts 32-byte key");
-    mac.update(material.as_bytes());
-    mac.finalize().into_bytes().into()
+    mailbox_tag_from_secret(&mailbox_secret, direction, epoch)
 }
 
 #[cfg(test)]
