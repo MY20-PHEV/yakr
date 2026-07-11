@@ -1,7 +1,8 @@
 # Offline QR Pairing
 
 **Protocol:** `yakr-v0.4` + `yakr-v1.0` extension  
-**Status:** Implemented
+**Status:** Implemented  
+**Related:** [pairing-transcript-v1.md](./pairing-transcript-v1.md) (normative transcript; offline uses identical CBOR and hash as online rendezvous)
 
 ## Goal
 
