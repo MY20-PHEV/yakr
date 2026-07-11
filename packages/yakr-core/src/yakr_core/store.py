@@ -57,6 +57,8 @@ class LocalStore(Protocol):
         inner: "InnerMessage",
         *,
         identity: Identity,
+        delivered_id: str | None = None,
+        receipt_route: str | None = None,
     ) -> None: ...
 
     def atomic_persist_contact(self, contact: Contact) -> None: ...
@@ -485,6 +487,8 @@ class FileLocalStore:
         inner: "InnerMessage",
         *,
         identity: Identity,
+        delivered_id: str | None = None,
+        receipt_route: str | None = None,
     ) -> None:
         from yakr_core.message import InnerMessage
         from yakr_core.session import wrap_local_ciphertext
@@ -507,6 +511,17 @@ class FileLocalStore:
                     """,
                     (contact.name, inner.seq, inner.valid_until, now, wrapped),
                 )
+                if delivered_id is not None:
+                    if self.test_fault == "pending_receipt":
+                        raise sqlite3.OperationalError("injected pending receipt fault")
+                    conn.execute(
+                        """
+                        INSERT OR REPLACE INTO pending_receipts
+                        (contact_name, delivered_id, route, created_at)
+                        VALUES (?, ?, ?, ?)
+                        """,
+                        (contact.name, delivered_id, receipt_route, now),
+                    )
                 conn.commit()
             except Exception:
                 conn.rollback()

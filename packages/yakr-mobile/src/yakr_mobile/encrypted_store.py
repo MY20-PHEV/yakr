@@ -182,8 +182,13 @@ class MobileStore:
         self.file_store.atomic_commit_send(contact, **kwargs)
         self.put_blob(f"contact:{contact.name}", json.dumps(contact.to_dict()).encode("utf-8"))
 
-    def atomic_commit_receive_text(self, contact: Contact, inner, *, identity: Identity) -> None:
-        self.file_store.atomic_commit_receive_text(contact, inner, identity=identity)
+    def atomic_commit_receive_text(self, contact: Contact, inner, *, identity: Identity, **kwargs) -> None:
+        self.file_store.atomic_commit_receive_text(
+            contact,
+            inner,
+            identity=identity,
+            **kwargs,
+        )
         self.put_blob(f"contact:{contact.name}", json.dumps(contact.to_dict()).encode("utf-8"))
 
     def atomic_persist_contact(self, contact: Contact) -> None:
