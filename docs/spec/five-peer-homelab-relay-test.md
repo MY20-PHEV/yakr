@@ -119,7 +119,7 @@ Stress harness (`run_five_peer_stress`):
 
 ## Live run results (2026-07-10)
 
-**Target homelab:** `REDACTED_HOMELAB_SSH` (Tailscale)  
+**Target homelab:** steward Tailscale host (SSH + env in private `homelab_tailscale.local.env`)  
 **pytest:** 3/3 passed in 44.80 s
 
 ```
@@ -151,17 +151,13 @@ test_alice_homelab_relay_mid_mesh_live ............ PASSED   (homelab)
 ### Environment used for live run
 
 ```bash
-export CHARLIE_URL=https://REDACTED_TAILSCALE_IP:8090
-export DENNIS_URL=https://REDACTED_TAILSCALE_IP:8091
+source scripts/homelab_tailscale.local.env   # gitignored — see homelab_tailscale.local.env.example
 export CHARLIE_OPERATOR_HOME=/path/to/charlie-operator   # identity + relay-tls PEMs
 export DENNIS_OPERATOR_HOME=/path/to/dennis-operator
-export CHARLIE_WRAP_SECRET=ad3_Qrz0t6T-ftW-sUFk4d8jFnZNnpFkBMm2UXE3DmY
-export DENNIS_WRAP_SECRET=FJXWbQSyAvPsI7wuGyG8_McBv9Qf-OKAFobDaobaTxQ
-export VPS_HOST=REDACTED_HOMELAB_SSH
-export CHARLIE_VPS_HOST=REDACTED_HOMELAB_SSH
-export DENNIS_VPS_HOST=REDACTED_HOMELAB_SSH
 export ALICE_OPS_PORT=8092
 ```
+
+Wrap secrets and URLs come from your relay deploy output; do not commit them.
 
 Operator homes must contain `identity.json` and `relay-tls/` PEMs matching the certs deployed on the VPS (generate with `scripts/generate_operator_relay_tls.py`).
 

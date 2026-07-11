@@ -185,7 +185,7 @@ Legacy ticket-only mode (`--require-tickets` + `YAKR_REQUIRE_TICKETS=1`) remains
 
 ## Path B — Tailscale (no port forward)
 
-**Project homelab** (`homelab` on Tailscale, `REDACTED_TAILSCALE_IP`): Charlie `:8090`, Dennis `:8091`, `alice-ops` `:8092`. SSH: `REDACTED_HOMELAB_SSH`.
+**Private homelab (Tailscale):** use `scripts/run_homelab_tailscale.sh` after copying `scripts/homelab_tailscale.local.env.example` → `homelab_tailscale.local.env` (gitignored). Charlie `:8090`, Dennis `:8091`, optional `alice-ops` `:8092` on your tailnet host.
 
 ```bash
 ./scripts/run_homelab_tailscale.sh
