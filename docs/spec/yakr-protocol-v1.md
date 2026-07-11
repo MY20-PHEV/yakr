@@ -273,12 +273,15 @@ Canonical vectors live in `docs/spec/test-vectors-v1/`:
 | `delivery_profile.json` | Profile CBOR + Ed25519 signature |
 | `mailbox_tag.json` | §3.6 mailbox tag |
 | `inner_message.json` | §4.1 JSON canonical form |
+| `inner_receipt.json` | §4.1 delivery receipt inner JSON + `message_id` derivation |
+| `outer_blob.json` | §4.2 relay POST JSON (base64url fields) |
 | `pairing_transcript.json` | Option B pairing transcript + classical/hybrid `master_secret` |
 | `double_ratchet.json` | Ratchet bootstrap + first-message encrypt/decrypt |
 | `negative/pairing.json` | Pairing request validation rejections (PQ downgrade, secret mismatch) |
 | `negative/cbor.json` | Invalid pairing request/response CBOR |
 | `negative/ratchet.json` | Ratchet header, duplicate, skip-gap, and AEAD tamper rejections |
 | `negative/invite.json` | Tampered invite signature rejection |
+| `negative/outer_blob.json` | Invalid relay outer blob JSON |
 
 Independent implementations MUST pass the interop verifier suite (see `interop/README.md`) using only this document and the vector files. `verify_all_vectors()` runs positive vectors then `negative/`.
 

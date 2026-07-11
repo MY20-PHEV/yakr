@@ -903,7 +903,7 @@ Track unresolved items here; close with ADRs in `docs/adr/`.
 ## Phase 11 — Yakr v1.0 Independent Implementation Readiness
 
 **Depends on:** Phase 10; F16 closed on pairing path  
-**Status:** Open — **current major milestone**  
+**Status:** Complete  
 **Spec:** [phase-11-implementation-readiness.md](spec/phase-11-implementation-readiness.md)
 
 ### Goal
@@ -912,21 +912,19 @@ Python and Rust both implement the normative invite-pairing + double-ratchet pat
 
 ### Exit criteria
 
-- [ ] Python and Rust implement the same normative pairing and ratchet path
+- [x] Python and Rust implement the same normative pairing and ratchet path
 - [x] Python↔Rust interoperability in both role directions
-- [ ] All normative wire structures have frozen vectors
-- [ ] Negative vectors define rejection behaviour
-- [ ] Delivery semantics are no longer draft — **done** ([delivery-state-machine.md](docs/spec/delivery-state-machine.md))
-- [ ] Third-party conformance suite runs without importing `yakr_core`
-- [ ] Remaining ambiguities tracked as errata or v1.1 work — **done** ([errata-v1.md](docs/spec/errata-v1.md))
+- [x] All normative wire structures have frozen vectors
+- [x] Negative vectors define rejection behaviour
+- [x] Delivery semantics are no longer draft ([delivery-state-machine.md](spec/delivery-state-machine.md))
+- [x] Third-party conformance suite runs without importing `yakr_core`
+- [x] Remaining ambiguities tracked as errata or v1.1 work ([errata-v1.md](spec/errata-v1.md))
 
 ---
 
 ## 9. Immediate Next Steps
 
-Phase 1–10 are complete. **Phase 11** is the active milestone — see [phase-11-implementation-readiness.md](spec/phase-11-implementation-readiness.md).
-
-**After Phase 11** (or in parallel where isolated):
+Phase 1–11 are complete. **Next:** certification program opening, homelab deploy, deferred transports — see [SECURITY_BACKLOG.md](SECURITY_BACKLOG.md).
 
 1. **Homelab** — deploy Charlie with HTTPS; `yakr presence push` on IP change ([homelab-relay.md](homelab-relay.md))
 2. **Certification program** — open applications once Phase 11 exit criteria pass ([CERTIFICATION.md](../CERTIFICATION.md))

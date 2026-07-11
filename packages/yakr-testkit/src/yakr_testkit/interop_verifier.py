@@ -193,6 +193,24 @@ def verify_delivery_profile_vector(vector: dict[str, object]) -> bool:
     return int(payload["version"]) == int(vector["version"])
 
 
+def _message_id(ciphertext: bytes) -> str:
+    return hashlib.sha256(b"yakr/v0.1/message-id|" + ciphertext).hexdigest()
+
+
+def _outer_blob_from_relay_json(payload: dict[str, object]) -> tuple[int, bytes, int, bytes]:
+    if "mailbox_tag" not in payload:
+        raise ValueError("missing mailbox_tag")
+    if "expires_at" not in payload:
+        raise ValueError("missing expires_at")
+    if "ciphertext" not in payload:
+        raise ValueError("missing ciphertext")
+    tag = _b64decode(str(payload["mailbox_tag"]))
+    if len(tag) != 32:
+        raise ValueError("mailbox_tag must be 32 bytes")
+    ciphertext = _b64decode(str(payload["ciphertext"]))
+    return 1, tag, int(payload["expires_at"]), ciphertext
+
+
 def verify_inner_message_vector(vector: dict[str, object]) -> bool:
     raw = str(vector["json"]).encode("utf-8")
     payload = json.loads(raw.decode("utf-8"))
@@ -204,6 +222,41 @@ def verify_inner_message_vector(vector: dict[str, object]) -> bool:
         return False
     canonical = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
     return canonical == raw
+
+
+def verify_inner_receipt_vector(vector: dict[str, object]) -> bool:
+    raw = str(vector["json"]).encode("utf-8")
+    payload = json.loads(raw.decode("utf-8"))
+    if payload.get("conversation_id") != vector["conversation_id"]:
+        return False
+    if int(payload.get("seq", -1)) != int(vector["seq"]):
+        return False
+    if payload.get("type") != vector["type"]:
+        return False
+    if payload.get("message_id") != vector["message_id"]:
+        return False
+    canonical = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    if canonical != raw:
+        return False
+    ciphertext = bytes.fromhex(str(vector["referenced_ciphertext_hex"]))
+    return _message_id(ciphertext) == str(vector["message_id"])
+
+
+def verify_outer_blob_vector(vector: dict[str, object]) -> bool:
+    relay = vector.get("relay_json")
+    if not isinstance(relay, dict):
+        return False
+    try:
+        version, tag, expires_at, ciphertext = _outer_blob_from_relay_json(relay)
+    except Exception:
+        return False
+    if version != int(vector["version"]):
+        return False
+    if tag.hex() != str(vector["mailbox_tag_hex"]):
+        return False
+    if expires_at != int(vector["expires_at"]):
+        return False
+    return ciphertext.hex() == str(vector["ciphertext_hex"])
 
 
 def verify_pairing_transcript_vector(vector: dict[str, object]) -> bool:
@@ -538,6 +591,12 @@ def _run_negative_operation(vector: dict[str, object], *, vectors_dir: Path) -> 
         if verify_invite_vector(vector):
             raise ValueError("invite signature verified unexpectedly")
         raise ValueError("invite signature rejected")
+    if operation == "outer_blob_decode":
+        relay = vector.get("relay_json")
+        if not isinstance(relay, dict):
+            raise ValueError("invalid relay_json")
+        _outer_blob_from_relay_json(relay)
+        return
     if operation in {
         "ratchet_decrypt",
         "ratchet_decrypt_duplicate",
@@ -614,6 +673,8 @@ def verify_all_vectors(vectors_dir: str | Path) -> None:
         ("invite.json", verify_invite_vector, False),
         ("delivery_profile.json", verify_delivery_profile_vector, False),
         ("inner_message.json", verify_inner_message_vector, False),
+        ("inner_receipt.json", verify_inner_receipt_vector, False),
+        ("outer_blob.json", verify_outer_blob_vector, False),
         ("pairing_transcript.json", verify_pairing_transcript_vector, True),
         ("double_ratchet.json", verify_double_ratchet_vector, True),
     ]

@@ -1,0 +1,10 @@
+{
+  "name": "inner-receipt-v1",
+  "description": "Canonical delivery receipt inner message (type receipt) per yakr-protocol-v1.md §4.1",
+  "json": "{\"body\":\"\",\"conversation_id\":\"pairwise_alice_bob\",\"created_at\":1700000000000,\"message_id\":\"d2b16fb1474421dac82d879eeadc71410feddcc8d1cfa9db3646cd04943f378b\",\"sender_device_id\":\"device_bob\",\"seq\":2,\"type\":\"receipt\",\"valid_until\":1700086400000,\"version\":1}",
+  "conversation_id": "pairwise_alice_bob",
+  "seq": 2,
+  "type": "receipt",
+  "message_id": "d2b16fb1474421dac82d879eeadc71410feddcc8d1cfa9db3646cd04943f378b",
+  "referenced_ciphertext_hex": "594b44523214ca9e4d387bccf35746e0407daaacc6b28a4f8445ef5a5158894db983e240700000000000000000c7fdb944e9925e0b646146de839da85fc158816d06aa470456ddf4de2e9e017d6b9c6ef1ec813a83e0859138"
+}

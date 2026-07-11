@@ -42,6 +42,8 @@ cargo test
 - [x] **Hybrid KEX** — `hybrid_kex.json` master matches §3.4 derivation (`rust/yakr-crypto`)
 - [x] **Mailbox tag** — `mailbox_tag.json` tag matches §3.6 (`rust/yakr-crypto`)
 - [x] **Inner message** — `inner_message.json` parses as canonical sorted JSON (`rust/yakr-crypto`)
+- [x] **Inner receipt** — `inner_receipt.json` canonical receipt JSON + `message_id` (`interop_verifier`, `rust/yakr-crypto`)
+- [x] **Outer blob** — `outer_blob.json` relay JSON round-trip (`interop_verifier`, `rust/yakr-crypto`)
 
 ### Signed artifacts
 
@@ -78,9 +80,11 @@ from yakr_testkit.interop_verifier import (
     verify_double_ratchet_vector,
     verify_hybrid_kex_vector,
     verify_inner_message_vector,
+    verify_inner_receipt_vector,
     verify_invite_vector,
     verify_mailbox_tag_vector,
     verify_negative_vector,
+    verify_outer_blob_vector,
     verify_pairing_transcript_vector,
 )
 
@@ -96,16 +100,15 @@ Interop failures should include:
 - Your implementation language and crypto libraries
 - Expected vs actual hex (first 16 bytes sufficient for secrets)
 
-## Phase 11 gap (in progress)
+## Phase 11
 
-Phase 9 interop is complete for crypto primitives. **Phase 11** ([phase-11-implementation-readiness.md](../docs/spec/phase-11-implementation-readiness.md)) adds:
+Phase 11 ([phase-11-implementation-readiness.md](../docs/spec/phase-11-implementation-readiness.md)) is **complete** for independent implementation readiness on the normative invite-pairing + double-ratchet path:
 
-- `pairing_transcript.json` and `double_ratchet.json` in the standalone verifier (**done**)
-- Published negative vectors under `test-vectors-v1/negative/` (**done**)
-- CI-gated Python↔Rust pairing and send/fetch in both directions (**done**)
-- Normative delivery state machine and [errata-v1.md](../docs/spec/errata-v1.md) (**done**)
+- Standalone verifier: pairing, ratchet, outer blob, receipt, negative pack
+- CI-gated Python↔Rust cross-language interop (`test_phase11_cross_lang.py`)
+- Normative delivery state machine and [errata-v1.md](../docs/spec/errata-v1.md)
 
-Criterion #3 (outer blob / receipt CBOR vectors) remains partial. Independent implementers should treat pairing/ratchet vectors and negative pack as authoritative via `verify_all_vectors()`.
+Run `verify_all_vectors("docs/spec/test-vectors-v1")` for full conformance without `yakr_core`.
 
 ## Version Freeze
 

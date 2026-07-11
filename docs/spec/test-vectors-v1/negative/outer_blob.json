@@ -1,0 +1,24 @@
+[
+  {
+    "name": "outer-blob-mailbox-tag-wrong-length",
+    "category": "outer_blob",
+    "operation": "outer_blob_decode",
+    "must_reject": true,
+    "error_contains": "32 bytes",
+    "relay_json": {
+      "mailbox_tag": "AQ",
+      "expires_at": 1700086400000,
+      "ciphertext": "AQ"
+    }
+  },
+  {
+    "name": "outer-blob-missing-ciphertext",
+    "category": "outer_blob",
+    "operation": "outer_blob_decode",
+    "must_reject": true,
+    "relay_json": {
+      "mailbox_tag": "obLD1OX2BxgpOktcbX6PkBEiM0RVZneImaq7zN3u_wA",
+      "expires_at": 1700086400000
+    }
+  }
+]
