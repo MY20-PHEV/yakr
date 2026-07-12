@@ -16,6 +16,7 @@ build/
 .tmp-hybrid-demo/
 .tmp-relay-group-demo/
 scripts/homelab_tailscale.local.env
+scripts/yakr-co-uk-deploy.local.md
 .tmp-homelab-operators/
 NOTICE.md
 data/
