@@ -1,0 +1,55 @@
+---
+description: Keep homelab ops, IPs, and website deploy assets off the public GitHub repo
+alwaysApply: true
+---
+
+# Public vs private — MY20-PHEV/yakr
+
+This repository is **public on GitHub**. Treat homelab, deploy, and operator material as **private by default**.
+
+## Never commit or push without explicit user approval
+
+- Real **IP addresses** (VPS, Tailscale, homelab, parking/registrar)
+- **SSH users**, hostnames, tunnel/forwarding setup, Traefik/Docker network names tied to your homelab
+- **Secrets**, `.env` files, wrap secrets, API keys, certificates
+- **yakr.co.uk website** source and deploy (`website/`, `logos/`, `deploy/homelab-website/`, homelab website scripts/docs)
+- **Operator runbooks** with real infrastructure values
+- Anything under `.gitignore` paths for private/local use
+
+## Already gitignored (keep local only)
+
+See `.gitignore` sections for `homelab_tailscale.local.env`, `yakr-co-uk-deploy.local.md`, `website/`, `deploy/homelab-website/`, `scripts/homelab_website_*.sh`, etc.
+
+Use `*.example` templates with placeholders (`100.x.x.x`, `your-ssh-user`) — never real values.
+
+## Before git commit or push
+
+1. Run `git diff --staged` and scan for IPs, `devos@`, Tailscale, VPS, homelab paths, deploy scripts.
+2. If the change is **ops/infra/website/deploy** or you are **unsure** → **ask the user first**.
+3. Do not push homelab scaffolding “for convenience” — local + gitignored is fine.
+
+## Public repo may include
+
+- Protocol spec, reference code, test vectors, certification docs
+- Generic docs with **no** real infrastructure identifiers
+- Links to **live public URLs** (e.g. `https://yakr.co.uk`) without exposing how they are hosted
+
+## If sensitive data was pushed
+
+- Do **not** only delete files in a follow-up commit (history retains them).
+- Tell the user; use history rewrite (`git filter-repo`) and force-push only with their explicit approval.
+- Mention forks/clones and GitHub object cache may still retain old data briefly.
+
+## Examples
+
+```
+# ❌ BAD — real infra on public repo
+HOMELAB_TAILSCALE_IP=100.125.109.114
+ssh devos@100.125.109.114 'docker ps'
+| yakr.co.uk A | 145.223.68.183 |
+
+# ✅ GOOD — placeholders or gitignored local files
+HOMELAB_TAILSCALE_IP=100.x.x.x
+ssh <HOMELAB_SSH_USER>@<HOMELAB_TAILSCALE_IP> 'docker ps'
+| yakr.co.uk A | <VPS_PUBLIC_IP> |
+```
