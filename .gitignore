@@ -17,6 +17,7 @@ build/
 .tmp-relay-group-demo/
 scripts/homelab_tailscale.local.env
 scripts/yakr-co-uk-deploy.local.md
+scripts/yakr-co-uk-deploy.local.md.example
 .tmp-homelab-operators/
 NOTICE.md
 data/
@@ -28,6 +29,15 @@ data/
 
 # Docker
 *.log
+
+# yakr.co.uk website (private homelab deploy — not in public repo)
+website/
+logos/
+deploy/homelab-website/
+docs/homelab-website.md
+scripts/homelab_website_deploy.sh
+scripts/homelab_website_check.sh
+scripts/optimize_yakr_logos.sh
 
 # Rust
 rust/target/
