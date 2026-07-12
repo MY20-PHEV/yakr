@@ -111,6 +111,7 @@ The whitepaper explains intent; the normative spec determines interoperability.
 | [docs/spec/negative-vector-outcomes-v1.md](docs/spec/negative-vector-outcomes-v1.md) | Normative negative-vector rejection codes |
 | [interop/blind-review/README.md](interop/blind-review/README.md) | External blind implementation review package |
 | [docs/homelab-relay.md](docs/homelab-relay.md) | **Homelab relay runbook** — quick deploy script + 8090/VPS |
+| [docs/homelab-website.md](docs/homelab-website.md) | **Homelab website** — yakr.co.uk via Traefik + nginx |
 | [docs/spec/relay-observer-privacy-v1.md](docs/spec/relay-observer-privacy-v1.md) | **Normative** what each relay/observer learns (metadata vs E2E) |
 | [docs/spec/operator-identity-v1.md](docs/spec/operator-identity-v1.md) | **Normative** messaging vs operator vs capability issuance keys |
 | [docs/SECURITY_BACKLOG.md](docs/SECURITY_BACKLOG.md) | Security hardening backlog (P0–P3) |
